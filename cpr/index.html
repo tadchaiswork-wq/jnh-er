@@ -1,0 +1,3441 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#1a2e4a">
+<title>CPR Timeline — JNH</title>
+<!-- App icon / PWA -->
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-title" content="CPR Timeline">
+<!-- Firebase Realtime Database SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<!-- PDF export (download as .pdf file) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+<style>
+:root{
+  --navy:#1a2e4a;--navy2:#243d5c;--adr:#c94a08;--adr2:#ea6018;
+  --defib:#6b21a8;--defib2:#7c3aed;--ok:#15803d;--ok-bg:#dcfce7;
+  --warn:#b45309;--warn-bg:#fef3c7;--danger:#b91c1c;--danger-bg:#fee2e2;
+  --drug:#0e7490;--drug-bg:#cffafe;--surface:#f0f4f8;--card:#fff;
+  --border:#e2e8f0;--text:#1e293b;--muted:#64748b;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
+  font-size:17px;background:var(--surface);color:var(--text);-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.screen{display:none;height:100dvh;flex-direction:column;overflow:hidden}
+.screen.active{display:flex}
+
+/* ── SHARED COMPONENTS ── */
+.btn{border:none;border-radius:10px;cursor:pointer;font-family:inherit;transition:transform .1s,filter .1s}
+.btn:active{transform:scale(0.96);filter:brightness(.9)}
+.card{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.tag{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap}
+.tag-adr{background:#fed7aa;color:#9a3412}
+.tag-defib{background:#ede9fe;color:#5b21b6}
+.tag-drug{background:var(--drug-bg);color:var(--drug)}
+.tag-airway{background:var(--ok-bg);color:var(--ok)}
+.tag-note{background:#f1f5f9;color:#475569}
+.tag-warn{background:var(--warn-bg);color:var(--warn)}
+.tag-del{background:none;border:none;cursor:pointer;color:#94a3b8;font-size:13px;padding:0 2px;line-height:1}
+.tag-del:hover{color:var(--danger)}
+.form-label{display:block;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.form-input{width:100%;padding:13px 16px;border:2px solid var(--border);border-radius:12px;font-size:16px;outline:none;-webkit-appearance:none;background:#fff;color:var(--text);font-family:inherit}
+.form-input:focus{border-color:var(--navy)}
+.toggle-row{display:flex;gap:8px}
+.tgl{flex:1;padding:14px 8px;border:2px solid var(--border);border-radius:10px;background:#fff;font-size:16px;font-weight:600;color:var(--muted);cursor:pointer;text-align:center;transition:all .15s;font-family:inherit}
+.tgl.on{border-color:var(--navy);background:var(--navy);color:#fff}
+
+/* ── BLINK ANIMATIONS ── */
+@keyframes blink-warn{0%,100%{box-shadow:0 0 0 0 rgba(180,83,9,.4)}50%{box-shadow:0 0 0 8px rgba(180,83,9,0)}}
+@keyframes blink-danger{0%,100%{box-shadow:0 0 0 0 rgba(185,28,28,.5)}50%{box-shadow:0 0 0 12px rgba(185,28,28,0)}}
+@keyframes blink-defib{0%,100%{box-shadow:0 0 0 0 rgba(107,33,168,.6)}50%{box-shadow:0 0 0 14px rgba(107,33,168,0)}}
+@keyframes pulse-text{0%,100%{opacity:1}50%{opacity:.5}}
+.blink-warn{animation:blink-warn 1s ease-in-out infinite!important}
+.blink-danger{animation:blink-danger .6s ease-in-out infinite!important}
+.blink-defib{animation:blink-defib .7s ease-in-out infinite!important}
+/* Adrenaline-specific pulse — changes colour + shadow for high visibility */
+@keyframes adr-pulse-warn{
+  0%,100%{background:linear-gradient(145deg,var(--adr),var(--adr2));box-shadow:0 3px 12px rgba(201,74,8,.35)}
+  50%{background:linear-gradient(145deg,#92400e,#b45309);box-shadow:0 0 0 14px rgba(180,83,9,0),0 0 20px rgba(201,74,8,.6)}
+}
+@keyframes adr-pulse-danger{
+  0%,100%{background:linear-gradient(145deg,var(--adr),var(--adr2));box-shadow:0 3px 12px rgba(201,74,8,.35)}
+  50%{background:linear-gradient(145deg,#7f1d1d,var(--danger));box-shadow:0 0 0 16px rgba(185,28,28,0),0 0 24px rgba(185,28,28,.7)}
+}
+.adr-blink-warn{animation:adr-pulse-warn .8s ease-in-out infinite!important}
+.adr-blink-danger{animation:adr-pulse-danger .45s ease-in-out infinite!important}
+
+/* ── Countdown ใหญ่กระพริบ ก่อนครบรอบ 2 นาที ── */
+#cycle-countdown{position:fixed;top:11%;left:50%;z-index:900;pointer-events:none;
+  display:none;flex-direction:column;align-items:center;
+  background:rgba(185,28,28,.93);color:#fff;padding:10px 30px 14px;border-radius:20px;
+  box-shadow:0 10px 34px rgba(0,0,0,.4);animation:cc-pulse .5s ease-in-out infinite}
+#cycle-countdown .cc-lbl{font-size:16px;font-weight:800;letter-spacing:.5px;white-space:nowrap}
+#cycle-countdown .cc-num{font-size:76px;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
+@keyframes cc-pulse{
+  0%,100%{opacity:1;transform:translateX(-50%) scale(1)}
+  50%{opacity:.7;transform:translateX(-50%) scale(1.07)}
+}
+
+/* ══ HOME/DASHBOARD ══ */
+#screen-home{overflow-y:auto;-webkit-overflow-scrolling:touch}
+.home-header{background:var(--navy);padding:16px 18px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.home-title{font-size:22px;font-weight:800;color:#fff}
+.home-sub{font-size:14px;color:rgba(255,255,255,.65);margin-top:2px}
+.home-admin-btn{background:rgba(255,255,255,.15);color:#fff;border:none;padding:9px 16px;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer}
+.home-body{padding:14px;max-width:800px;margin:0 auto}
+.start-cpr-btn{width:100%;padding:22px;background:var(--danger);color:#fff;border:none;border-radius:16px;font-size:24px;font-weight:800;cursor:pointer;box-shadow:0 4px 16px rgba(185,28,28,.4);margin-bottom:16px;font-family:inherit}
+.start-cpr-btn:active{transform:scale(0.98)}
+.month-nav{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:12px;background:var(--card);border-radius:12px;padding:9px 14px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.month-nav-btn{background:none;border:2px solid var(--navy);color:var(--navy);border-radius:50%;width:36px;height:36px;font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0}
+.month-nav-lbl{font-size:17px;font-weight:800;color:var(--navy);min-width:160px;text-align:center}
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.stat-box{background:var(--card);border-radius:14px;padding:16px 10px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.stat-val{font-size:32px;font-weight:800;color:var(--navy)}
+.stat-lbl{font-size:13px;color:var(--muted);font-weight:600;margin-top:4px}
+.case-list-header{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between}
+.case-item{background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;border:2px solid transparent;transition:border-color .15s;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.case-item:hover{border-color:var(--navy)}
+.case-item-top{display:flex;justify-content:space-between;align-items:flex-start}
+.case-name{font-size:17px;font-weight:700}
+.case-hn{font-size:14px;color:var(--muted)}
+.case-badge{padding:4px 12px;border-radius:20px;font-size:13px;font-weight:700}
+.badge-rosc{background:var(--ok-bg);color:var(--ok)}
+.badge-dead{background:var(--danger-bg);color:var(--danger)}
+.badge-open{background:#f1f5f9;color:#475569}
+.case-item-bot{display:flex;gap:12px;margin-top:8px;font-size:14px;color:var(--muted)}
+.sync-note{text-align:center;font-size:13px;color:var(--muted);padding:10px;margin-bottom:8px}
+.offline-banner{background:var(--warn-bg);border:1px solid #fcd34d;border-radius:10px;padding:10px 14px;font-size:14px;color:var(--warn);font-weight:600;margin-bottom:12px;display:none}
+
+/* ══ SETUP ══ */
+#screen-setup{background:linear-gradient(160deg,var(--navy) 0%,var(--navy2) 100%);align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+.setup-card{background:#fff;border-radius:24px;padding:28px 24px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.setup-logo{text-align:center;margin-bottom:18px}
+.setup-logo .hosp{font-size:15px;color:var(--muted);font-weight:500;margin-bottom:4px}
+.setup-logo .title{font-size:26px;font-weight:800;color:var(--navy)}
+.form-row{margin-bottom:14px}
+.divider{height:1px;background:var(--border);margin:16px 0}
+.setup-start{width:100%;padding:20px;background:var(--danger);color:#fff;border:none;border-radius:14px;font-size:22px;font-weight:800;cursor:pointer;box-shadow:0 4px 16px rgba(185,28,28,.4);font-family:inherit}
+.setup-back{width:100%;padding:14px;background:#fff;color:var(--muted);border:2px solid var(--border);border-radius:14px;font-size:17px;font-weight:600;cursor:pointer;margin-bottom:10px;font-family:inherit}
+
+/* ══ CPR SCREEN ══ */
+.cpr-header{background:var(--navy);padding:10px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;min-height:62px}
+.elapsed{font-size:36px;font-weight:800;font-variant-numeric:tabular-nums;color:#fbbf24;line-height:1;text-align:center;flex:0 0 auto;padding:0 8px}
+.hdr-info{flex:1;overflow:hidden;cursor:pointer}
+.hdr-info:hover .hdr-name{text-decoration:underline dotted rgba(255,255,255,.5)}
+.hdr-name{font-size:16px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-sub{font-size:12px;color:rgba(255,255,255,.6);margin-top:2px}
+.hdr-btns{display:flex;gap:7px;flex-shrink:0}
+.hdr-btn{padding:8px 13px;border-radius:8px;border:none;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn-now{background:rgba(255,255,255,.15);color:#fff}
+.btn-end{background:var(--danger);color:#fff}
+
+/* Shockable banner */
+#shockable-banner{position:fixed;top:62px;left:0;right:0;z-index:50;background:var(--defib);color:#fff;padding:12px 16px;display:none;align-items:center;justify-content:space-between;box-shadow:0 4px 12px rgba(107,33,168,.5)}
+#shockable-banner.show{display:flex}
+.shock-text{font-size:18px;font-weight:800;animation:pulse-text .5s ease-in-out infinite}
+.shock-dismiss{background:rgba(255,255,255,.25);border:none;color:#fff;padding:8px 14px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
+
+/* CPR body */
+.cpr-body{display:flex;flex:1;overflow:hidden}
+
+/* Timeline */
+.tl-panel{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--surface)}
+.tl-table{width:100%;border-collapse:collapse;font-size:15.5px}
+.tl-table thead th{position:sticky;top:0;z-index:20;background:var(--navy2);color:rgba(255,255,255,.85);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:8px 4px;text-align:center}
+.tl-row{background:#fff;border-bottom:1px solid var(--border)}
+.tl-row.rhythm-row{background:#f0f7ff}
+.tl-row.current{background:#fffbeb!important;outline:2px solid #fbbf24;outline-offset:-1px;position:relative;z-index:1}
+.tl-row td{padding:3px 4px;vertical-align:middle}
+.td-min{width:36px;text-align:center;font-weight:800;font-size:17px;color:var(--navy)}
+.td-min.big{font-size:21px}
+/* ── ช่อง checkmark: Adrenaline / Defib (แตะเพื่อบันทึก/ลบ) ── */
+.td-adr,.td-df{text-align:center;vertical-align:middle;cursor:pointer;font-weight:800;font-size:17px;white-space:nowrap;user-select:none;-webkit-user-select:none;line-height:1.3}
+.td-adr{width:46px;color:var(--adr);background:#fff7ed;border-right:1px solid var(--border);border-left:1px solid var(--border)}
+.td-df{width:60px;color:var(--defib);background:#faf5ff;border-right:1px solid var(--border)}
+.td-adr:active,.td-df:active{filter:brightness(.93)}
+.df-j{font-size:10px;font-weight:700;margin-left:1px;vertical-align:1px}
+.td-content{padding:2px 6px}
+/* ── One-line row: rhythm + tags inline + ปุ่มเพิ่มเล็กๆ ท้ายแถว ── */
+.row-line{display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-height:26px}
+.rhythm-inline{display:inline-flex;align-items:center;gap:4px;flex-shrink:0}
+.tagwrap{display:contents}
+.row-add{margin-left:auto;display:inline-flex;gap:4px;flex-shrink:0}
+.add-mini{border:1.5px dashed #cbd5e1;background:none;color:#94a3b8;font-size:11px;font-weight:600;border-radius:6px;padding:3px 6px;cursor:pointer;font-family:inherit;line-height:1;white-space:nowrap;transition:all .12s}
+.add-mini:active{background:#e2e8f0;color:var(--navy)}
+.r-sel{border:1.5px solid #bfdbfe;border-radius:7px;padding:4px 3px;font-size:13.5px;background:#fff;color:var(--text);outline:none;max-width:86px;-webkit-appearance:none}
+.r-inp{border:1.5px solid #bfdbfe;border-radius:7px;padding:4px 3px;font-size:13.5px;width:48px;background:#fff;text-align:center;outline:none;font-family:inherit}
+.r-lbl{font-size:13px;color:var(--muted);font-weight:600}
+.etags{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px}
+.tag-proc{background:#dcfce7;color:#166534}
+
+/* Actions panel */
+.act-panel{width:188px;flex-shrink:0;background:var(--card);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.target-sel{width:100%;padding:9px 8px;border:2px solid var(--border);border-radius:9px;font-size:13px;font-weight:700;outline:none;font-family:inherit;background:#fff;color:var(--text);-webkit-appearance:none}
+.ett-step{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.ett-step .ett-stepbtn{width:38px;height:38px;border:2px solid var(--border);border-radius:9px;background:#f8fafc;font-size:20px;font-weight:800;color:var(--navy);cursor:pointer;flex-shrink:0;font-family:inherit;line-height:1}
+.ett-step .ett-stepbtn:active{background:var(--navy);color:#fff}
+.act-sec{padding:11px;border-bottom:1px solid var(--border)}
+.act-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:8px}
+#preset-edit-btn{border:none;background:none;color:var(--drug);font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;padding:2px 4px;text-transform:none;letter-spacing:0}
+#preset-edit-btn.on{background:var(--drug);color:#fff;border-radius:6px}
+.preset-edit-row{display:flex;gap:5px;margin-bottom:7px;align-items:stretch}
+.preset-edit-row .sm-btn{margin-bottom:0}
+.preset-del-btn{width:42px;flex-shrink:0;padding:0;border-radius:9px;border:none;background:var(--danger-bg);color:var(--danger);font-size:16px;font-weight:700;cursor:pointer;font-family:inherit}
+.preset-add-btn{width:100%;padding:11px 10px;border-radius:9px;border:1.5px dashed var(--drug);background:#fff;color:var(--drug);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+.big-btn{width:100%;border:none;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:15px 8px;font-family:inherit;transition:transform .1s,filter .1s,box-shadow .2s}
+.big-btn:active{transform:scale(.96);filter:brightness(.9)}
+.big-btn .t{font-size:17px;font-weight:800;color:#fff}
+.big-btn .s{font-size:12px;color:rgba(255,255,255,.85);font-weight:500}
+.btn-adr{background:linear-gradient(145deg,var(--adr),var(--adr2));box-shadow:0 3px 12px rgba(201,74,8,.35)}
+.btn-defib{background:linear-gradient(145deg,var(--defib),var(--defib2));box-shadow:0 3px 12px rgba(107,33,168,.35);margin-top:8px}
+.sm-btn{width:100%;padding:11px 10px;border-radius:9px;border:none;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:7px;text-align:center;font-family:inherit;transition:transform .1s,filter .1s}
+.sm-btn:active{transform:scale(.97);filter:brightness(.9)}
+.sm-btn:last-child{margin-bottom:0}
+.sm-blue{background:#dbeafe;color:#1e40af}
+.sm-teal{background:var(--drug-bg);color:var(--drug)}
+.sm-green{background:var(--ok-bg);color:var(--ok)}
+.sm-slate{background:#f1f5f9;color:#475569;border:1px solid var(--border)}
+.reminder{padding:8px 10px;border-radius:9px;font-size:13px;font-weight:700;text-align:center;margin-bottom:5px}
+.rem-ok{background:var(--ok-bg);color:var(--ok)}
+.rem-warn{background:var(--warn-bg);color:var(--warn);animation:pulse-text 1s ease-in-out infinite}
+.rem-danger{background:var(--danger-bg);color:var(--danger);animation:pulse-text .6s ease-in-out infinite}
+.proto-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:13px}
+.proto-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot-ok{background:var(--ok)}
+.dot-warn{background:var(--warn)}
+.dot-danger{background:var(--danger);animation:pulse-text .6s infinite}
+.drug-ref{font-size:12px;color:var(--muted);line-height:1.7}
+.drug-ref b{color:var(--text)}
+
+/* ══ MODALS ══ */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.overlay.hide{display:none}
+.modal{background:#fff;border-radius:20px;padding:24px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:90dvh;overflow-y:auto}
+.modal h3{font-size:19px;font-weight:800;color:var(--navy);margin-bottom:14px}
+.modal-sub{font-size:14px;color:var(--muted);margin-bottom:12px;text-align:center}
+.qk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.qk-btn{padding:12px 4px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-size:13px;font-weight:600;cursor:pointer;text-align:center;line-height:1.4;font-family:inherit;transition:all .12s}
+.qk-btn:active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.modal-inp{width:100%;padding:14px;border:2px solid var(--border);border-radius:12px;font-size:18px;text-align:center;margin-bottom:12px;outline:none;font-family:inherit}
+.modal-inp:focus{border-color:var(--navy)}
+.modal-btns{display:flex;gap:10px}
+.m-cancel{flex:1;padding:15px;border:2px solid var(--border);border-radius:11px;background:#fff;font-size:17px;font-weight:700;cursor:pointer;color:var(--muted);font-family:inherit}
+.m-ok{flex:1;padding:15px;border:none;border-radius:11px;font-size:17px;font-weight:800;cursor:pointer;font-family:inherit}
+.m-ok-navy{background:var(--navy);color:#fff}
+.m-ok-defib{background:var(--defib);color:#fff}
+.m-ok-danger{background:var(--danger);color:#fff}
+.j-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.j-btn{padding:14px 4px;border:1.5px solid var(--border);border-radius:9px;background:#fff;font-size:15px;font-weight:700;cursor:pointer;text-align:center;font-family:inherit}
+.j-btn:active{background:var(--defib);color:#fff;border-color:var(--defib)}
+
+/* ══ SUMMARY ══ */
+#screen-summary{overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sum-hdr{background:var(--navy);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.sum-hdr-left .sum-title{font-size:21px;font-weight:800;color:#fff}
+.sum-hdr-left .sum-pt{font-size:14px;color:rgba(255,255,255,.7);margin-top:2px}
+.sum-hdr-btns{display:flex;gap:8px}
+.sum-hdr-btn{background:rgba(255,255,255,.18);color:#fff;border:none;padding:9px 13px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+.sum-body{padding:14px;max-width:860px;margin:0 auto}
+.sum-card{background:#fff;border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.sum-card h4{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--navy);margin-bottom:12px}
+.s-stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.s-stat{text-align:center;padding:12px 8px;background:var(--surface);border-radius:10px}
+.s-stat-val{font-size:26px;font-weight:800;color:var(--navy);line-height:1}
+.s-stat-lbl{font-size:12px;color:var(--muted);margin-top:4px;font-weight:600}
+.time-row{font-size:14px;color:var(--muted);margin-top:10px;line-height:1.9}
+.time-row b{color:var(--text)}
+.q-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.q-item{padding:10px;background:var(--surface);border-radius:10px}
+.q-lbl{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;margin-bottom:4px}
+.q-val{font-size:22px;font-weight:800}
+.q-good{color:var(--ok)}.q-warn{color:var(--warn)}.q-bad{color:var(--danger)}
+.q-note{font-size:13px;color:var(--muted);margin-top:3px}
+.etco2-chart{display:flex;align-items:flex-end;gap:3px;height:60px;margin-top:8px}
+.etco2-bar{flex:1;border-radius:3px 3px 0 0;min-height:4px}
+.drug-dl{font-size:15px;line-height:2.3}
+.drug-dl-row{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--surface);padding:2px 0}
+.cause-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cause-item{display:flex;align-items:center;gap:8px;padding:11px 12px;border:2px solid var(--border);border-radius:9px;cursor:pointer;font-size:15px;font-weight:500;transition:all .12s}
+.cause-item.on{border-color:var(--navy);background:#eff6ff;color:var(--navy);font-weight:700}
+.cause-chk{width:20px;height:20px;border:2px solid var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.cause-item.on .cause-chk{background:var(--navy);border-color:var(--navy);color:#fff}
+.out-row{display:flex;gap:10px}
+.out-btn{flex:1;padding:18px;border:2.5px solid var(--border);border-radius:12px;font-size:19px;font-weight:800;cursor:pointer;background:#fff;color:var(--muted);font-family:inherit;transition:all .15s}
+.out-btn.rosc.on{border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
+.out-btn.dead.on{border-color:var(--danger);background:var(--danger-bg);color:var(--danger)}
+.v-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.v-grp .v-lbl{font-size:13px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px}
+.v-inp{width:100%;padding:10px 8px;border:2px solid var(--border);border-radius:9px;font-size:15px;text-align:center;outline:none;font-family:inherit}
+.v-inp:focus{border-color:var(--navy)}
+/* V/S stepper −/+ */
+.v-step{display:flex;gap:4px;align-items:stretch}
+.v-step .v-inp{-moz-appearance:textfield}
+.v-step .v-inp::-webkit-outer-spin-button,.v-step .v-inp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.v-stepbtn{width:34px;flex-shrink:0;border:2px solid var(--border);border-radius:8px;background:#f8fafc;font-size:18px;font-weight:800;color:var(--navy);cursor:pointer;font-family:inherit;line-height:1;padding:0}
+.v-stepbtn:active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.gcs-row{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
+.note-area{width:100%;padding:12px;border:2px solid var(--border);border-radius:10px;font-size:16px;min-height:80px;resize:none;font-family:inherit;outline:none}
+.note-area:focus{border-color:var(--navy)}
+.sum-print-btn{width:100%;padding:19px;background:var(--navy);color:#fff;border:none;border-radius:14px;font-size:19px;font-weight:800;cursor:pointer;margin-top:6px;font-family:inherit}
+.sum-new-btn{width:100%;padding:19px;background:#fff;color:var(--navy);border:2.5px solid var(--navy);border-radius:14px;font-size:19px;font-weight:800;cursor:pointer;margin-top:10px;font-family:inherit}
+
+/* Print timeline table (hidden on screen) */
+.print-tl{display:none}
+.print-tl table{width:100%;border-collapse:collapse;font-size:11px}
+.print-tl th,.print-tl td{border:1px solid #ccc;padding:4px 6px;text-align:left;vertical-align:top}
+.print-tl th{background:#eee;font-weight:700}
+
+/* ══ ADMIN ══ */
+#screen-admin{overflow-y:auto;-webkit-overflow-scrolling:touch}
+.admin-hdr{background:var(--navy2);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.admin-title{font-size:20px;font-weight:800;color:#fff}
+.admin-body{padding:14px;max-width:800px;margin:0 auto}
+.admin-card{background:#fff;border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.admin-card h4{font-size:15px;font-weight:800;color:var(--navy);margin-bottom:12px;text-transform:uppercase;letter-spacing:.4px}
+.admin-case-item{padding:12px;border:2px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer}
+.admin-case-item:hover{border-color:var(--navy)}
+.export-btn{width:100%;padding:14px;background:var(--navy);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px}
+.export-btn.secondary{background:#fff;color:var(--navy);border:2px solid var(--navy)}
+.pin-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;flex:1}
+.pin-title{font-size:20px;font-weight:800;color:var(--navy);margin-bottom:8px}
+.pin-sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+.pin-dots{display:flex;gap:12px;margin-bottom:24px}
+.pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);transition:background .15s}
+.pin-dot.filled{background:var(--navy);border-color:var(--navy)}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:240px}
+.pin-key{padding:16px;border:2px solid var(--border);border-radius:12px;background:#fff;font-size:20px;font-weight:700;cursor:pointer;text-align:center;font-family:inherit;transition:all .12s}
+.pin-key:active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.settings-row{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.settings-row label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.settings-row input{padding:12px;border:2px solid var(--border);border-radius:10px;font-size:14px;outline:none;font-family:inherit}
+.settings-row input:focus{border-color:var(--navy)}
+.fb-status{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:6px 12px;border-radius:20px;margin-top:4px}
+.fb-ok{background:#dcfce7;color:#15803d}
+.fb-off{background:#f1f5f9;color:#64748b}
+.fb-err{background:#fee2e2;color:#b91c1c}
+.fb-guide{background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:12px;padding:14px;margin-bottom:12px;font-size:13px;line-height:1.8;color:#1e40af}
+.fb-guide b{color:#1a2e4a;display:block;margin-bottom:6px;font-size:14px}
+.quality-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:13px;font-weight:700}
+.qb-good{background:var(--ok-bg);color:var(--ok)}
+.qb-warn{background:var(--warn-bg);color:var(--warn)}
+.qb-bad{background:var(--danger-bg);color:var(--danger)}
+.review-note{width:100%;padding:12px;border:2px solid var(--border);border-radius:9px;font-size:15px;resize:none;font-family:inherit;outline:none;margin-top:8px}
+.review-note:focus{border-color:var(--navy)}
+
+/* Case-detail editable timeline */
+#cd-edit-tl{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-bottom:12px}
+.cd-edit-hd{display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:800;color:var(--navy);margin-bottom:7px}
+.cd-add-btn{border:1.5px dashed var(--drug);background:#fff;color:var(--drug);font-size:12px;font-weight:700;border-radius:7px;padding:4px 10px;cursor:pointer;font-family:inherit}
+.cd-ev-row{display:flex;gap:5px;align-items:center;margin-bottom:6px}
+.cd-ev-row input,.cd-ev-row select{border:1.5px solid var(--border);border-radius:7px;padding:7px 6px;font-size:13px;font-family:inherit;outline:none;background:#fff;color:var(--text)}
+.cd-ev-row input:focus,.cd-ev-row select:focus{border-color:var(--navy)}
+.cd-ev-min{width:42px;text-align:center;flex-shrink:0}
+.cd-ev-type{width:62px;flex-shrink:0;-webkit-appearance:none}
+.cd-ev-detail{flex:1;min-width:0}
+.cd-ev-rh{width:88px;flex-shrink:0;-webkit-appearance:none}
+.cd-ev-num{width:50px;text-align:center;flex-shrink:0}
+.cd-ev-del{width:34px;flex-shrink:0;border:none!important;background:var(--danger-bg)!important;color:var(--danger);font-size:14px;font-weight:700;border-radius:7px;padding:7px 0;cursor:pointer;font-family:inherit}
+.cd-empty{font-size:12px;color:var(--muted);text-align:center;padding:5px}
+
+/* ══ PRINT ══ */
+#print-wrap{display:none}
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  @page{size:A4;margin:10mm}
+  html,body{height:auto;overflow:visible;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#000}
+  .screen,.overlay,#shockable-banner{display:none!important}
+  #print-wrap{display:block!important}
+  #print-p1{page-break-after:always;padding:0}
+  #print-p2{padding:0}
+  .pt{font-size:8pt;color:#666;padding:2px 4px}
+  .ptd{font-size:9pt;padding:2px 4px}
+}
+@media(max-width:500px){.act-panel{width:150px}}
+@media(orientation:portrait) and (max-width:600px){
+  .s-stat-grid{grid-template-columns:repeat(2,1fr)}
+  .cause-grid{grid-template-columns:1fr}
+}
+
+/* ══ KEYBOARD HINT (แสดงเฉพาะเครื่องที่มีเมาส์/คีย์บอร์ด) ══ */
+.kb-hint{display:none;font-size:10px;font-weight:800;background:rgba(255,255,255,.28);color:#fff;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle;letter-spacing:.5px}
+.sm-btn .kb-hint,.hdr-btn .kb-hint{background:rgba(0,0,0,.10);color:inherit}
+@media(hover:hover) and (pointer:fine){.kb-hint{display:inline-block}}
+
+/* ══ HOVER STATES (จอคอม) ══ */
+@media(hover:hover) and (pointer:fine){
+  .sm-btn:hover,.hdr-btn:hover{filter:brightness(.93)}
+  .big-btn:hover{filter:brightness(1.08)}
+  .qk-btn:hover,.j-btn:hover{border-color:var(--navy);background:#f8fafc}
+  .add-mini:hover{border-color:var(--navy);color:var(--navy);background:#f8fafc}
+  .td-adr:hover,.td-df:hover{filter:brightness(.95)}
+  .td-adr:empty:hover::before,.td-df:empty:hover::before{content:'+';color:#cbd5e1;font-weight:700}
+  .tgl:hover:not(.on){border-color:var(--navy);color:var(--navy)}
+  .m-cancel:hover{background:#f8fafc}
+  .m-ok:hover{filter:brightness(1.1)}
+  ::-webkit-scrollbar{width:8px;height:8px}
+}
+
+/* ══ TABLET — iPad ≥ 768px ══ */
+@media(min-width:768px){
+  /* CPR screen: action panel กว้างขึ้น ปุ่ม/ฟอนต์ใหญ่ขึ้น */
+  .act-panel{width:280px}
+  .act-sec{padding:14px}
+  .act-lbl{font-size:12px;margin-bottom:9px}
+  .target-sel{font-size:15px;padding:11px 10px}
+  .big-btn{padding:19px 10px}
+  .big-btn .t{font-size:20px}
+  .big-btn .s{font-size:13px}
+  .sm-btn{padding:14px 10px;font-size:15px;margin-bottom:8px}
+  .preset-add-btn{padding:13px 10px;font-size:15px}
+  .reminder{font-size:14px;padding:10px 12px}
+  .proto-row{font-size:14px}
+  .drug-ref{font-size:13px}
+  /* Timeline: อ่านง่าย แต่แถวกระชับ */
+  .tl-table{font-size:16px}
+  .tl-table thead th{font-size:13px;padding:8px 6px}
+  .tl-row td{padding:4px 6px}
+  .td-min{width:46px;font-size:19px}
+  .td-min.big{font-size:23px}
+  .td-adr{width:52px;font-size:18px}
+  .td-df{width:66px;font-size:18px}
+  .df-j{font-size:11px}
+  .td-content{padding:3px 8px}
+  .r-sel{font-size:14px;padding:5px 4px;max-width:96px}
+  .r-inp{font-size:14px;padding:5px 4px;width:52px}
+  .r-lbl{font-size:14px}
+  .tag{font-size:14px;padding:3px 9px}
+  .tag-del{font-size:15px;padding:2px 5px}
+  .row-line{min-height:30px}
+  .add-mini{font-size:12px;padding:4px 8px}
+  /* Header */
+  .elapsed{font-size:40px}
+  .hdr-name{font-size:18px}
+  .hdr-sub{font-size:13px}
+  .hdr-btn{padding:10px 16px;font-size:14px}
+  /* Home/Dashboard: ใช้พื้นที่จอกว้าง */
+  .home-body{max-width:1100px;padding:20px 24px}
+  .home-title{font-size:24px}
+  .start-cpr-btn{padding:26px;font-size:26px}
+  .stat-val{font-size:38px}
+  .stat-lbl{font-size:14px}
+  #case-list{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;align-items:start}
+  .case-item{margin-bottom:0}
+  .month-nav-lbl{font-size:18px}
+  /* Summary V/S: 4 คอลัมน์บนจอกว้าง */
+  #rosc-vs-container .v-grid{grid-template-columns:repeat(4,1fr)}
+  /* Modals ใหญ่ขึ้นเล็กน้อย */
+  .modal{max-width:460px}
+  .qk-btn{padding:14px 6px;font-size:14px}
+  .j-btn{padding:16px 4px;font-size:16px}
+}
+
+/* ══ DESKTOP ≥ 1200px ══ */
+@media(min-width:1200px){
+  .act-panel{width:330px}
+  .big-btn .t{font-size:21px}
+  .sm-btn{font-size:16px}
+  .tl-table{font-size:17px}
+  .home-body{max-width:1280px}
+  #case-list{grid-template-columns:repeat(3,1fr)}
+  .sum-body{max-width:1000px}
+}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:2px}
+</style>
+</head>
+<body>
+
+<!-- ══ SHOCKABLE BANNER (fixed) ══ -->
+<div id="shockable-banner">
+  <span class="shock-text">⚡ VF/pVT — DEFIBRILLATE NOW!</span>
+  <button class="shock-dismiss" onclick="dismissShockable()">ให้ Defib แล้ว</button>
+</div>
+
+<!-- ══════════════════════════════════════
+     HOME / DASHBOARD
+══════════════════════════════════════ -->
+<div id="screen-home" class="screen">
+  <div class="home-header">
+    <div>
+      <div class="home-title">🏥 CPR Timeline</div>
+      <div class="home-sub">Jainatnarendra Hospital · ER · ACLS 2025</div>
+    </div>
+    <button class="home-admin-btn" onclick="goAdmin()">⚙ Admin</button>
+  </div>
+  <div class="home-body">
+    <div class="offline-banner" id="offline-banner">⚠️ ออฟไลน์ — ข้อมูลเก็บใน device, จะ sync เมื่อมีอินเทอร์เน็ต</div>
+    <!-- Interrupted session restore banner -->
+    <div id="restore-banner" style="display:none;background:#fef3c7;border:2.5px solid #fbbf24;border-radius:14px;padding:14px 16px;margin-bottom:14px">
+      <div id="restore-title" style="font-size:15px;font-weight:800;color:#92400e;margin-bottom:6px">⚠️ พบ CPR Session ที่ยังค้างอยู่!</div>
+      <div id="restore-info" style="font-size:13px;color:#78350f;margin-bottom:12px"></div>
+      <div style="display:flex;gap:10px">
+        <button onclick="resumeOngoing()" style="flex:1;padding:13px;background:#c94a08;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit">▶ กลับเข้าหน้า CPR</button>
+        <button id="restore-discard-btn" onclick="discardSession()" style="padding:13px 16px;background:#fff;border:2px solid #e2e8f0;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;color:#64748b;font-family:inherit">🗑 ลบทิ้ง</button>
+      </div>
+    </div>
+    <button class="start-cpr-btn" onclick="goSetup()">▶ START CPR NEW</button>
+    <div class="month-nav">
+      <button class="month-nav-btn" onclick="dashPrevMonth()">‹</button>
+      <span class="month-nav-lbl" id="dash-month-lbl">—</span>
+      <button class="month-nav-btn" onclick="dashNextMonth()">›</button>
+    </div>
+    <div class="stat-row" id="stat-row">
+      <div class="stat-box"><div class="stat-val" id="st-total">—</div><div class="stat-lbl" id="st-total-lbl">เคสเดือนนี้</div></div>
+      <div class="stat-box"><div class="stat-val" id="st-rosc">—</div><div class="stat-lbl">ROSC rate</div></div>
+      <div class="stat-box"><div class="stat-val" id="st-qual">—</div><div class="stat-lbl">CPR quality</div></div>
+    </div>
+    <div class="case-list-header">
+      <span id="case-list-header-lbl">เคสเดือนนี้</span>
+      <span id="case-count-lbl"></span>
+    </div>
+    <div id="case-list"></div>
+    <div class="sync-note" id="sync-note"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     SETUP
+══════════════════════════════════════ -->
+<div id="screen-setup" class="screen">
+  <div class="setup-card">
+    <div class="setup-logo">
+      <div class="hosp">🏥 Jainatnarendra Hospital — ER</div>
+      <div class="title">CPR Timeline v2</div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">ชื่อผู้ป่วย</label>
+      <input type="text" class="form-input" id="inp-name" placeholder="ชื่อ-สกุล" autocomplete="off" autocorrect="off">
+    </div>
+    <div class="form-row">
+      <label class="form-label">HN (กรอกทีหลังได้)</label>
+      <input type="text" class="form-input" id="inp-hn" placeholder="HN..." autocomplete="off">
+    </div>
+    <div class="form-row">
+      <label class="form-label">ประเภทผู้ป่วย</label>
+      <div class="toggle-row">
+        <button class="tgl on" id="tgl-adult" onclick="setPType('adult')">👤 ผู้ใหญ่</button>
+        <button class="tgl"    id="tgl-child" onclick="setPType('child')">👶 เด็ก (Peds)</button>
+      </div>
+    </div>
+    <div class="form-row" id="weight-row" style="display:none">
+      <label class="form-label">น้ำหนัก (kg)</label>
+      <input type="number" class="form-input" id="inp-weight" placeholder="kg" min="1" max="200" inputmode="decimal">
+    </div>
+    <div class="form-row">
+      <label class="form-label">ประเภท Arrest</label>
+      <div class="toggle-row">
+        <button class="tgl on" id="tgl-ihca" onclick="setAType('IHCA')">🏥 IHCA</button>
+        <button class="tgl"    id="tgl-ohca" onclick="setAType('OHCA')">🚑 OHCA</button>
+      </div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">เวลา Arrest</label>
+      <input type="time" class="form-input" id="inp-arrest">
+    </div>
+    <div class="divider"></div>
+    <button class="setup-back" onclick="goHome()">← กลับ</button>
+    <button class="setup-start" onclick="startCPR()">▶ START CPR NOW</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     ACTIVE CPR
+══════════════════════════════════════ -->
+<div id="screen-cpr" class="screen">
+  <div class="cpr-header">
+    <div class="hdr-info" onclick="editPatient()">
+      <div class="hdr-name" id="hdr-name">—</div>
+      <div class="hdr-sub"  id="hdr-sub">กดเพื่อแก้ไขชื่อ / HN</div>
+    </div>
+    <div class="elapsed" id="elapsed">00:00</div>
+    <div class="hdr-btns">
+      <button class="hdr-btn btn-now" onclick="tlZoomAdj(-0.1)" title="ย่อตาราง">🔍−</button>
+      <button class="hdr-btn btn-now" onclick="tlZoomAdj(0.1)" title="ขยายตาราง">🔍+</button>
+      <button class="hdr-btn btn-now" onclick="scrollToNow()">↓ Now<span class="kb-hint">N</span></button>
+      <button class="hdr-btn btn-now" onclick="goHome()" title="กลับ Dashboard — CPR ยังบันทึกต่อ">🏠</button>
+      <button class="hdr-btn btn-now" id="btn-fs" onclick="toggleFullscreen()" title="เต็มจอ">⛶</button>
+      <button class="hdr-btn btn-end" onclick="endCPR()">■ END</button>
+    </div>
+  </div>
+
+  <!-- Countdown ใหญ่ ก่อนครบรอบ 2 นาที -->
+  <div id="cycle-countdown">
+    <div class="cc-lbl">⚠️ RHYTHM CHECK ใน</div>
+    <div class="cc-num">10</div>
+  </div>
+
+  <div class="cpr-body">
+    <!-- Timeline -->
+    <div class="tl-panel" id="tl-panel">
+      <table class="tl-table">
+        <thead><tr>
+          <th style="width:36px">MIN</th>
+          <th style="width:46px">💊Adr</th>
+          <th style="width:60px">⚡DF</th>
+          <th>Rhythm · HR · EtCO2 · ยา · หัตถการ</th>
+        </tr></thead>
+        <tbody id="tl-body"></tbody>
+      </table>
+    </div>
+
+    <!-- Actions: Alarm · Adrenaline · Defib · Drug dose เท่านั้น
+         (ยา/หัตถการอื่นๆ → กดปุ่ม + เล็กๆ ในตาราง timeline) -->
+    <div class="act-panel">
+      <div class="act-sec">
+        <div class="act-lbl">🔔 Alarm</div>
+        <div class="reminder rem-ok" id="rhythm-rem">Check rhythm ใน 2 นาที</div>
+        <div class="reminder rem-ok" id="comp-rem"  style="margin-top:4px">เปลี่ยน compressor ใน 2 นาที</div>
+        <div style="margin-top:8px" id="proto-panel"></div>
+      </div>
+
+      <div class="act-sec">
+        <div class="act-lbl">💊 Adrenaline</div>
+        <button class="big-btn btn-adr" id="btn-adr" onclick="giveAdr()">
+          <span class="t">ADRENALINE<span class="kb-hint">A</span></span>
+          <span class="s" id="adr-sub">1 mg IV — tap to give</span>
+        </button>
+        <div class="reminder rem-ok" id="adr-rem" style="margin-top:7px">รอให้ครั้งแรก</div>
+      </div>
+
+      <div class="act-sec">
+        <div class="act-lbl">⚡ Defibrillation</div>
+        <button class="big-btn btn-defib" id="btn-defib" onclick="showDefibModal()">
+          <span class="t">⚡ DEFIB<span class="kb-hint">D</span></span>
+          <span class="s" id="defib-sub">200J Biphasic</span>
+        </button>
+      </div>
+
+      <div class="act-sec">
+        <div class="act-lbl">📋 Suggest Drug Dose</div>
+        <div class="drug-ref" id="drug-ref"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     SUMMARY
+══════════════════════════════════════ -->
+<div id="screen-summary" class="screen">
+  <div class="sum-hdr">
+    <div class="sum-hdr-left">
+      <div class="sum-title">📋 CPR Summary</div>
+      <div class="sum-pt" id="sum-pt">—</div>
+    </div>
+    <div class="sum-hdr-btns">
+      <button class="sum-hdr-btn" onclick="goHome()">🏠 Home</button>
+    </div>
+  </div>
+  <div class="sum-body">
+
+    <div class="sum-card">
+      <h4>📊 ภาพรวม CPR</h4>
+      <div class="s-stat-grid">
+        <div class="s-stat"><div class="s-stat-val" id="s-time">—</div><div class="s-stat-lbl">ระยะเวลา</div></div>
+        <div class="s-stat"><div class="s-stat-val" id="s-adr">0</div><div class="s-stat-lbl">Adrenaline</div></div>
+        <div class="s-stat"><div class="s-stat-val" id="s-defib">0</div><div class="s-stat-lbl">Defibrillation</div></div>
+        <div class="s-stat"><div class="s-stat-val" id="s-rhythm">0</div><div class="s-stat-lbl">Rhythm checks</div></div>
+      </div>
+      <div class="time-row">
+        Arrest: <b id="s-arrest">—</b> &nbsp;|&nbsp; Start: <b id="s-start">—</b> &nbsp;|&nbsp; Stop: <b id="s-stop">—</b>
+      </div>
+    </div>
+
+    <div class="sum-card">
+      <h4>⭐ CPR Quality</h4>
+      <div class="q-grid" id="q-grid"></div>
+    </div>
+
+    <div class="sum-card" id="etco2-card">
+      <h4>📈 EtCO2 Trend</h4>
+      <div class="etco2-chart" id="etco2-chart"></div>
+      <div id="etco2-note" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+    </div>
+
+    <div class="sum-card">
+      <h4>💊 สรุปยาทั้งหมด</h4>
+      <div class="drug-dl" id="drug-dl"></div>
+    </div>
+
+    <!-- Print timeline (shown in print only) -->
+    <div class="print-tl" id="print-tl">
+      <h4 style="margin-bottom:8px;font-weight:800;color:var(--navy)">📋 Timeline บันทึก CPR</h4>
+    </div>
+
+    <div class="sum-card">
+      <h4>🔍 Cause of Arrest — 5H 5T</h4>
+      <div class="cause-grid" id="cause-grid"></div>
+    </div>
+
+    <div class="sum-card">
+      <h4>🏁 Outcome</h4>
+      <div class="out-row">
+        <button class="out-btn rosc" id="btn-rosc" onclick="setOutcome('ROSC')">✅ ROSC</button>
+        <button class="out-btn dead" id="btn-dead" onclick="setOutcome('DEAD')">❌ DEAD</button>
+      </div>
+    </div>
+
+    <div class="sum-card" id="rosc-card">
+      <h4>📊 V/S หลัง ROSC <span style="font-weight:500;text-transform:none;color:var(--muted)">· กรอกเอง — ตัวเลขจางคือค่า normal</span></h4>
+      <div id="rosc-vs-container"></div>
+    </div>
+
+    <div class="sum-card">
+      <h4>📝 Note</h4>
+      <textarea class="note-area" id="s-note" placeholder="บันทึกเพิ่มเติม..."></textarea>
+    </div>
+
+    <button class="sum-print-btn" onclick="saveSummaryOnly()">💾 บันทึก</button>
+    <button class="sum-new-btn"   onclick="goHome()">🏠 กลับ Dashboard</button>
+    <div style="height:32px"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     ADMIN
+══════════════════════════════════════ -->
+<div id="screen-admin" class="screen">
+  <div class="admin-hdr">
+    <div class="admin-title">⚙ Admin Panel</div>
+    <button class="hdr-btn btn-now" onclick="goHome()">← Home</button>
+  </div>
+  <!-- PIN gate -->
+  <div id="admin-pin-gate" class="pin-screen">
+    <div class="pin-title">🔐 Admin Access</div>
+    <div class="pin-sub">กรอก PIN 4 หลัก</div>
+    <div class="pin-dots" id="pin-dots">
+      <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key" onclick="pinKey('←')" style="font-size:18px">⌫</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key" onclick="pinKey('OK')" style="background:#e0e7ff;color:var(--navy)">OK</button>
+    </div>
+    <div id="pin-error" style="color:var(--danger);font-size:13px;margin-top:12px;font-weight:700"></div>
+  </div>
+  <!-- Admin content (shown after PIN) -->
+  <div id="admin-content" style="display:none;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch">
+    <div class="admin-body">
+      <!-- Settings -->
+      <div class="admin-card">
+        <h4>⚙ Settings</h4>
+
+        <!-- Firebase Realtime Database -->
+        <div class="fb-guide">
+          <b>🔴 Firebase Realtime Database (Sync ทุกเครื่อง)</b>
+          1. ไปที่ <b>console.firebase.google.com</b> → New project<br>
+          2. Build → <b>Realtime Database</b> → Create database → Start in <b>test mode</b><br>
+          3. คัดลอก Database URL (เช่น <code>https://project-rtdb.asia-southeast1.firebasedatabase.app</code>)<br>
+          4. วางลงช่องด้านล่าง → กด บันทึก → Reload หน้า
+        </div>
+        <div class="settings-row">
+          <label>🔴 Firebase Database URL</label>
+          <input type="url" id="cfg-firebase" placeholder="https://your-project-default-rtdb.asia-southeast1.firebasedatabase.app">
+          <span id="firebase-status" class="fb-status fb-off">⬤ ยังไม่เชื่อมต่อ</span>
+        </div>
+
+        <div class="settings-row">
+          <label>Google Apps Script URL (เดิม - optional)</label>
+          <input type="url" id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec">
+        </div>
+        <div class="settings-row">
+          <label>Admin PIN (ปัจจุบัน)</label>
+          <input type="password" id="cfg-pin" placeholder="****">
+        </div>
+        <div class="settings-row">
+          <label>ชื่อโรงพยาบาล</label>
+          <input type="text" id="cfg-hosp" placeholder="Jainatnarendra Hospital">
+        </div>
+        <button class="export-btn" onclick="saveSettings()">💾 บันทึก Settings</button>
+      </div>
+
+      <!-- Stats -->
+      <div class="admin-card">
+        <h4>📊 สถิติรวม</h4>
+        <div class="s-stat-grid" id="admin-stats" style="grid-template-columns:repeat(2,1fr)"></div>
+      </div>
+
+      <!-- Case list -->
+      <div class="admin-card">
+        <h4>📋 ทุกเคส</h4>
+        <div id="admin-cases"></div>
+      </div>
+
+      <!-- Export -->
+      <div class="admin-card">
+        <h4>📤 Export</h4>
+        <button class="export-btn" onclick="exportJSON()">⬇ Export JSON ทุกเคส</button>
+        <button class="export-btn secondary" onclick="syncAll()">☁ Sync ทุกเคสไป Google Sheets</button>
+        <button class="export-btn secondary" onclick="clearAll()" style="color:var(--danger);border-color:var(--danger)">🗑 ลบข้อมูลทั้งหมด</button>
+      </div>
+
+      <!-- Apps Script setup guide -->
+      <div class="admin-card">
+        <h4>📖 วิธีตั้ง Google Sheets</h4>
+        <div style="font-size:12px;line-height:1.8;color:var(--muted)">
+          1. เปิด <b>script.google.com</b> → New project<br>
+          2. Copy code จากไฟล์ <b>apps-script.gs</b> วางใน editor<br>
+          3. กด Deploy → New deployment → Web app<br>
+          4. Execute as: <b>Me</b> · Access: <b>Anyone</b><br>
+          5. Copy URL → วางใน Settings ด้านบน<br>
+          6. ข้อมูลจะ sync อัตโนมัติเมื่อสิ้นสุด CPR
+        </div>
+      </div>
+
+      <div style="height:32px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     MODALS
+══════════════════════════════════════ -->
+
+<!-- Drug -->
+<div class="overlay hide" id="drug-modal">
+  <div class="modal">
+    <h3 style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span>💉 บันทึกยา</span>
+      <button id="preset-edit-btn" onclick="togglePresetEdit()">✎ แก้ไข</button>
+    </h3>
+    <div class="modal-sub" id="drug-modal-min" style="display:none"></div>
+    <div class="modal-sub">แตะ preset แล้วแก้ dose ในช่องด้านล่างได้ · กด ✎ เพื่อแก้/ลบ/เพิ่ม</div>
+    <div class="qk-grid" id="drug-presets-grid"></div>
+    <div class="qk-grid">
+      <button class="qk-btn" onclick="fillDrug('NaHCO3 50mEq')">NaHCO3<br>50mEq</button>
+      <button class="qk-btn" onclick="fillDrug('Ca Gluconate 1g')">Ca Gluco<br>1g</button>
+      <button class="qk-btn" onclick="fillDrug('50%G 50mL')">50%G<br>50mL</button>
+      <button class="qk-btn" onclick="fillDrug('Lidocaine 100mg (1st)')">Lido<br>100mg</button>
+      <button class="qk-btn" onclick="fillDrug('Lidocaine 75mg (2nd)')">Lido<br>75mg</button>
+      <button class="qk-btn" onclick="fillDrug('MgSO4 2g')">MgSO4<br>2g</button>
+      <button class="qk-btn" onclick="fillDrug('Dopamine')">Dopamine</button>
+      <button class="qk-btn" onclick="fillDrug('Norepinephrine')">NorEpi</button>
+      <button class="qk-btn" onclick="fillDrug('Thrombolysis')">Thrombo-<br>lysis</button>
+    </div>
+    <input type="text" class="modal-inp" id="drug-custom" placeholder="ชื่อยา + dose (แก้ได้)..." autocomplete="off" style="font-size:16px">
+    <div class="modal-btns">
+      <button class="m-cancel" onclick="hide('drug-modal')">ยกเลิก</button>
+      <button class="m-ok m-ok-navy" onclick="confirmCustomDrug()">✓ บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Procedure (หัตถการ) -->
+<div class="overlay hide" id="proc-modal">
+  <div class="modal">
+    <h3 style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span>🔧 บันทึกหัตถการ</span>
+      <button id="proc-edit-btn" onclick="toggleProcEdit()" style="border:none;background:none;color:var(--ok);font-size:13px;font-weight:800;cursor:pointer;font-family:inherit">✎ แก้ไข</button>
+    </h3>
+    <div class="modal-sub" id="proc-modal-min" style="display:none"></div>
+    <div class="modal-sub">เลือกหัตถการ หรือพิมพ์เอง · กด ✎ เพื่อแก้/ลบ/เพิ่ม</div>
+    <div class="qk-grid" id="proc-presets-grid"></div>
+    <input type="text" class="modal-inp" id="proc-custom" placeholder="หัตถการอื่น (แก้ได้)..." autocomplete="off" style="font-size:16px">
+    <div class="modal-btns">
+      <button class="m-cancel" onclick="hide('proc-modal')">ยกเลิก</button>
+      <button class="m-ok m-ok-navy" onclick="confirmProc()">✓ บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Defib -->
+<div class="overlay hide" id="defib-modal">
+  <div class="modal">
+    <h3>⚡ Defibrillation</h3>
+    <div class="modal-sub" id="defib-modal-sub">Biphasic: เลือก Joules</div>
+    <div class="j-grid">
+      <button class="j-btn" onclick="setJ(120)">120J</button>
+      <button class="j-btn" onclick="setJ(150)">150J</button>
+      <button class="j-btn" onclick="setJ(200)">200J</button>
+      <button class="j-btn" onclick="setJ(360)">360J<br><span style="font-size:9px">Mono</span></button>
+    </div>
+    <input type="number" class="modal-inp" id="defib-j" placeholder="Joules" min="50" max="400" inputmode="numeric">
+    <div class="modal-btns">
+      <button class="m-cancel" onclick="hide('defib-modal')">ยกเลิก</button>
+      <button class="m-ok m-ok-defib" onclick="confirmDefib()">⚡ SHOCK!</button>
+    </div>
+  </div>
+</div>
+
+<!-- Airway -->
+<div class="overlay hide" id="airway-modal">
+  <div class="modal">
+    <h3>🫁 Airway</h3>
+    <div class="modal-sub" id="ett-modal-min" style="display:none"></div>
+    <div id="ett-hint"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div>
+        <div class="form-label">ETT No.</div>
+        <div class="ett-step">
+          <button class="ett-stepbtn" onclick="ettStep('ett-no',-0.5)">−</button>
+          <input type="number" class="modal-inp" id="ett-no" placeholder="7.5" style="margin-bottom:0" step="0.5">
+          <button class="ett-stepbtn" onclick="ettStep('ett-no',0.5)">+</button>
+        </div>
+      </div>
+      <div>
+        <div class="form-label">Mark (cm)</div>
+        <div class="ett-step">
+          <button class="ett-stepbtn" onclick="ettStep('ett-mark',-1)">−</button>
+          <input type="number" class="modal-inp" id="ett-mark" placeholder="20" style="margin-bottom:0">
+          <button class="ett-stepbtn" onclick="ettStep('ett-mark',1)">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="qk-grid" style="grid-template-columns:1fr 1fr 1fr">
+      <button class="qk-btn" onclick="quickDrug('OPA','proc');hide('airway-modal')">OPA</button>
+      <button class="qk-btn" onclick="quickDrug('LMA','proc');hide('airway-modal')">LMA</button>
+      <button class="qk-btn" onclick="quickDrug('BVM','proc');hide('airway-modal')">BVM</button>
+    </div>
+    <div class="modal-btns" style="margin-top:12px">
+      <button class="m-cancel" onclick="hide('airway-modal')">ยกเลิก</button>
+      <button class="m-ok m-ok-navy" onclick="confirmAirway()">✓ บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit patient -->
+<div class="overlay hide" id="pt-modal">
+  <div class="modal">
+    <h3>✏️ แก้ไขข้อมูลผู้ป่วย</h3>
+    <div class="form-row">
+      <label class="form-label">ชื่อผู้ป่วย</label>
+      <input type="text" class="modal-inp" id="edit-name" style="margin-bottom:0">
+    </div>
+    <div class="form-row" style="margin-top:10px">
+      <label class="form-label">HN</label>
+      <input type="text" class="modal-inp" id="edit-hn" placeholder="HN..." style="margin-bottom:0">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+      <div>
+        <label class="form-label">เวลา Arrest</label>
+        <input type="time" class="modal-inp" id="edit-arresttime" style="margin-bottom:0">
+      </div>
+      <div>
+        <label class="form-label">เวลาเริ่ม CPR</label>
+        <input type="time" class="modal-inp" id="edit-starttime" style="margin-bottom:0">
+      </div>
+    </div>
+    <div class="modal-btns" style="margin-top:14px">
+      <button class="m-cancel" onclick="hide('pt-modal')">ยกเลิก</button>
+      <button class="m-ok m-ok-navy" onclick="confirmEditPatient()">✓ บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit event -->
+<div class="overlay hide" id="edit-modal">
+  <div class="modal">
+    <h3>✏️ แก้ไข / ลบรายการ</h3>
+    <input type="text" class="modal-inp" id="edit-event-text" placeholder="แก้ไขข้อความ...">
+    <input type="hidden" id="edit-event-id">
+    <div class="modal-btns">
+      <button class="m-cancel m-ok m-ok-danger" onclick="deleteEvent()" style="flex:.8">🗑 ลบ</button>
+      <button class="m-cancel" onclick="hide('edit-modal')" style="flex:.6">ยกเลิก</button>
+      <button class="m-ok m-ok-navy" onclick="confirmEditEvent()">✓ บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Case detail / edit -->
+<div class="overlay hide" id="case-detail-modal">
+  <div class="modal" style="max-width:520px">
+    <h3 id="cd-title" style="margin-bottom:10px">รายละเอียดเคส</h3>
+
+    <!-- Timing strip -->
+    <div id="cd-info" style="font-size:12px;color:var(--muted);line-height:1.8;background:var(--bg);border-radius:8px;padding:8px 10px;margin-bottom:8px"></div>
+
+    <!-- Stat row -->
+    <div id="cd-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px"></div>
+
+    <!-- Drug / event summary -->
+    <div id="cd-drug-row" style="background:#eff6ff;border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:13px;color:#1e40af;line-height:1.7;display:none">
+      <b style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#3b82f6;margin-bottom:3px">ยา / หัตถการทั้งหมด</b>
+      <span id="cd-drug-list">—</span>
+    </div>
+
+    <!-- Editable timeline (events + rhythm) -->
+    <div id="cd-edit-tl">
+      <div class="cd-edit-hd">
+        <span>💊 ยา / 🔧 หัตถการ</span>
+        <button class="cd-add-btn" onclick="cdAddEvent()">+ เพิ่ม</button>
+      </div>
+      <div id="cd-events"></div>
+
+      <div class="cd-edit-hd" style="margin-top:12px">
+        <span>📈 Rhythm · EtCO2 · HR</span>
+        <button class="cd-add-btn" onclick="cdAddRhythm()">+ เพิ่ม</button>
+      </div>
+      <div id="cd-rhythms"></div>
+    </div>
+
+    <!-- Edit fields -->
+    <div style="display:grid;gap:9px;margin-bottom:12px">
+      <div>
+        <div class="form-label">ชื่อผู้ป่วย</div>
+        <input class="modal-inp" id="cd-name" type="text" placeholder="ชื่อ-สกุล">
+      </div>
+      <div>
+        <div class="form-label">HN</div>
+        <input class="modal-inp" id="cd-hn" type="text" placeholder="HN">
+      </div>
+      <div>
+        <div class="form-label">Outcome</div>
+        <select class="modal-inp" id="cd-outcome" onchange="cdOutcomeChanged()">
+          <option value="">— ไม่ระบุ —</option>
+          <option value="ROSC">ROSC</option>
+          <option value="DEAD">DEAD</option>
+        </select>
+      </div>
+      <div id="cd-vs-wrap" style="display:none">
+        <div class="form-label">📊 V/S หลัง ROSC — กรอกเอง (ตัวเลขจางคือค่า normal)</div>
+        <div id="cd-vs-container"></div>
+      </div>
+      <div>
+        <div class="form-label">สาเหตุ (คั่นด้วยจุลภาค)</div>
+        <input class="modal-inp" id="cd-causes" type="text" placeholder="Hypovolemia, Hypoxia, ...">
+      </div>
+      <div>
+        <div class="form-label">บันทึก / Notes</div>
+        <textarea class="review-note" id="cd-notes" rows="2" placeholder="บันทึกเพิ่มเติม..."></textarea>
+      </div>
+      <div>
+        <div class="form-label">Admin / Quality Note</div>
+        <textarea class="review-note" id="cd-note" rows="2" placeholder="บันทึก quality review..."></textarea>
+      </div>
+    </div>
+
+    <div id="cd-out-row" style="display:none;gap:8px;margin-bottom:8px">
+      <button onclick="cdSaveThenPrint()"
+        style="flex:1;padding:14px 6px;border:none;border-radius:11px;background:var(--navy);color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit">
+        🖨️ พิมพ์
+      </button>
+      <button id="cd-print-btn" onclick="cdSaveThenDownload()"
+        style="flex:1;padding:14px 6px;border:none;border-radius:11px;background:var(--ok);color:#fff;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit">
+        ⬇️ ดาวน์โหลด PDF
+      </button>
+    </div>
+    <div class="modal-btns" style="flex-wrap:wrap;gap:8px">
+      <button class="m-cancel" onclick="hide('case-detail-modal')" style="flex:1">ยกเลิก</button>
+      <button class="m-ok m-ok-navy" onclick="saveCaseEdit()" style="flex:1">💾 บันทึก</button>
+    </div>
+    <button onclick="deleteCase()" style="width:100%;margin-top:10px;padding:13px;border:2px solid var(--danger);border-radius:11px;background:#fff;color:var(--danger);font-size:15px;font-weight:800;cursor:pointer;font-family:inherit">🗑 ลบเคสนี้ถาวร</button>
+  </div>
+</div>
+
+<!-- ══ PRINT WRAPPER (hidden on screen) ══ -->
+<div id="print-wrap">
+  <div id="print-p1"></div>
+  <div id="print-p2"></div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════════
+const ADR_INTERVAL_MIN = 4;
+const RHYTHM_INTERVAL_MIN = 2;
+const SOUND_WARN_SEC = 10;   // seconds before rhythm check
+const ADR_PREWARN_SEC = 20;  // เตือนก่อนถึงเวลา Adrenaline (วินาที)
+let adrPreWarnTs = null;     // กันเสียงเตือน adr ซ้ำในรอบเดียวกัน
+
+// ── Active CPR ข้ามเครื่อง (ผ่าน Firebase) ──
+const DEVICE_ID=(()=>{             // id ประจำเครื่อง
+  try{
+    let d=localStorage.getItem('cpr_device_id');
+    if(!d){ d='dev-'+Math.random().toString(36).slice(2,10); localStorage.setItem('cpr_device_id',d); }
+    return d;
+  }catch(e){ return 'dev-'+Math.random().toString(36).slice(2,10); }
+})();
+let remoteActive=null;             // active CPR จากเครื่องอื่น
+let remoteDismissedId=null;        // เคสที่ผู้ใช้กด "ไม่ใช่ตอนนี้" แล้ว
+
+// ════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════
+let S = {};         // current CPR session
+let DB = {};        // all sessions + settings
+let CFG = {};       // settings
+let adminUnlocked = false;
+let pinBuffer = '';
+let currentCaseDetailId = null;
+let cdEvents = [];   // working copy of events for case-review editing
+let cdRhythms = [];  // working copy of rhythm rows for case-review editing
+let dashSelYear = new Date().getFullYear();
+let dashSelMonth = new Date().getMonth(); // 0-indexed
+// Firebase
+let fbApp = null;
+let fbDB = null;
+let fbRef = null;
+let audioCtx = null;
+let lastSecond = -1;
+let shockableActive = false;
+let postDefibClear = false; // true after defib → banner hidden until next rhythm check
+let alarmNodes = [];        // scheduled Web Audio nodes for 10-sec alarm
+
+// ════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════
+const $ = (id) => typeof id === 'string' ? document.getElementById(id) : id;
+function show(id){ $(id).style.display = ''; $(id).classList.remove('hide'); }
+function hide(id){ $(id).classList.add('hide'); if(typeof tapMin!=='undefined') tapMin=null; }
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+
+function fmtTime(d){
+  if(!d) return '—';
+  const dd = typeof d === 'string' ? new Date(d) : d;
+  return String(dd.getHours()).padStart(2,'0')+':'+String(dd.getMinutes()).padStart(2,'0');
+}
+function fmtDateTime(d){
+  const dd = typeof d === 'string' ? new Date(d) : d;
+  return dd.toLocaleDateString('th')+' '+fmtTime(dd);
+}
+function nowStr(){
+  const d=new Date();
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
+}
+function clockAtMin(min){
+  if(!S.startTime) return '';
+  const t=new Date(new Date(S.startTime).getTime()+min*60000);
+  return String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+}
+
+// ════════════════════════════════════════
+// FULLSCREEN
+// ════════════════════════════════════════
+function toggleFullscreen(){
+  const btn=$('btn-fs');
+  if(!document.fullscreenElement && !document.webkitFullscreenElement){
+    const el=document.documentElement;
+    (el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen).call(el).catch(()=>{});
+    if(btn){ btn.textContent='⊡'; btn.title='ออกจากเต็มจอ'; }
+  } else {
+    (document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen).call(document).catch(()=>{});
+    if(btn){ btn.textContent='⛶'; btn.title='เต็มจอ'; }
+  }
+}
+document.addEventListener('fullscreenchange',()=>{
+  const btn=$('btn-fs'); if(!btn) return;
+  if(document.fullscreenElement){ btn.textContent='⊡'; btn.title='ออกจากเต็มจอ'; }
+  else { btn.textContent='⛶'; btn.title='เต็มจอ'; }
+});
+document.addEventListener('webkitfullscreenchange',()=>{
+  const btn=$('btn-fs'); if(!btn) return;
+  if(document.webkitFullscreenElement){ btn.textContent='⊡'; } else { btn.textContent='⛶'; }
+});
+
+// ════════════════════════════════════════
+// AUDIO
+// ════════════════════════════════════════
+function initAudio(){
+  try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } catch(e){}
+}
+function beep(freq=880, dur=0.15, vol=0.4, type='sine'){
+  if(!audioCtx) initAudio();
+  if(!audioCtx) return;
+  try{
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime+dur);
+  } catch(e){}
+}
+function stopAlarm(){
+  alarmNodes.forEach(n=>{ try{n.stop();n.disconnect();}catch(e){} });
+  alarmNodes=[];
+}
+function startAlarm10s(){
+  if(!audioCtx) initAudio();
+  if(!audioCtx) return;
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  stopAlarm();
+  const now=audioCtx.currentTime;
+  // Metronome นุ่มๆ rate 100/min (ทุก 0.6s) ตลอดช่วง 10 วิ ก่อน check rhythm
+  const interval=60/100;                              // 100 beats per minute = 0.6s
+  const count=Math.ceil(SOUND_WARN_SEC/interval)+1;   // ครอบคลุมช่วง 10 วินาที
+  for(let i=0;i<count;i++){
+    const t=now+(i*interval);
+    const osc=audioCtx.createOscillator();
+    const gain=audioCtx.createGain();
+    osc.type='sine';                 // sine = โทนนุ่ม ไม่แสบหู
+    osc.frequency.value=660;         // ต่ำลงจากเดิม 1000Hz
+    gain.gain.setValueAtTime(0,t);
+    gain.gain.linearRampToValueAtTime(0.14,t+0.015);  // attack ช้าลง เบาลง
+    gain.gain.exponentialRampToValueAtTime(0.001,t+0.16); // ปล่อยหางเสียงยาว นุ่มขึ้น
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t+0.18);
+    alarmNodes.push(osc);
+  }
+}
+// เสียงครบ 2 นาที — chime สองโทนขึ้น แตกต่างจาก metronome ชัดเจน
+function soundCycleEnd(){
+  beep(523,.18,.28,'sine');                       // C5
+  setTimeout(()=>beep(784,.35,.28,'sine'),170);   // G5
+}
+function soundAlarm(){ beep(1000,.1); setTimeout(()=>beep(1000,.1),180); setTimeout(()=>beep(1200,.25),360); }
+function soundShockable(){ beep(800,.08); setTimeout(()=>beep(1200,.08),120); setTimeout(()=>beep(800,.08),240); setTimeout(()=>beep(1200,.3),360); }
+
+// ════════════════════════════════════════
+// AUTO-SAVE & RESTORE
+// ════════════════════════════════════════
+function autoSave(){
+  if(!S.startTime||S.stopTime) return;
+  try{ localStorage.setItem('cpr_active',JSON.stringify(S)); }catch(e){}
+  // sync เคสที่กำลังบันทึกไป Firebase ให้เครื่องอื่นเห็นและถามบันทึกต่อได้
+  if(fbRef){
+    try{
+      const data=JSON.parse(JSON.stringify(S,(k,v)=>k==='timerID'?null:v));
+      fbRef.child('active').set({device:DEVICE_ID,updatedAt:Date.now(),data});
+    }catch(e){}
+  }
+}
+
+function checkInterruptedSession(){
+  try{
+    const raw=localStorage.getItem('cpr_active');
+    if(!raw) return null;
+    const data=JSON.parse(raw);
+    if(!data.startTime||data.stopTime){ localStorage.removeItem('cpr_active'); return null; }
+    return data;
+  }catch(e){ return null; }
+}
+
+function showRestoreBanner(data){
+  resetDiscardBtn();
+  const dur=Math.floor((Date.now()-new Date(data.startTime).getTime())/60000);
+  $('restore-title').textContent='⚠️ พบ CPR Session ที่ยังค้างอยู่!';
+  $('restore-info').innerHTML=`ผู้ป่วย: <b>${data.patientName}</b>${data.hn?' · HN: '+data.hn:''}<br>เริ่ม CPR: <b>${fmtTime(data.startTime)}</b> · ผ่านไป <b>${dur} นาที</b><br>Adrenaline: <b>${data.adrCount} ครั้ง</b> · Defib: <b>${data.defibCount} ครั้ง</b>`;
+  $('restore-discard-btn').style.display='';
+  $('restore-banner').style.display='block';
+}
+
+function resumeSession(){
+  const data=checkInterruptedSession();
+  if(!data) return;
+  initAudio();
+  Object.assign(S,data);
+  S.timerID=null;
+  showScreen('screen-cpr');
+  restoreTimeline();
+  updateTargetMinOptions();
+  renderDrugPresets();
+  updateHeader();
+  updateDrugRef();
+  updateDefibSub();
+  shockableActive=false;
+  $('shockable-banner').classList.remove('show');
+  postDefibClear=false;
+  lastSecond=-1;
+  S.timerID=setInterval(tick,500);
+  tick();
+  $('restore-banner').style.display='none';
+}
+
+function discardSession(){
+  if(!confirm('ลบ session ที่ค้างอยู่?')) return;
+  let did=null;
+  try{ did=JSON.parse(localStorage.getItem('cpr_active')||'{}').id; }catch(e){}
+  try{ localStorage.removeItem('cpr_active'); }catch(e){}
+  // ถ้าเคสเดียวกันค้างอยู่บน Firebase ให้เคลียร์ด้วย
+  if(fbRef&&did&&remoteActive?.data?.id===did){ try{ fbRef.child('active').remove(); }catch(e){} }
+  $('restore-banner').style.display='none';
+}
+
+function restoreTimeline(){
+  buildTimeline(); // creates empty rows
+  // Restore rhythm dropdowns + EtCO2 warn tags
+  Object.entries(S.rhythmData||{}).forEach(([min,data])=>{
+    const m=parseInt(min);
+    const rhEl=$(`rh-${m}`); if(rhEl) rhEl.value=data.rhythm||'';
+    const rrEl=$(`rr-${m}`); if(rrEl) rrEl.value=data.rate||'';
+    const reEl=$(`re-${m}`); if(reEl) reEl.value=data.etco2||'';
+    if(data.etco2&&parseFloat(data.etco2)<10){
+      addTag(m,'warn',`⚠️ EtCO2 ${data.etco2} mmHg ต่ำ!`,'etco2-warn-'+m);
+    }
+  });
+  // Restore event tags in order (แสดงชื่อ+dose เท่านั้น · adr/defib → checkmark)
+  (S.events||[]).forEach(ev=>{
+    addTag(ev.minute,ev.type,ev.detail,ev.uid);
+  });
+  renderAllMarkCells();
+  highlightRow(S.currentMin||0);
+  scrollToNow();
+}
+
+// ════════════════════════════════════════
+// STORAGE
+// ════════════════════════════════════════
+function loadDB(){
+  try{ DB = JSON.parse(localStorage.getItem('cpr_db')) || {}; } catch(e){ DB={}; }
+  if(!DB.sessions) DB.sessions=[];
+  CFG = DB.settings || {};
+  // Hardcoded defaults — ทุกเครื่องใช้ค่านี้อัตโนมัติ
+  if(!CFG.firebase) CFG.firebase='https://cpr-jnh-default-rtdb.asia-southeast1.firebasedatabase.app';
+  if(!CFG.url) CFG.url='https://script.google.com/macros/s/AKfycbzoHlNMFqlDBXqjBEy7WHskJXr2ZFbtGXbyjCt_OB3Z7jBtggLAX7tI5pRpU_WNJU9H/exec';
+  if(!CFG.pin) CFG.pin='1234';
+  if(!CFG.hospital) CFG.hospital='Jainatnarendra Hospital';
+  if(!Array.isArray(CFG.drugPresets)) CFG.drugPresets=[
+    {text:'Amiodarone 300mg (1st)',type:'drug'},
+    {text:'Amiodarone 150mg (2nd)',type:'drug'}
+  ];
+  // รายการหัตถการในกรอบ (แก้/ลบ/เพิ่มเองได้)
+  if(!Array.isArray(CFG.procPresets)){
+    const carried=(CFG.drugPresets||[]).filter(p=>p&&p.type==='proc').map(p=>p.text);
+    CFG.procPresets=[
+      'ICD Rt','ICD Lt','PRC 1 unit','FFP 1 unit','Plt 4 unit','AutoCPR',
+      'Pelvic binder','ED thoracotomy','Pericardiocentesis','IV/IO Access','Labs: CBC BUN Cr E ABG DTX',
+      ...carried
+    ];
+    // ให้ drugPresets เหลือเฉพาะ "ยา"
+    CFG.drugPresets=(CFG.drugPresets||[]).filter(p=>!(p&&p.type==='proc'));
+  }
+  // Connect Firebase if configured
+  initFirebase();
+}
+
+function saveDB(){
+  DB.settings = CFG;
+  // 1. localStorage (always — offline backup)
+  try{ localStorage.setItem('cpr_db', JSON.stringify(DB)); } catch(e){}
+  // 2. Firebase (if connected)
+  if(fbRef){
+    const sessionsObj={};
+    (DB.sessions||[]).forEach(s=>{ if(s?.id) sessionsObj[s.id]=s; });
+    fbRef.update({ sessions: sessionsObj, updatedAt: Date.now() })
+      .catch(err=>console.warn('[Firebase] save error:',err));
+  }
+}
+
+// ── ลบถาวร: บันทึก tombstone + ลบจาก Firebase/Sheets ──
+// tombstone (DB.deleted) กันเคสที่ลบแล้วถูก sync กลับมาอีก
+function isDeleted(id){ return !!(DB.deleted && DB.deleted[id]); }
+function markDeleted(id, skipPerIdRemote){
+  if(!id) return;
+  DB.deleted = DB.deleted || {};
+  DB.deleted[id] = Date.now();
+  if(!skipPerIdRemote){
+    // ลบจาก Firebase
+    if(fbRef){ try{ fbRef.child('sessions/'+id).remove(); }catch(e){} }
+    // ลบแถวใน Google Sheets
+    if(CFG.url){
+      fetch(CFG.url,{
+        method:'POST', mode:'no-cors',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ action:'deleteSession', id:id })
+      }).catch(()=>{});
+    }
+  }
+  // แจ้งเครื่องอื่นผ่าน Firebase ว่าเคสนี้ถูกลบแล้ว
+  if(fbRef){ try{ fbRef.child('deleted/'+id).set(Date.now()); }catch(e){} }
+}
+
+// ════════════════════════════════════════
+// FIREBASE REALTIME DATABASE
+// ════════════════════════════════════════
+function initFirebase(){
+  const fbUrl=(CFG.firebase||'').trim();
+  if(!fbUrl){ updateFBStatus('off'); return; }
+  if(typeof firebase==='undefined'){ console.warn('[Firebase] SDK not loaded'); return; }
+  try{
+    // Delete existing app to allow URL change
+    if(fbApp){ try{ fbApp.delete(); }catch(e){} fbApp=null; fbDB=null; fbRef=null; }
+
+    fbApp = firebase.apps.length
+      ? firebase.app()
+      : firebase.initializeApp({ databaseURL: fbUrl });
+
+    // If existing app has different URL, delete and re-init
+    if(fbApp.options.databaseURL !== fbUrl){
+      fbApp.delete();
+      fbApp = firebase.initializeApp({ databaseURL: fbUrl }, 'cpr-'+Date.now());
+    }
+
+    fbDB = firebase.database(fbApp);
+    // Derive a safe path key from hospital name
+    const pathKey = (CFG.hospital||'jnh').toLowerCase().replace(/[^a-z0-9]/g,'-').slice(0,32);
+    fbRef = fbDB.ref('cpr-'+pathKey);
+
+    // On first connect: if Firebase is empty, push existing local sessions
+    fbRef.child('sessions').once('value', snap=>{
+      if(!snap.val() && (DB.sessions||[]).length>0){
+        const obj={}; DB.sessions.forEach(s=>{ if(s?.id) obj[s.id]=s; });
+        fbRef.child('sessions').set(obj);
+        console.log('[Firebase] Pushed',DB.sessions.length,'local sessions to Firebase');
+      }
+    });
+
+    // Real-time listener — updates all connected devices
+    fbRef.child('sessions').on('value', snap=>{
+      const data=snap.val();
+      if(!data) return;
+      const incoming=Object.values(data).filter(s=>s && !isDeleted(s.id));
+      DB.sessions=incoming;
+      try{ localStorage.setItem('cpr_db',JSON.stringify(DB)); }catch(e){}
+      // Re-render live screens
+      if($('screen-home').classList.contains('active')) renderDashboard();
+      if(adminUnlocked&&$('screen-admin').classList.contains('active')) renderAdminContent();
+    }, err=>{
+      console.warn('[Firebase] listener error:',err);
+      updateFBStatus('err');
+    });
+
+    // Active-case listener — เคสที่เครื่องอื่นกำลังบันทึกอยู่
+    fbRef.child('active').on('value', snap=>{
+      remoteActive=snap.val()||null;
+      // ถ้าอยู่หน้า dashboard และมีเคสค้างจากเครื่องอื่น → ถามทันที
+      if($('screen-home').classList.contains('active') && !(S.startTime&&!S.stopTime) && !checkInterruptedSession()){
+        if(remoteActiveValid()) showRemoteActiveBanner();
+        else if(!remoteActive) $('restore-banner').style.display='none';
+      }
+    });
+
+    // Tombstone listener — เคสที่เครื่องอื่นลบ ให้ลบตามด้วย
+    fbRef.child('deleted').on('value', snap=>{
+      const del=snap.val();
+      if(!del) return;
+      DB.deleted=Object.assign({}, DB.deleted||{}, del);
+      const before=(DB.sessions||[]).length;
+      DB.sessions=(DB.sessions||[]).filter(s=>!DB.deleted[s.id]);
+      if(DB.sessions.length!==before){
+        try{ localStorage.setItem('cpr_db',JSON.stringify(DB)); }catch(e){}
+        if($('screen-home').classList.contains('active')) renderDashboard();
+        if(adminUnlocked&&$('screen-admin').classList.contains('active')) renderAdminContent();
+      }
+    });
+
+    updateFBStatus('ok');
+    console.log('[Firebase] Connected →',fbRef.toString());
+
+    // Connection state indicator
+    fbDB.ref('.info/connected').on('value', snap=>{
+      updateFBStatus(snap.val()?'ok':'off');
+    });
+
+  }catch(err){
+    console.warn('[Firebase] init error:',err);
+    updateFBStatus('err');
+  }
+}
+
+function updateFBStatus(state){
+  const el=$('firebase-status');
+  if(el){
+    el.className='fb-status '+(state==='ok'?'fb-ok':state==='err'?'fb-err':'fb-off');
+    el.textContent=state==='ok'?'⬤ เชื่อมต่อแล้ว — Real-time sync ON ✅'
+      :state==='err'?'⬤ เชื่อมต่อไม่ได้ ❌'
+      :'⬤ ยังไม่เชื่อมต่อ';
+  }
+}
+
+// ════════════════════════════════════════
+// FETCH ALL SESSIONS FROM GOOGLE SHEETS
+// (ดึงข้อมูลจากทุกเครื่องอัตโนมัติ)
+// ════════════════════════════════════════
+async function fetchRemoteSessions(){
+  if(!CFG.url) return;
+  const note=$('sync-note');
+  if(note) note.textContent='⏳ กำลังโหลดข้อมูลจากทุกเครื่อง...';
+  try{
+    const resp=await fetch(CFG.url+'?action=list');
+    if(!resp.ok) throw new Error('HTTP '+resp.status);
+    const data=await resp.json();
+    if(!data.ok||!Array.isArray(data.sessions)) throw new Error('bad response');
+
+    // Normalize GAS row (lowercase keys) → our session format
+    const remote=data.sessions.map(r=>({
+      id: String(r.id||'').trim(),
+      date: String(r.date||''),
+      patientName: String(r.patientname||'—'),
+      hn: String(r.hn||''),
+      patientType: String(r.patienttype||'adult'),
+      weight: String(r.weight||''),
+      arrestType: String(r.arresttype||''),
+      arrestTime: String(r.arresttime||''),
+      startTime: String(r.starttime||''),
+      stopTime: String(r.stoptime||''),
+      outcome: String(r.outcome||''),
+      adrCount: parseInt(r.adrcount)||0,
+      defibCount: parseInt(r.defibcount)||0,
+      causes: r.causes
+        ?(typeof r.causes==='string'?r.causes.split(',').map(c=>c.trim()).filter(Boolean):[])
+        :[],
+      notes: String(r.notes||''),
+      adminNote: String(r.adminnote||''),
+      quality: (r.qualscore!==''&&r.qualscore!=null&&r.qualscore!==undefined)
+        ?{qualScore:parseInt(r.qualscore)||0}
+        :null,
+      synced: true,
+      _fromSheets: true,
+    })).filter(s=>s.id);
+
+    // Merge: local session wins (เก็บ events, rhythmData ฯลฯ ครบกว่า)
+    // ข้ามเคสที่ถูกลบแล้ว (tombstone) — กันเคสที่ลบไปแล้วเด้งกลับมา
+    const localIds=new Set((DB.sessions||[]).map(s=>s.id));
+    const added=remote.filter(rs=>!localIds.has(rs.id) && !isDeleted(rs.id));
+    if(added.length){
+      DB.sessions=[...DB.sessions,...added];
+      try{localStorage.setItem('cpr_db',JSON.stringify(DB));}catch(e){}
+      renderDashboard();
+    }
+
+    // Update sync note
+    if(note){
+      const total=DB.sessions.length;
+      if(added.length)
+        note.textContent=`☁ โหลดเพิ่ม ${added.length} เคสจาก Sheets · รวม ${total} เคส`;
+      else
+        note.textContent=`☁ ข้อมูลอัปเดตแล้ว · ${total} เคสจากทุกเครื่อง`;
+    }
+  }catch(e){
+    console.warn('[Sheets fetch]',e.message);
+    const note=$('sync-note');
+    if(note) note.textContent=CFG.url?'Google Sheets: configured ✅':'ยังไม่ตั้งค่า sync';
+  }
+}
+function saveSession(session){
+  const idx = DB.sessions.findIndex(s=>s.id===session.id);
+  if(idx>=0) DB.sessions[idx]=session; else DB.sessions.push(session);
+  saveDB();
+}
+
+// ════════════════════════════════════════
+// SESSION BUILD
+// ════════════════════════════════════════
+function buildSession(){
+  return {
+    id: 'cpr_'+Date.now(),
+    date: new Date().toISOString().slice(0,10),
+    startTime: null,
+    stopTime: null,
+    arrestTime: null,
+    patientName: '',
+    hn: '',
+    patientType: 'adult',
+    weight: null,
+    arrestType: 'IHCA',
+    events: [],
+    rhythmData: {},
+    adrCount: 0,
+    defibCount: 0,
+    adrLastTs: null,
+    outcome: null,
+    causes: [],
+    quality: {},
+    notes: '',
+    vitalROSC: {},
+    adminNote: '',
+    synced: false,
+  };
+}
+
+// ════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════
+function goHome(){
+  showScreen('screen-home');
+  renderDashboard();
+  fetchRemoteSessions(); // ดึงเคสทุกเครื่องจาก Google Sheets อัตโนมัติ
+  if(S.startTime&&!S.stopTime){
+    // CPR กำลังบันทึกอยู่ (timer ยังเดิน) → แสดง banner กลับเข้าหน้า timeline
+    showOngoingBanner();
+  } else {
+    const interrupted=checkInterruptedSession();
+    if(interrupted) showRestoreBanner(interrupted);
+    else if(remoteActiveValid()) showRemoteActiveBanner();
+    else $('restore-banner').style.display='none';
+  }
+}
+
+// ── เคสค้างจากเครื่องอื่น (ผ่าน Firebase) ──
+function remoteActiveValid(){
+  if(!remoteActive||!remoteActive.data) return false;
+  if(remoteActive.device===DEVICE_ID) return false;              // ของเครื่องนี้เอง
+  const d=remoteActive.data;
+  if(!d.startTime||d.stopTime||!d.id) return false;
+  if(d.id===remoteDismissedId) return false;                     // กด "ไม่ใช่ตอนนี้" ไปแล้ว
+  if(Date.now()-(remoteActive.updatedAt||0)>6*60*60*1000) return false; // เก่ากว่า 6 ชม.
+  if((DB.sessions||[]).some(s=>s.id===d.id&&s.stopTime)) return false;  // เคสจบไปแล้ว
+  if(isDeleted(d.id)) return false;
+  return true;
+}
+function showRemoteActiveBanner(){
+  const d=remoteActive.data;
+  const dur=Math.floor((Date.now()-new Date(d.startTime).getTime())/60000);
+  $('restore-title').textContent='📱 มี CPR กำลังบันทึกอยู่ที่เครื่องอื่น — บันทึกต่อเคสเดิมไหม?';
+  $('restore-info').innerHTML=`ผู้ป่วย: <b>${d.patientName||'—'}</b>${d.hn?' · HN: '+d.hn:''}<br>เริ่ม CPR: <b>${fmtTime(d.startTime)}</b> · ผ่านไป <b>${dur} นาที</b> · Adrenaline <b>${d.adrCount||0}</b> ครั้ง · Defib <b>${d.defibCount||0}</b> ครั้ง`;
+  const btn=$('restore-discard-btn');
+  btn.style.display='';
+  btn.textContent='✕ ไม่ใช่ตอนนี้';
+  btn.onclick=()=>{ remoteDismissedId=d.id; $('restore-banner').style.display='none'; };
+  $('restore-banner').style.display='block';
+}
+function resumeRemoteSession(){
+  if(!remoteActiveValid()) return;
+  const data=JSON.parse(JSON.stringify(remoteActive.data));
+  data.timerID=null;
+  try{ localStorage.setItem('cpr_active',JSON.stringify(data)); }catch(e){}
+  resumeSession();   // โหลดต่อจาก localStorage เหมือน restore ปกติ
+}
+function resetDiscardBtn(){
+  const btn=$('restore-discard-btn');
+  btn.textContent='🗑 ลบทิ้ง';
+  btn.onclick=discardSession;
+}
+
+function showOngoingBanner(){
+  resetDiscardBtn();
+  const dur=Math.floor((Date.now()-new Date(S.startTime).getTime())/60000);
+  $('restore-title').textContent='⏱ CPR กำลังบันทึกอยู่ — ยังไม่จบเคส';
+  $('restore-info').innerHTML=`ผู้ป่วย: <b>${S.patientName}</b>${S.hn?' · HN: '+S.hn:''}<br>เริ่ม CPR: <b>${fmtTime(S.startTime)}</b> · ผ่านไป <b>${dur} นาที</b> · Adrenaline <b>${S.adrCount}</b> ครั้ง · Defib <b>${S.defibCount}</b> ครั้ง`;
+  $('restore-discard-btn').style.display='none';   // ห้ามลบเคสที่กำลังบันทึก
+  $('restore-banner').style.display='block';
+}
+// กลับเข้า CPR: ถ้า timer ยังเดินอยู่ในหน่วยความจำ → สลับหน้าเลย, ถ้าเปิดแอปใหม่ → restore จาก localStorage
+function resumeOngoing(){
+  if(S.startTime&&!S.stopTime&&S.timerID){
+    showScreen('screen-cpr');
+    scrollToNow();
+    return;
+  }
+  if(checkInterruptedSession()){ resumeSession(); return; }
+  resumeRemoteSession();   // เคสค้างจากเครื่องอื่น
+}
+function goSetup(){
+  if(S.startTime&&!S.stopTime){
+    alert('มี CPR กำลังบันทึกอยู่\nกด "▶ กลับเข้าหน้า CPR" เพื่อทำต่อ หรือกด ■ END จบเคสเดิมก่อนเริ่มเคสใหม่');
+    return;
+  }
+  showScreen('screen-setup');
+  const now=new Date();
+  $('inp-arrest').value=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+}
+function goAdmin(){
+  showScreen('screen-admin');
+  $('admin-pin-gate').style.display='flex';
+  $('admin-content').style.display='none';
+  adminUnlocked=false;
+  pinBuffer='';
+  updatePinDots();
+  if(CFG.url) $('cfg-url').value=CFG.url;
+  if(CFG.hospital) $('cfg-hosp').value=CFG.hospital;
+}
+
+// ════════════════════════════════════════
+// SETUP HANDLERS
+// ════════════════════════════════════════
+function setPType(t){
+  S.patientType=t;
+  $('tgl-adult').classList.toggle('on',t==='adult');
+  $('tgl-child').classList.toggle('on',t==='child');
+  $('weight-row').style.display=t==='child'?'block':'none';
+  updateDefibSub(); updateDrugRef();
+}
+function setAType(t){
+  S.arrestType=t;
+  $('tgl-ihca').classList.toggle('on',t==='IHCA');
+  $('tgl-ohca').classList.toggle('on',t==='OHCA');
+}
+
+// ════════════════════════════════════════
+// START CPR
+// ════════════════════════════════════════
+function startCPR(){
+  initAudio();
+  S.patientName = $('inp-name').value.trim() || 'Unknown';
+  S.hn          = $('inp-hn').value.trim();
+  S.weight      = parseFloat($('inp-weight').value)||null;
+  S.startTime   = new Date().toISOString();
+  S.stopTime    = null;
+  S.events      = [];
+  S.rhythmData  = {};
+  S.adrCount    = 0;
+  S.defibCount  = 0;
+  S.adrLastTs   = null;
+  S.currentMin  = 0;
+  S.causes      = [];
+  S.outcome     = null;
+
+  const atVal = $('inp-arrest').value;
+  if(atVal){
+    const [h,m]=atVal.split(':').map(Number);
+    const d=new Date(); d.setHours(h,m,0,0);
+    S.arrestTime=d.toISOString();
+  } else {
+    S.arrestTime=new Date().toISOString();
+  }
+
+  showScreen('screen-cpr');
+  buildTimeline();
+  updateTargetMinOptions();
+  renderDrugPresets();
+  updateHeader();
+  updateDrugRef();
+  updateDefibSub();
+  shockableActive=false;
+  $('shockable-banner').classList.remove('show');
+  lastSecond=-1;
+
+  if(S.timerID) clearInterval(S.timerID);
+  S.timerID=setInterval(tick,500);
+  tick();
+}
+
+// ════════════════════════════════════════
+// TIMER
+// ════════════════════════════════════════
+function tick(){
+  if(!S.startTime) return;
+  const elSec=Math.floor((Date.now()-new Date(S.startTime).getTime())/1000);
+  const min=Math.floor(elSec/60);
+  const sec=elSec%60;
+  $('elapsed').textContent=String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+
+  if(elSec!==lastSecond){
+    lastSecond=elSec;
+    checkSoundAlerts(elSec,min,sec);
+    updateCycleCountdown(elSec);
+    checkProtocolAlerts(min,sec);
+    if(min!==S.currentMin){
+      S.currentMin=min;
+      highlightRow(min);
+      updateMinuteReminders(min);
+      updateTargetMinOptions();
+    }
+    updateAdrTimer(elSec);
+    if(elSec%30===0 && elSec>0) autoSave(); // save every 30 seconds
+  }
+}
+
+// ── เลขนับถอยหลังใหญ่กระพริบ: 10 วิสุดท้ายก่อนครบรอบ 2 นาที ──
+function updateCycleCountdown(elSec){
+  const el=$('cycle-countdown'); if(!el) return;
+  const cycleLen=RHYTHM_INTERVAL_MIN*60;
+  const left=cycleLen-(elSec%cycleLen);
+  if(elSec>0 && left<=SOUND_WARN_SEC){
+    el.querySelector('.cc-num').textContent=left;
+    el.style.display='flex';
+  } else {
+    el.style.display='none';
+  }
+}
+
+// ── Zoom ตาราง timeline (จำค่าไว้ในเครื่อง) ──
+let tlZoom=parseFloat(localStorage.getItem('cpr_tl_zoom'))||1;
+function applyTlZoom(){
+  const t=document.querySelector('.tl-table');
+  if(t) t.style.zoom=tlZoom;
+}
+function tlZoomAdj(d){
+  tlZoom=Math.min(2,Math.max(0.6,+(tlZoom+d).toFixed(2)));
+  try{ localStorage.setItem('cpr_tl_zoom',tlZoom); }catch(e){}
+  applyTlZoom();
+}
+
+function checkSoundAlerts(elSec,min,sec){
+  const cycleLen=RHYTHM_INTERVAL_MIN*60;
+  const secInCycle=elSec%cycleLen;
+  const warnAt=cycleLen-SOUND_WARN_SEC;
+
+  if(secInCycle===warnAt && elSec>0) startAlarm10s(); // 10-sec alarm starts
+  if(secInCycle===0 && elSec>0){ stopAlarm(); soundCycleEnd(); } // ครบ 2 นาที → เสียง chime
+
+  // Adrenaline overdue alarm (once per minute)
+  if(S.adrLastTs){
+    const sinceMin=(Date.now()-S.adrLastTs)/60000;
+    if(sinceMin>=ADR_INTERVAL_MIN+0.5 && sec===0) soundAlarm();
+  }
+}
+
+function updateMinuteReminders(min){
+  const rhythmEl=$('rhythm-rem'), compEl=$('comp-rem');
+  if(min>0 && min%RHYTHM_INTERVAL_MIN===0){
+    rhythmEl.textContent='⚠️ CHECK RHYTHM NOW!';
+    rhythmEl.className='reminder rem-warn';
+    compEl.textContent='🔄 เปลี่ยนคน CPR!';
+    compEl.className='reminder rem-warn';
+  } else {
+    const next=RHYTHM_INTERVAL_MIN-(min%RHYTHM_INTERVAL_MIN);
+    rhythmEl.textContent=`Check rhythm ใน ${next} นาที`;
+    rhythmEl.className='reminder rem-ok';
+    compEl.textContent=`เปลี่ยน compressor ใน ${next} นาที`;
+    compEl.className='reminder rem-ok';
+  }
+}
+
+function updateAdrTimer(elSec){
+  const sub=$('adr-sub'), rem=$('adr-rem');
+  if(!S.adrLastTs){
+    sub.textContent='1 mg IV — tap to give';
+    rem.textContent='รอให้ครั้งแรก';
+    rem.className='reminder rem-ok';
+    return;
+  }
+  const since=(Date.now()-S.adrLastTs)/60000;
+  const remaining=(ADR_INTERVAL_MIN-since)*60;
+  if(since>=ADR_INTERVAL_MIN+0.5){
+    sub.textContent='⚠️ OVERDUE!';
+    rem.textContent=`Adrenaline เลย ${Math.floor(since-ADR_INTERVAL_MIN)}:${String(Math.floor(((since-ADR_INTERVAL_MIN)%1)*60)).padStart(2,'0')} นาทีแล้ว!`;
+    rem.className='reminder rem-danger';
+    $('btn-adr').classList.remove('adr-blink-warn');
+    $('btn-adr').classList.add('adr-blink-danger');
+  } else if(since>=ADR_INTERVAL_MIN){
+    sub.textContent='DUE NOW!';
+    rem.textContent='ถึงเวลาให้ Adrenaline!';
+    rem.className='reminder rem-warn';
+    $('btn-adr').classList.remove('adr-blink-danger');
+    $('btn-adr').classList.add('adr-blink-warn');
+  } else if(remaining<=ADR_PREWARN_SEC){
+    // ── เตือนล่วงหน้าก่อนถึงเวลา Adrenaline 20 วินาที ──
+    const rs=Math.max(1,Math.ceil(remaining));
+    sub.textContent=`⏳ เตรียมยา! อีก ${rs} วิ`;
+    rem.textContent=`ใกล้ถึงเวลา Adrenaline #${S.adrCount+1} — เตรียม syringe + flush`;
+    rem.className='reminder rem-warn';
+    $('btn-adr').classList.remove('adr-blink-danger');
+    $('btn-adr').classList.add('adr-blink-warn');
+    // เสียงเตือนครั้งเดียวตอนเข้า 20 วิ
+    if(adrPreWarnTs!==S.adrLastTs){
+      adrPreWarnTs=S.adrLastTs;
+      beep(700,.12,.35); setTimeout(()=>beep(700,.12,.35),200);
+    }
+  } else {
+    const rm=Math.floor(remaining/60), rs=Math.floor(remaining%60);
+    sub.textContent=`Next: ${rm}:${String(rs).padStart(2,'0')}`;
+    rem.textContent=`#${S.adrCount} ให้แล้ว`;
+    rem.className='reminder rem-ok';
+    $('btn-adr').classList.remove('adr-blink-warn','adr-blink-danger');
+  }
+}
+
+function checkProtocolAlerts(min,sec){
+  const lastR=getLastRhythm();
+  const isShockable=lastR==='VF'||lastR==='pVT'||lastR==='TdP';
+  const banner=$('shockable-banner');
+  // Show banner only if: shockable rhythm AND no defib given since last rhythm check
+  if(isShockable && !shockableActive && !postDefibClear){
+    shockableActive=true;
+    banner.classList.add('show');
+    $('btn-defib').classList.add('blink-defib');
+    soundShockable();
+  } else if((!isShockable || postDefibClear) && shockableActive){
+    shockableActive=false;
+    banner.classList.remove('show');
+    $('btn-defib').classList.remove('blink-defib');
+  }
+  renderProtoPanel(min);
+}
+
+function dismissShockable(){
+  postDefibClear=true;
+  shockableActive=false;
+  $('shockable-banner').classList.remove('show');
+  $('btn-defib').classList.remove('blink-defib');
+  showDefibModal();
+}
+
+function renderProtoPanel(min){
+  const last=getLastRhythm();
+  const isShockable=last==='VF'||last==='pVT'||last==='TdP';
+  const adrOk=!S.adrLastTs||(Date.now()-S.adrLastTs)/60000<ADR_INTERVAL_MIN+0.5;
+  const rows=[
+    { lbl:'Adrenaline', ok:adrOk, bad:!adrOk },
+    { lbl:isShockable?`${last} → DEFIB!`:'Rhythm: '+( last||'—'), ok:!isShockable, bad:isShockable },
+  ];
+  $('proto-panel').innerHTML=rows.map(r=>`
+    <div class="proto-row">
+      <div class="proto-dot ${r.bad?'dot-danger':r.ok?'dot-ok':'dot-warn'}"></div>
+      <span style="font-size:11px;${r.bad?'color:var(--danger);font-weight:700':''}">${r.lbl}</span>
+    </div>`).join('');
+}
+
+function getLastRhythm(){
+  const keys=Object.keys(S.rhythmData).map(Number).sort((a,b)=>b-a);
+  for(const k of keys){ if(S.rhythmData[k].rhythm) return S.rhythmData[k].rhythm; }
+  return '';
+}
+
+// ════════════════════════════════════════
+// TIMELINE
+// ════════════════════════════════════════
+function buildTimeline(){
+  const tbody=$('tl-body');
+  tbody.innerHTML='';
+  for(let i=0;i<=60;i++) appendRow(i,tbody);
+  highlightRow(0);
+  scrollToNow();
+}
+function appendRow(i,tbody){
+  const isR=i%2===0;
+  const tr=document.createElement('tr');
+  tr.id=`tr-${i}`;
+  tr.className='tl-row'+(isR?' rhythm-row':'');
+  tr.innerHTML=`
+    <td class="td-min${i%10===0?' big':''}">${i}</td>
+    <td class="td-adr" id="adrcell-${i}" onclick="adrCellTap(${i})" title="แตะ = ให้ Adrenaline นาทีนี้ / แตะ ✓ = ลบ"></td>
+    <td class="td-df"  id="dfcell-${i}"  onclick="dfCellTap(${i})"  title="แตะ = Defib นาทีนี้ / แตะ ✓ = ลบ"></td>
+    <td class="td-content">
+      <div class="row-line">
+        ${isR?`<span class="rhythm-inline">
+          <select class="r-sel" id="rh-${i}" onchange="saveRhythm(${i},true)">
+            <option value="">— Rhythm —</option>
+            <option>VF</option><option>pVT</option><option>TdP</option>
+            <option>PEA</option><option>Asystole</option>
+          </select>
+          <input type="number" class="r-inp" id="rr-${i}" placeholder="HR" inputmode="numeric" onchange="saveRhythm(${i},false)" title="HR">
+          <input type="number" class="r-inp" id="re-${i}" placeholder="CO₂" inputmode="numeric" onchange="saveRhythm(${i},false)" title="EtCO2">
+        </span>`:''}
+        <span class="tagwrap" id="drugtags-${i}"></span><span class="tagwrap" id="proctags-${i}"></span><span class="tagwrap" id="warntags-${i}"></span>
+        <span class="row-add">
+          <button class="add-mini" onclick="cellAdd(event,${i},'drug')" title="เพิ่มยาที่นาทีนี้">+💊</button>
+          <button class="add-mini" onclick="cellAdd(event,${i},'proc')" title="เพิ่มหัตถการที่นาทีนี้">+🔧</button>
+        </span>
+      </div>
+    </td>`;
+  tbody.appendChild(tr);
+}
+function highlightRow(min){
+  document.querySelectorAll('.tl-row.current').forEach(r=>r.classList.remove('current'));
+  const r=$(`tr-${min}`);
+  if(r) r.classList.add('current');
+}
+function scrollToNow(){
+  const r=$(`tr-${S.currentMin||0}`);
+  if(r) r.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function saveRhythm(min, fromRhythmSelect=false){
+  const rh=$(`rh-${min}`)?.value||'';
+  const rr=$(`rr-${min}`)?.value||'';
+  const et=$(`re-${min}`)?.value||'';
+  S.rhythmData[min]={rhythm:rh,rate:rr,etco2:et};
+  if(et&&parseFloat(et)<10) addTag(min,'warn',`⚠️ EtCO2 ${et} mmHg ต่ำ!`,'etco2-warn-'+min);
+  if(fromRhythmSelect) postDefibClear=false;
+  checkProtocolAlerts(min,0);
+  autoSave();
+}
+
+// ════════════════════════════════════════
+// EVENT TAGS
+// ════════════════════════════════════════
+// ยา = adr,drug | หัตถการ = defib,airway,proc | warn = full-width
+function evColId(type, min){
+  if(type==='warn') return `warntags-${min}`;
+  return (type==='drug') ? `drugtags-${min}` : `proctags-${min}`;
+}
+function addTag(min, type, text, uid){
+  // Adrenaline / Defib → checkmark ในคอลัมน์ของตัวเอง ไม่ใช่ tag
+  if(type==='adr'||type==='defib'){ renderMarkCells(min); return; }
+  const container=$(evColId(type,min));
+  if(!container) return;
+  const id=uid||(type+'_'+Date.now()+'_'+Math.random().toString(36).slice(2,6));
+  const wrap=document.createElement('span');
+  wrap.style.display='inline-flex';wrap.style.alignItems='center';wrap.style.gap='2px';wrap.style.margin='2px';
+  wrap.innerHTML=`<span class="tag tag-${type}" data-evid="${id}">${text}</span><button class="tag-del" onclick="openEditEvent('${id}','${type}',this)" title="แก้ไข/ลบ">✎</button>`;
+  container.appendChild(wrap);
+}
+
+// ── ช่อง checkmark Adr / DF ──────────────────────────
+function renderMarkCells(min){
+  const a=$(`adrcell-${min}`), d=$(`dfcell-${min}`);
+  if(a){
+    const n=S.events.filter(e=>e.minute===min&&e.type==='adr').length;
+    a.textContent=n?'✓'.repeat(n):'';
+  }
+  if(d){
+    const evs=S.events.filter(e=>e.minute===min&&e.type==='defib');
+    d.innerHTML=evs.map(e=>`✓<span class="df-j">${String(e.joules||'').replace(/J$/,'')}J</span>`).join(' ');
+  }
+}
+function renderAllMarkCells(){ for(let i=0;i<=60;i++) renderMarkCells(i); }
+function adrCellTap(min){
+  if(min>(S.currentMin||0)) return;                  // ยังไม่ถึงนาทีนั้น
+  const evs=S.events.filter(e=>e.minute===min&&e.type==='adr');
+  if(evs.length){
+    if(!confirm(`ลบ Adrenaline ที่นาที ${min}?`)) return;
+    const last=evs[evs.length-1];
+    S.events=S.events.filter(e=>e.uid!==last.uid);
+    renumberEvents(); renderMarkCells(min); autoSave();
+  } else {
+    giveAdrAt(min);
+  }
+}
+function dfCellTap(min){
+  if(min>(S.currentMin||0)) return;
+  const evs=S.events.filter(e=>e.minute===min&&e.type==='defib');
+  if(evs.length){
+    if(!confirm(`ลบ Defib ${evs[evs.length-1].joules||''} ที่นาที ${min}?`)) return;
+    const last=evs[evs.length-1];
+    S.events=S.events.filter(e=>e.uid!==last.uid);
+    renumberEvents(); renderMarkCells(min); autoSave();
+  } else {
+    tapMin=min;             // Defib ลงที่นาทีนี้
+    showDefibModal();
+  }
+}
+
+function openEditEvent(id, type, btn){
+  $('edit-event-id').value=id+'|'+type;
+  const tagEl=btn.previousElementSibling;
+  $('edit-event-text').value=tagEl.textContent;
+  $('edit-modal').classList.remove('hide');
+}
+function confirmEditEvent(){
+  const [id,type]=$('edit-event-id').value.split('|');
+  const newText=$('edit-event-text').value.trim();
+  if(!newText) return;
+  const tagEl=document.querySelector(`[data-evid="${id}"]`);
+  if(tagEl) tagEl.textContent=newText;
+  const ev=S.events.find(e=>e.uid===id);
+  if(ev) ev.detail=newText;
+  hide('edit-modal');
+}
+function deleteEvent(){
+  const [id]=$('edit-event-id').value.split('|');
+  const tagEl=document.querySelector(`[data-evid="${id}"]`);
+  if(tagEl) tagEl.parentElement.remove();
+  S.events=S.events.filter(e=>e.uid!==id);
+  renumberEvents();
+  hide('edit-modal');
+}
+
+function renumberEvents(){
+  // Re-number Adrenaline events in chronological (by-minute) order
+  const adrEvs=S.events.filter(e=>e.type==='adr').sort((a,b)=>a.minute-b.minute);
+  adrEvs.forEach((ev,i)=>{
+    const n=i+1;
+    ev.detail=`Adrenaline 1mg #${n}`;
+    ev.num=n;
+    ev.tagText='';
+  });
+  S.adrCount=adrEvs.length;
+
+  const defibEvs=S.events.filter(e=>e.type==='defib').sort((a,b)=>a.minute-b.minute);
+  defibEvs.forEach((ev,i)=>{
+    const n=i+1;
+    const j=ev.joules||'?J';
+    ev.detail=`Defib ${j} #${n}`;
+    ev.num=n;
+    ev.tagText=`⚡ ${j} #${n} ${ev.ts}`;
+    const el=document.querySelector(`[data-evid="${ev.uid}"]`);
+    if(el) el.textContent=ev.tagText;
+  });
+  S.defibCount=defibEvs.length;
+  autoSave();
+}
+
+// ════════════════════════════════════════
+// TARGET MINUTE (ย้อนบันทึก cycle ก่อนหน้า)
+// ════════════════════════════════════════
+let tapMin=null;   // ตั้งเมื่อแตะช่องในตารางโดยตรง (one-shot)
+function recMin(){
+  if(tapMin!=null) return tapMin;
+  const sel=$('target-min');
+  if(!sel||sel.value===''||sel.value==='now') return S.currentMin||0;
+  const v=parseInt(sel.value);
+  return isNaN(v)?(S.currentMin||0):Math.min(v,S.currentMin||0);
+}
+// แตะช่อง ยา/หัตถการ ในตาราง → เพิ่มรายการลงนาทีนั้นเลย
+function cellAdd(ev, min, type){
+  if(ev&&ev.target&&(ev.target.closest('.tag')||ev.target.closest('.tag-del'))) return; // กดที่แท็ก/ปุ่มแก้ไข ไม่นับ
+  tapMin=min;
+  if(type==='proc') showProcModal();
+  else showDrugModal();
+}
+function tsForMin(min){
+  return (min===(S.currentMin||0)) ? nowStr() : clockAtMin(min);
+}
+function updateTargetMinOptions(){
+  const sel=$('target-min'); if(!sel) return;
+  const cur=S.currentMin||0;
+  const prev=sel.value;
+  let html=`<option value="now">▶ ปัจจุบัน (นาที ${cur})</option>`;
+  for(let i=cur;i>=0;i--){ html+=`<option value="${i}">↩ นาที ${i} · ${clockAtMin(i)}</option>`; }
+  sel.innerHTML=html;
+  sel.value=(prev&&prev!=='now'&&parseInt(prev)<=cur)?prev:'now';
+  onTargetMinChange();
+}
+function onTargetMinChange(){
+  const sel=$('target-min'); if(!sel) return;
+  const past=sel.value!=='now'&&parseInt(sel.value)!==(S.currentMin||0);
+  sel.style.borderColor=past?'var(--adr)':'';
+  sel.style.background=past?'#fff7ed':'#fff';
+  sel.style.color=past?'var(--adr)':'';
+}
+function flashRow(min){
+  const r=$(`tr-${min}`); if(!r) return;
+  r.style.transition='background .15s'; const old=r.style.background;
+  r.style.background='#fde68a';
+  setTimeout(()=>{ r.style.background=old; },500);
+}
+
+// ════════════════════════════════════════
+// ACTIONS
+// ════════════════════════════════════════
+function giveAdr(){ giveAdrAt(recMin()); }
+function giveAdrAt(min){
+  initAudio();
+  const past=min!==(S.currentMin||0);
+  S.adrCount++;
+  if(!past) S.adrLastTs=Date.now();
+  const ts=tsForMin(min);   // เก็บเวลาไว้ในข้อมูล (ไม่แสดงในตาราง)
+  const uid='adr_'+Date.now();
+  S.events.push({uid,minute:min,ts,type:'adr',detail:`Adrenaline 1mg #${S.adrCount}`,num:S.adrCount,tagText:''});
+  renumberEvents();
+  renderMarkCells(min);
+  if(past) flashRow(min);
+  $('btn-adr').classList.remove('adr-blink-warn','adr-blink-danger');
+  autoSave();
+  beep(600,.08); setTimeout(()=>beep(900,.12),100);
+}
+
+function showDefibModal(){
+  $('defib-j').value='';
+  if(S.patientType==='child'&&S.weight){
+    $('defib-modal-sub').textContent=`เด็ก (${S.weight}kg): 1st ${Math.round(S.weight*2)}J · 2nd ${Math.round(S.weight*4)}J`;
+  } else {
+    $('defib-modal-sub').textContent='Biphasic: 120–200J recommended';
+  }
+  $('defib-modal').classList.remove('hide');
+}
+function setJ(j){ $('defib-j').value=j; }
+function confirmDefib(){
+  const j=$('defib-j').value;
+  if(!j){ hide('defib-modal'); return; }
+  const min=recMin();
+  S.defibCount++;
+  const ts=tsForMin(min);   // เก็บเวลาไว้ในข้อมูล (ไม่แสดงในตาราง)
+  const uid='defib_'+Date.now();
+  S.events.push({uid,minute:min,ts,type:'defib',detail:`Defib ${j}J #${S.defibCount}`,joules:`${j}J`,num:S.defibCount,tagText:''});
+  renumberEvents();
+  renderMarkCells(min);
+  if(min!==(S.currentMin||0)) flashRow(min);
+  autoSave();
+  postDefibClear=true;
+  shockableActive=false;
+  $('shockable-banner').classList.remove('show');
+  $('btn-defib').classList.remove('blink-defib');
+  hide('defib-modal');
+  beep(500,.05); setTimeout(()=>beep(800,.05),80); setTimeout(()=>beep(1200,.15),160);
+}
+
+function quickDrug(name, type='drug'){
+  const min=recMin();
+  const ts=tsForMin(min);   // เก็บเวลาไว้ในข้อมูล (ไม่แสดงในตาราง)
+  const uid='drug_'+Date.now();
+  const tagText=name;       // แสดงแค่ชื่อยา + dose
+  S.events.push({uid,minute:min,ts,type,detail:name,tagText});
+  addTag(min,type,tagText,uid);
+  if(min!==(S.currentMin||0)) flashRow(min);
+  hide('drug-modal');
+  autoSave();
+}
+function fillDrug(name){
+  const inp=$('drug-custom');
+  inp.value=name;
+  inp.focus();
+  // place cursor at end for quick dose edit
+  const v=inp.value; inp.value=''; inp.value=v;
+}
+function modalMinLabel(elId){
+  const el=$(elId); if(!el) return;
+  const min=recMin();
+  if(min!==(S.currentMin||0)){
+    el.innerHTML=`↩ บันทึกที่ <b>นาที ${min}</b> · ${clockAtMin(min)}`;
+    el.style.display='block'; el.style.color='var(--adr)'; el.style.fontWeight='700';
+  } else { el.style.display='none'; }
+}
+function showDrugModal(){
+  $('drug-custom').value='';
+  presetEditMode=false;
+  renderPresets();
+  const b=$('preset-edit-btn'); if(b){ b.textContent='✎ แก้ไข'; b.classList.remove('on'); }
+  modalMinLabel('drug-modal-min');
+  $('drug-modal').classList.remove('hide');
+}
+function confirmCustomDrug(){
+  const v=$('drug-custom').value.trim();
+  if(v) quickDrug(v,'drug'); else hide('drug-modal');
+}
+
+// ── Procedure modal (หัตถการ) ──
+function escJs(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+let procEditMode=false;
+function showProcModal(){
+  $('proc-custom').value='';
+  procEditMode=false;
+  modalMinLabel('proc-modal-min');
+  renderProcGrid();
+  $('proc-modal').classList.remove('hide');
+}
+function renderProcGrid(){
+  const grid=$('proc-presets-grid'); if(!grid) return;
+  const list=CFG.procPresets||[];
+  let html='';
+  if(!procEditMode){
+    // ปุ่มพิเศษ: ETT/Airway และ Defib (นับครั้ง + เลือก Joules)
+    html+=`<button class="qk-btn" onclick="procToAirway()">ETT /<br>Airway</button>`;
+    html+=`<button class="qk-btn" style="border-color:var(--defib);color:var(--defib);font-weight:700" onclick="procToDefib()">⚡ Defib</button>`;
+    list.forEach(t=>{ html+=`<button class="qk-btn" onclick="fillProc('${escJs(t)}')">${t}</button>`; });
+  } else {
+    list.forEach((t,i)=>{
+      html+=`<div class="preset-edit-row" style="grid-column:1 / -1">
+        <button class="sm-btn sm-green" style="flex:1" onclick="editProcPreset(${i})">${t}</button>
+        <button class="preset-del-btn" onclick="delProcPreset(${i})" title="ลบ">🗑</button>
+      </div>`;
+    });
+    html+=`<button class="preset-add-btn" style="grid-column:1 / -1" onclick="addProcPreset()">+ เพิ่มหัตถการ</button>`;
+  }
+  grid.innerHTML=html;
+  const b=$('proc-edit-btn');
+  if(b){ b.textContent=procEditMode?'✓ เสร็จ':'✎ แก้ไข'; }
+}
+function toggleProcEdit(){ procEditMode=!procEditMode; renderProcGrid(); }
+function addProcPreset(){
+  const v=prompt('เพิ่มหัตถการ (ชื่อ):','');
+  if(v===null) return;
+  const t=v.trim(); if(!t) return;
+  if(!Array.isArray(CFG.procPresets)) CFG.procPresets=[];
+  CFG.procPresets.push(t);
+  persistProc();
+}
+function editProcPreset(i){
+  const cur=(CFG.procPresets||[])[i]; if(cur==null) return;
+  const v=prompt('แก้ไขหัตถการ (เว้นว่าง = ลบ):',cur);
+  if(v===null) return;
+  const t=v.trim();
+  if(!t){ delProcPreset(i,true); return; }
+  CFG.procPresets[i]=t;
+  persistProc();
+}
+function delProcPreset(i,skip){
+  if(!skip && !confirm('ลบหัตถการนี้?')) return;
+  if(!Array.isArray(CFG.procPresets)) return;
+  CFG.procPresets.splice(i,1);
+  persistProc();
+}
+function persistProc(){
+  DB.settings=CFG;
+  saveDB();
+  renderProcGrid();
+}
+function procToAirway(){
+  $('proc-modal').classList.add('hide'); // ไม่ใช้ hide() เพื่อคง tapMin (นาทีที่แตะ) ไว้
+  showAirwayModal();
+}
+function procToDefib(){
+  $('proc-modal').classList.add('hide'); // คง tapMin ไว้ → Defib ลงนาทีที่แตะ
+  showDefibModal();
+}
+function fillProc(name){
+  const inp=$('proc-custom');
+  inp.value=name; inp.focus();
+  const v=inp.value; inp.value=''; inp.value=v;
+}
+function confirmProc(){
+  const v=$('proc-custom').value.trim();
+  if(v){ quickDrug(v,'proc'); hide('proc-modal'); } else hide('proc-modal');
+}
+
+// ════════════════════════════════════════
+// CUSTOM PRESET BUTTONS (ยา/หัตถการ — แก้ไข/ลบ/เพิ่มเองได้)
+// ════════════════════════════════════════
+let presetEditMode=false;
+// ยา preset — แสดงในกรอบบนของ modal ยา (ปุ่ม + ในตาราง timeline)
+function renderPresets(){
+  const box=$('drug-presets-grid'); if(!box) return;
+  let html='';
+  if(!presetEditMode){
+    // Adrenaline พิเศษ: นับ dose + จับเวลาให้อัตโนมัติ
+    html+=`<button class="qk-btn" style="border-color:var(--adr);color:var(--adr);font-weight:700" onclick="modalGiveAdr()">💉 Adrenaline<br>1mg</button>`;
+    (CFG.drugPresets||[]).forEach((p,i)=>{
+      if(!p||p.type==='proc') return;
+      html+=`<button class="qk-btn" onclick="pressPreset(${i})">${p.text}</button>`;
+    });
+  } else {
+    (CFG.drugPresets||[]).forEach((p,i)=>{
+      if(!p||p.type==='proc') return;
+      html+=`<div class="preset-edit-row" style="grid-column:1 / -1">
+        <button class="sm-btn sm-blue" style="flex:1;margin-bottom:0" onclick="editPreset(${i})">${p.text}</button>
+        <button class="preset-del-btn" onclick="deletePreset(${i})" title="ลบ">🗑</button>
+      </div>`;
+    });
+    html+=`<button class="preset-add-btn" style="grid-column:1 / -1" onclick="addPreset('drug')">+ เพิ่มยา</button>`;
+  }
+  box.innerHTML=html;
+}
+// Adrenaline จาก modal ยา — ใช้นาทีที่แตะ (tapMin) ถ้ามี
+function modalGiveAdr(){ giveAdr(); hide('drug-modal'); }
+// เก็บชื่อเดิมไว้กันโค้ดส่วนอื่นเรียก
+function renderDrugPresets(){ renderPresets(); }
+function togglePresetEdit(){
+  presetEditMode=!presetEditMode;
+  const b=$('preset-edit-btn');
+  if(b){ b.textContent=presetEditMode?'✓ เสร็จ':'✎ แก้ไข'; b.classList.toggle('on',presetEditMode); }
+  renderPresets();
+}
+function pressPreset(i){
+  const p=(CFG.drugPresets||[])[i]; if(!p) return;
+  quickDrug(p.text, p.type||'drug');
+}
+function addPreset(type){
+  const isProc=type==='proc';
+  const v=prompt(`เพิ่มปุ่ม${isProc?'หัตถการ':'ยา'} (ชื่อ + dose):`,'');
+  if(v===null) return;
+  const t=v.trim(); if(!t) return;
+  if(!Array.isArray(CFG.drugPresets)) CFG.drugPresets=[];
+  CFG.drugPresets.push({text:t,type:isProc?'proc':'drug'});
+  persistPresets();
+}
+function editPreset(i){
+  const p=(CFG.drugPresets||[])[i]; if(!p) return;
+  const v=prompt('แก้ไขชื่อ / dose (เว้นว่าง = ลบ):',p.text);
+  if(v===null) return;
+  const t=v.trim();
+  if(!t){ deletePreset(i,true); return; }
+  p.text=t;
+  persistPresets();
+}
+function deletePreset(i,skip){
+  if(!skip && !confirm('ลบปุ่มนี้?')) return;
+  if(!Array.isArray(CFG.drugPresets)) return;
+  CFG.drugPresets.splice(i,1);
+  persistPresets();
+}
+function persistPresets(){
+  DB.settings=CFG;
+  saveDB();
+  renderPresets();
+}
+function ettStep(id,delta){
+  const inp=$(id); if(!inp) return;
+  const step=id==='ett-no'?0.5:1;
+  let cur=parseFloat(inp.value);
+  if(isNaN(cur)) cur=id==='ett-no'?7.5:20;
+  let v=Math.round((cur+delta)/step)*step;
+  if(v<0) v=0;
+  inp.value=id==='ett-no'?v.toFixed(1):String(v);
+}
+function showAirwayModal(){
+  // ETT preset: No. 7.5 · mark 20 (กดเพิ่ม/ลดได้)
+  $('ett-no').value='7.5'; $('ett-mark').value='20';
+  modalMinLabel('ett-modal-min');
+  const hint=$('ett-hint');
+  if(hint){
+    if(S.patientType==='child'&&S.weight){
+      const e=calcPedsETT(S.weight);
+      hint.innerHTML=e?`<div style="background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:8px 10px;font-size:12px;color:#15803d;margin-bottom:10px">
+        <b>🫁 ETT แนะนำ (${S.weight}kg)</b><br>
+        Uncuffed: <b>${e.unc} mm</b> · Cuffed: <b>${e.cuf||'—'} mm</b><br>
+        Depth ที่ริมฝีปาก: <b>${e.depth} cm</b>
+      </div>`:'';
+    } else hint.innerHTML='';
+  }
+  $('airway-modal').classList.remove('hide');
+}
+
+function confirmAirway(){
+  const no=$('ett-no').value, mark=$('ett-mark').value;
+  if(no||mark){
+    const min=recMin();
+    const d=`ETT no.${no||'?'} mark ${mark||'?'}cm`;
+    const ts=tsForMin(min);
+    const uid='air_'+Date.now();
+    const airTag=`🫁 ${d}`;
+    S.events.push({uid,minute:min,ts,type:'airway',detail:d,tagText:airTag});
+    addTag(min,'airway',airTag,uid);
+    if(min!==(S.currentMin||0)) flashRow(min);
+    autoSave();
+  }
+  hide('airway-modal');
+}
+
+// ════════════════════════════════════════
+// EDIT PATIENT
+// ════════════════════════════════════════
+function editPatient(){
+  $('edit-name').value=S.patientName;
+  $('edit-hn').value=S.hn||'';
+  const toTimeStr=iso=>{ if(!iso) return ''; const d=new Date(iso); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
+  $('edit-arresttime').value=toTimeStr(S.arrestTime);
+  $('edit-starttime').value=toTimeStr(S.startTime);
+  $('pt-modal').classList.remove('hide');
+}
+function confirmEditPatient(){
+  S.patientName=$('edit-name').value.trim()||S.patientName;
+  S.hn=$('edit-hn').value.trim();
+  const applyTime=(field,existing)=>{
+    const val=$(field).value;
+    if(!val) return existing;
+    const [h,m]=val.split(':').map(Number);
+    const d=existing?new Date(existing):new Date();
+    d.setHours(h,m,0,0);
+    return d.toISOString();
+  };
+  S.arrestTime=applyTime('edit-arresttime',S.arrestTime);
+  const oldStart=S.startTime;
+  S.startTime=applyTime('edit-starttime',S.startTime);
+  if(S.startTime!==oldStart){
+    // เวลาเริ่ม CPR เปลี่ยน → อัปเดตคอลัมน์เวลาในตารางให้ตรงจริง
+    refreshClocks();
+    lastSecond=-1; // force tick to recompute elapsed/current row
+    tick();
+  }
+  updateHeader();
+  autoSave();
+  hide('pt-modal');
+}
+function refreshClocks(){
+  for(let i=0;i<=60;i++){
+    const c=$(`tr-${i}`)?.querySelector('.td-clock');
+    if(c) c.textContent=clockAtMin(i);
+  }
+  updateTargetMinOptions();
+}
+function updateHeader(){
+  $('hdr-name').textContent=S.patientName+(S.hn?` · HN: ${S.hn}`:'');
+  $('hdr-sub').textContent=`${S.arrestType} · ${S.patientType==='adult'?'ผู้ใหญ่':'เด็ก'+(S.weight?` ${S.weight}kg`:'')} · Arrest: ${fmtTime(S.arrestTime)} · กดเพื่อแก้ไข`;
+}
+
+// ════════════════════════════════════════
+// UPDATE DRUG REF & DEFIB SUB
+// ════════════════════════════════════════
+function calcPedsETT(weight){
+  if(!weight) return null;
+  const w=parseFloat(weight);
+  // Estimate age from weight (years)
+  let age;
+  if(w<=3)       age=0;
+  else if(w<=10) age=(w-3)/1.5;
+  else            age=(w-10)/2+4.7;
+  age=Math.max(0,Math.round(age*10)/10);
+  // Uncuffed: (age/4)+4, Cuffed: (age/4)+3, Depth: (age/2)+12 or ETT×3
+  const unc=age<1?(w<=2?2.5:w<=3.5?3.0:3.5):Math.round((age/4+4)*2)/2;
+  const cuf=age<1?null:Math.round((age/4+3)*2)/2;
+  const depth=age<1?Math.round(w+6.5):Math.round(age/2+12);
+  return{unc,cuf,depth,age};
+}
+
+function updateDefibSub(){
+  const el=$('defib-sub'); if(!el) return;
+  if(S.patientType==='child'&&S.weight) el.textContent=`2J/kg=${Math.round(S.weight*2)}J (${S.weight}kg)`;
+  else el.textContent='200J Biphasic (ผู้ใหญ่)';
+}
+function updateDrugRef(){
+  const el=$('drug-ref'); if(!el) return;
+  if(S.patientType==='adult'){
+    el.innerHTML=`<b>Epinephrine</b><br>1mg IV q ${ADR_INTERVAL_MIN}min<br><br><b>Amiodarone</b><br>1st: 300mg · 2nd: 150mg<br><br><b>Lidocaine</b><br>1st: 1–1.5mg/kg<br>2nd: 0.5–0.75mg/kg<br><br><b>Defib (Biphasic)</b><br>120–200J`;
+  } else {
+    const w=S.weight||'?';
+    const epi=S.weight?`${(S.weight*.01).toFixed(2)}mg`:'0.01mg/kg';
+    const amio=S.weight?`${(S.weight*5).toFixed(0)}mg`:'5mg/kg';
+    const ett=S.weight?calcPedsETT(S.weight):null;
+    const ettHtml=ett?`<br><br><b style="color:#15803d">🫁 ETT Suggest</b><br>
+Uncuffed: <b>${ett.unc}</b> mm<br>
+Cuffed: <b>${ett.cuf||'—'}</b> mm<br>
+Depth: <b>${ett.depth}</b> cm ที่ริมฝีปาก<br>
+<span style="font-size:10px;color:#888">อายุประมาณ ${ett.age} ปี (${w}kg)</span>`:'';
+    el.innerHTML=`<b>Epi (Peds)</b><br>0.01mg/kg=${epi}<br>Max 1mg<br><br><b>Amiodarone</b><br>5mg/kg=${amio}<br>max 3 doses<br><br><b>Defib (Peds)</b><br>2J/kg · 4J/kg · 10J/kg${ettHtml}`;
+  }
+}
+
+// ════════════════════════════════════════
+// END CPR & SUMMARY
+// ════════════════════════════════════════
+function endCPR(){
+  if(!confirm('สิ้นสุด CPR และไปหน้าสรุป?')) return;
+  S.stopTime=new Date().toISOString();
+  if(S.timerID){ clearInterval(S.timerID); S.timerID=null; }
+  stopAlarm();
+  $('shockable-banner').classList.remove('show');
+  try{ localStorage.removeItem('cpr_active'); }catch(e){}
+  // เคลียร์ active บน Firebase ถ้าเป็นเคสนี้ (ทุกเครื่องจะเลิกถาม)
+  if(fbRef){ try{
+    if(!remoteActive||remoteActive.device===DEVICE_ID||remoteActive.data?.id===S.id) fbRef.child('active').remove();
+  }catch(e){} }
+  buildSummary();
+  showScreen('screen-summary');
+  // ── บันทึกอัตโนมัติทันทีที่จบเคส (ไม่ต้องรอกดบันทึก) ──
+  saveSession(S);
+  syncSession(S);
+}
+
+// ── บันทึกอัตโนมัติเมื่อแก้ไขในหน้า summary (เงียบๆ ไม่มี alert) ──
+let sumSaveTimer=null;
+function autoSaveSummary(){
+  if(!S.startTime||!S.stopTime) return;
+  clearTimeout(sumSaveTimer);
+  sumSaveTimer=setTimeout(()=>{
+    if($('s-note')) S.notes=$('s-note').value;
+    S.vitalROSC=vsRead('r');
+    saveSession(S);
+    syncSession(S);
+  },800);
+}
+
+function buildSummary(){
+  const hn=S.hn?` · HN: ${S.hn}`:'';
+  $('sum-pt').textContent=`${S.patientName}${hn} · ${S.arrestType} · ${S.patientType==='adult'?'ผู้ใหญ่':'เด็ก'}`;
+  const dur=Math.floor((new Date(S.stopTime)-new Date(S.startTime))/1000);
+  const dm=Math.floor(dur/60), ds=dur%60;
+  $('s-time').textContent=`${dm}:${String(ds).padStart(2,'0')}`;
+  $('s-adr').textContent=S.adrCount;
+  $('s-defib').textContent=S.defibCount;
+  $('s-rhythm').textContent=Object.values(S.rhythmData).filter(r=>r.rhythm).length;
+  $('s-arrest').textContent=fmtTime(S.arrestTime);
+  $('s-start').textContent=fmtTime(S.startTime);
+  $('s-stop').textContent=fmtTime(S.stopTime);
+  buildQuality(dm);
+  buildEtco2();
+  buildDrugList();
+  buildCauses();
+  buildPrintTimeline();
+  vsLoad('r',S.vitalROSC);   // โหลดค่าที่เคยกรอก (ถ้ามี) — ช่องที่ไม่เคยกรอกปล่อยว่าง
+}
+
+function buildQuality(totalMin){
+  // ── เกณฑ์ Quality CPR ที่ดีจริง (3 ข้อ) ──
+  // 1. Defib ภายใน 2 นาทีหลังมีข้อบ่งชี้ (เจอ VF/pVT)
+  // 2. Adrenaline ทุก dose ห่างกัน 3–5 นาที
+  // 3. EtCO2 เฉลี่ย ≥ 10 mmHg
+  const items=[];
+  let passed=0, applicable=0;
+
+  // 1) Defib ≤ 2 นาทีหลังเจอ shockable rhythm
+  const shockMins=Object.entries(S.rhythmData)
+    .filter(([,v])=>v.rhythm==='VF'||v.rhythm==='pVT'||v.rhythm==='TdP')
+    .map(([k])=>parseInt(k));
+  if(shockMins.length){
+    applicable++;
+    const indMin=Math.min(...shockMins);
+    const dfMins=S.events.filter(e=>e.type==='defib'&&e.minute>=indMin).map(e=>e.minute);
+    const firstDf=dfMins.length?Math.min(...dfMins):null;
+    const ok=firstDf!=null&&(firstDf-indMin)<=2;
+    if(ok) passed++;
+    items.push({lbl:'Defib หลังมีข้อบ่งชี้',
+      val:firstDf!=null?`${firstDf-indMin} min`:'ไม่ได้ shock',
+      cls:ok?'q-good':'q-bad',
+      note:ok?'✅ ภายใน 2 นาที':'❌ Target ≤ 2 นาทีหลังเจอ VF/pVT'});
+  }
+
+  // 2) Adrenaline interval 3–5 นาทีทุก dose
+  const adrEvs=S.events.filter(e=>e.type==='adr');
+  if(adrEvs.length>=2){
+    applicable++;
+    const mins=adrEvs.map(e=>e.minute).sort((a,b)=>a-b);
+    const gaps=[];
+    for(let i=1;i<mins.length;i++) gaps.push(mins[i]-mins[i-1]);
+    const avg=gaps.reduce((a,b)=>a+b,0)/gaps.length;
+    const ok=gaps.every(g=>g>=3&&g<=5);
+    if(ok) passed++;
+    items.push({lbl:'Adrenaline interval',val:`เฉลี่ย ${avg.toFixed(1)} min`,
+      cls:ok?'q-good':'q-warn',
+      note:ok?'✅ ทุก dose ห่าง 3–5 นาที':'⚠️ Target 3–5 นาทีทุก dose'});
+  } else if(adrEvs.length===1){
+    items.push({lbl:'Adrenaline interval',val:'ให้ 1 ครั้ง',cls:'',note:'ประเมิน interval ไม่ได้'});
+  }
+
+  // 3) EtCO2 เฉลี่ย ≥ 10
+  const etVals=Object.values(S.rhythmData).map(r=>parseFloat(r.etco2)).filter(v=>!isNaN(v)&&v>0);
+  let etAvg=null;
+  if(etVals.length){
+    applicable++;
+    etAvg=etVals.reduce((a,b)=>a+b,0)/etVals.length;
+    const ok=etAvg>=10;
+    if(ok) passed++;
+    items.push({lbl:'EtCO2 เฉลี่ย',val:`${etAvg.toFixed(0)} mmHg`,
+      cls:ok?'q-good':'q-bad',
+      note:ok?'✅ ≥ 10 mmHg':'❌ < 10 mmHg — Reassess CPR!'});
+  }
+
+  // ข้อมูลประกอบ (ไม่คิดคะแนน)
+  const ex=Math.max(1,Math.floor(totalMin/RHYTHM_INTERVAL_MIN));
+  const ac=Object.values(S.rhythmData).filter(r=>r.rhythm).length;
+  items.push({lbl:'Rhythm checks',val:`${ac}/${ex}`,cls:ac>=ex?'q-good':'q-warn',note:ac<ex?'⚠️ ตรวจน้อยกว่า protocol':''});
+  items.push({lbl:'Adrenaline รวม',val:`${S.adrCount} amps`,cls:'',note:''});
+
+  // สรุปหัวตาราง
+  items.unshift({lbl:'สรุป Quality',
+    val:applicable?`ผ่าน ${passed}/${applicable} ข้อ`:'—',
+    cls:applicable&&passed===applicable?'q-good':passed>=1?'q-warn':'q-bad',
+    note:applicable&&passed===applicable?'✅ CPR quality ดีจริง':'เกณฑ์: DF≤2 นาที · Adr 3–5 นาที · EtCO2 ≥10'});
+
+  // Save quality to session — 3 = ผ่านครบทุกข้อที่ประเมินได้
+  const qualScore=applicable>0?(passed===applicable?3:Math.min(2,passed)):null;
+  S.quality={etco2Avg:etAvg!=null?etAvg.toFixed(0):null,rhythmChecks:ac,adrCount:S.adrCount,qualScore,qualPassed:passed,qualApplicable:applicable,totalMin};
+
+  $('q-grid').innerHTML=items.map(it=>`
+    <div class="q-item">
+      <div class="q-lbl">${it.lbl}</div>
+      <div class="q-val ${it.cls}">${it.val}</div>
+      ${it.note?`<div class="q-note">${it.note}</div>`:''}
+    </div>`).join('');
+}
+
+function buildEtco2(){
+  const card=$('etco2-card'), chart=$('etco2-chart'), note=$('etco2-note');
+  const pts=Object.entries(S.rhythmData)
+    .filter(([,v])=>v.etco2&&!isNaN(parseFloat(v.etco2)))
+    .map(([k,v])=>({min:parseInt(k),val:parseFloat(v.etco2)}))
+    .sort((a,b)=>a.min-b.min);
+  if(!pts.length){card.style.display='none';return;}
+  card.style.display='';
+  const max=Math.max(...pts.map(p=>p.val),20);
+  chart.innerHTML=pts.map(p=>{
+    const h=Math.round((p.val/max)*56)+4;
+    const col=p.val>=10?'#15803d':p.val>=7?'#b45309':'#b91c1c';
+    return `<div class="etco2-bar" style="height:${h}px;background:${col}" title="Min ${p.min}: ${p.val}"></div>`;
+  }).join('');
+  const avg=pts.reduce((a,b)=>a+b.val,0)/pts.length;
+  note.textContent=`Min ${Math.min(...pts.map(p=>p.val))} — Max ${Math.max(...pts.map(p=>p.val))} — Avg ${avg.toFixed(0)} mmHg`;
+}
+
+function buildDrugList(){
+  const counts={};
+  // Strip trailing "#N" so Adrenaline #1/#2/#3 → all count as "Adrenaline 1mg"
+  S.events.forEach(e=>{
+    const base=e.detail.replace(/\s*#\d+$/,'').trim();
+    counts[base]=(counts[base]||0)+1;
+  });
+  const dl=$('drug-dl');
+  if(!Object.keys(counts).length){dl.innerHTML='<span style="color:var(--muted)">—</span>';return;}
+  dl.innerHTML=Object.entries(counts).map(([d,c])=>{
+    const suffix=c>1?` <b style="color:var(--navy)">× ${c}</b>`:'';
+    return `<div class="drug-dl-row"><span>${d}</span>${suffix}</div>`;
+  }).join('');
+}
+
+function buildCauses(){
+  const ht=['Hypovolemia','Hypoxia','Hydrogen ion (acidosis)','Hypo-/Hyperkalemia','Hypothermia',
+    'Tension pneumothorax','Tamponade, cardiac','Toxins','Thrombosis, pulmonary','Thrombosis, coronary'];
+  $('cause-grid').innerHTML=ht.map(c=>{
+    const on=S.causes.includes(c);
+    return `<div class="cause-item${on?' on':''}" onclick="toggleCause('${c}',this)">
+      <div class="cause-chk">${on?'✓':''}</div><span>${c}</span></div>`;
+  }).join('');
+}
+function toggleCause(c,el){
+  const i=S.causes.indexOf(c);
+  if(i>=0){S.causes.splice(i,1);el.classList.remove('on');el.querySelector('.cause-chk').textContent='';}
+  else{S.causes.push(c);el.classList.add('on');el.querySelector('.cause-chk').textContent='✓';}
+  autoSaveSummary();
+}
+function setOutcome(o){
+  S.outcome=o;
+  $('btn-rosc').classList.toggle('on',o==='ROSC');
+  $('btn-dead').classList.toggle('on',o==='DEAD');
+  autoSaveSummary();
+}
+
+// ════════════════════════════════════════
+// V/S หลัง ROSC — preset ค่า normal + stepper −/+
+// ใช้ร่วมกัน 2 ที่: summary (prefix 'r') และ case detail ใน dashboard (prefix 'cdv')
+// ════════════════════════════════════════
+const VS_FIELDS=[
+  {id:'bt',   lbl:'BT (°C)',      def:36.5,step:0.1,dec:1,min:30,max:43},
+  {id:'sbp',  lbl:'SBP',          def:120, step:5,  dec:0,min:0, max:300},
+  {id:'dbp',  lbl:'DBP',          def:80,  step:5,  dec:0,min:0, max:200},
+  {id:'pr',   lbl:'PR (/min)',    def:80,  step:5,  dec:0,min:0, max:250},
+  {id:'rr',   lbl:'RR (/min)',    def:20,  step:2,  dec:0,min:0, max:60},
+  {id:'etco2',lbl:'EtCO2 (mmHg)', def:35,  step:1,  dec:0,min:0, max:100},
+  {id:'spo2', lbl:'SpO2 (%)',     def:98,  step:1,  dec:0,min:0, max:100},
+  {id:'gcsE', lbl:'GCS E (1–4)',  def:4,   step:1,  dec:0,min:1, max:4},
+  {id:'gcsV', lbl:'GCS V (1–5)',  def:5,   step:1,  dec:0,min:1, max:5},
+  {id:'gcsM', lbl:'GCS M (1–6)',  def:6,   step:1,  dec:0,min:1, max:6},
+  {id:'pupilR',lbl:'Pupil Rt (mm)',def:3,  step:0.5,dec:1,min:0, max:9},
+  {id:'pupilL',lbl:'Pupil Lt (mm)',def:3,  step:0.5,dec:1,min:0, max:9},
+];
+function vsGridHTML(p){
+  return `<div class="v-grid">`+VS_FIELDS.map(f=>`
+    <div class="v-grp"><span class="v-lbl">${f.lbl}</span>
+      <input type="number" class="v-inp" id="${p}-${f.id}" data-def="${f.def}" data-min="${f.min}" data-max="${f.max}" step="${f.step}" inputmode="decimal" placeholder="${f.def}">
+    </div>`).join('')+`</div>`;
+}
+function vsFillDefaults(p){
+  VS_FIELDS.forEach(f=>{
+    const inp=$(`${p}-${f.id}`);
+    if(inp&&!inp.value) inp.value=Number(f.def).toFixed(f.dec);  // เติมเฉพาะช่องที่ยังว่าง
+  });
+}
+function vsRead(p){
+  const g=id=>($(`${p}-${id}`)?.value||'').trim();
+  const sbp=g('sbp'),dbp=g('dbp');
+  return {bt:g('bt'),bp:(sbp||dbp)?`${sbp||'?'}/${dbp||'?'}`:'',pr:g('pr'),rr:g('rr'),
+    etco2:g('etco2'),spo2:g('spo2'),gcsE:g('gcsE'),gcsV:g('gcsV'),gcsM:g('gcsM'),
+    pupilR:g('pupilR'),pupilL:g('pupilL')};
+}
+function vsLoad(p,v){
+  v=v||{};
+  const set=(id,val)=>{ const inp=$(`${p}-${id}`); if(inp) inp.value=(val==null||val==='?')?'':val; };
+  const bp=String(v.bp||'').split('/');
+  set('bt',v.bt); set('sbp',bp[0]); set('dbp',bp[1]);
+  set('pr',v.pr); set('rr',v.rr); set('etco2',v.etco2); set('spo2',v.spo2);
+  set('gcsE',v.gcsE); set('gcsV',v.gcsV); set('gcsM',v.gcsM);
+  set('pupilR',v.pupilR); set('pupilL',v.pupilL);
+}
+// Outcome เปลี่ยนใน case detail → แสดง/ซ่อนช่อง V/S
+function cdOutcomeChanged(){
+  const on=$('cd-outcome').value==='ROSC';
+  $('cd-vs-wrap').style.display=on?'block':'none';
+}
+
+function buildPrintTimeline(){ /* legacy — replaced by buildPrintPages() */ }
+
+function buildPrintPages(){
+  const hn=S.hn?` · HN: ${S.hn}`:'';
+  const dur=S.stopTime&&S.startTime?Math.floor((new Date(S.stopTime)-new Date(S.startTime))/60000):'?';
+  const ptype=S.patientType==='adult'?'ผู้ใหญ่':'เด็ก'+(S.weight?` ${S.weight}kg`:'');
+
+  const hdr=(title)=>`
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2.5px solid #1a2e4a;padding-bottom:5px;margin-bottom:8px">
+      <div>
+        <div style="font-size:14pt;font-weight:800;color:#1a2e4a">CPR Timeline — JNH ER</div>
+        <div style="font-size:8pt;color:#64748b">ACLS 2025 · ${title}</div>
+      </div>
+      <div style="text-align:right;font-size:9pt;line-height:1.5">
+        <div style="font-weight:800;font-size:11pt">${S.patientName}${hn}</div>
+        <div>${ptype} · ${S.arrestType} · Arrest ${fmtTime(S.arrestTime)} | Start ${fmtTime(S.startTime)} | Stop ${fmtTime(S.stopTime)} | ${dur} min</div>
+      </div>
+    </div>`;
+
+  /* ── PAGE 1: TIMELINE ── */
+  const stopMin=typeof dur==='number'?dur+1:60;
+  const allMins=new Set();
+  for(let i=0;i<=stopMin;i+=2) allMins.add(i); // rhythm rows every 2 min
+  Object.keys(S.rhythmData).forEach(k=>allMins.add(parseInt(k)));
+  S.events.forEach(e=>allMins.add(e.minute));
+  const sorted=[...allMins].filter(m=>m<=stopMin).sort((a,b)=>a-b);
+
+  const isDrugT=t=>(t==='adr'||t==='drug');
+  const tlRows=sorted.map(min=>{
+    const rh=S.rhythmData[min]||{};
+    const evsAt=S.events.filter(e=>e.minute===min);
+    const drugs=evsAt.filter(e=>isDrugT(e.type)).map(e=>e.detail).join(' · ');
+    const procs=evsAt.filter(e=>!isDrugT(e.type)).map(e=>e.detail).join(' · ');
+    const isR=min%2===0;
+    const shock=rh.rhythm==='VF'||rh.rhythm==='pVT'||rh.rhythm==='TdP';
+    const etLow=rh.etco2&&parseFloat(rh.etco2)<10;
+    return `<tr style="${isR?'background:#f0f7ff':''}">
+      <td style="text-align:center;font-weight:700;padding:3px 4px">${min}</td>
+      <td style="text-align:center;color:#555;padding:3px 4px">${clockAtMin(min)}</td>
+      <td style="font-weight:${rh.rhythm?'700':'400'};color:${shock?'#6b21a8':'#000'};padding:3px 4px">${rh.rhythm||''}</td>
+      <td style="text-align:center;padding:3px 4px">${rh.rate||''}</td>
+      <td style="text-align:center;padding:3px 4px;font-weight:${etLow?'700':'400'};color:${etLow?'#b91c1c':'inherit'}">${rh.etco2||''}</td>
+      <td style="font-size:8.5pt;padding:3px 4px;background:${drugs?'#ecfeff':'inherit'}">${drugs}</td>
+      <td style="font-size:8.5pt;padding:3px 4px;background:${procs?'#f0fdf4':'inherit'}">${procs}</td>
+    </tr>`;
+  }).join('');
+
+  $('print-p1').innerHTML=hdr('Page 1/2 — Timeline')+`
+    <table style="width:100%;border-collapse:collapse;font-size:9.5pt">
+      <thead><tr style="background:#1a2e4a;color:#fff">
+        <th style="padding:4px;width:28px">Min</th>
+        <th style="padding:4px;width:40px">เวลา</th>
+        <th style="padding:4px;width:72px">Rhythm</th>
+        <th style="padding:4px;width:32px">HR</th>
+        <th style="padding:4px;width:44px">EtCO2</th>
+        <th style="padding:4px">💊 ยา</th>
+        <th style="padding:4px">🔧 หัตถการ</th>
+      </tr></thead>
+      <tbody>${tlRows}</tbody>
+    </table>
+    <div style="margin-top:8px;font-size:8pt;color:#888;border-top:1px solid #ddd;padding-top:4px">
+      แถวสีฟ้า = Rhythm check ทุก 2 นาที · สีม่วง = Shockable · EtCO2 สีแดง < 10 mmHg
+    </div>`;
+
+  /* ── PAGE 2: SUMMARY ── */
+  // Quality
+  const etVals=Object.values(S.rhythmData).map(r=>parseFloat(r.etco2)).filter(v=>!isNaN(v)&&v>0);
+  const etAvg=etVals.length?(etVals.reduce((a,b)=>a+b,0)/etVals.length).toFixed(0):'—';
+  const etMin=etVals.length?Math.min(...etVals):'—';
+  const etMax=etVals.length?Math.max(...etVals):'—';
+  const rhChecks=Object.values(S.rhythmData).filter(r=>r.rhythm).length;
+  const adrEvs=S.events.filter(e=>e.type==='adr');
+  const adrInterval=adrEvs.length>=2?((adrEvs[adrEvs.length-1].minute-adrEvs[0].minute)/(adrEvs.length-1)).toFixed(1)+'min':'—';
+
+  // Drugs
+  const dc={};
+  S.events.forEach(e=>{ const b=e.detail.replace(/\s*#\d+$/,'').trim(); dc[b]=(dc[b]||0)+1; });
+  const drugHtml=Object.entries(dc).map(([d,c])=>`<tr><td style="padding:2px 4px">${d}</td><td style="padding:2px 4px;text-align:right;font-weight:700">${c>1?`×${c}`:''}</td></tr>`).join('')||'<tr><td>—</td></tr>';
+
+  // Causes
+  const h5=['Hypovolemia','Hypoxia','H⁺ (Acidosis)','Hypo/Hyperkalemia','Hypothermia'];
+  const t5=['Tension pneumothorax','Tamponade, cardiac','Toxins','Thrombosis PE','Thrombosis CAD'];
+  const chk=(c)=>`<div style="display:flex;gap:5px;align-items:center;padding:1.5px 0;font-size:8.5pt">
+    <div style="width:11px;height:11px;border:1.5px solid #888;flex-shrink:0;background:${S.causes.includes(c)?'#1a2e4a':'#fff'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:8px">${S.causes.includes(c)?'✓':''}</div>
+    ${c}</div>`;
+
+  // Outcome
+  const oc=S.outcome||'—';
+  const ocColor=oc==='ROSC'?'#15803d':oc==='DEAD'?'#b91c1c':'#64748b';
+  const v=S.vitalROSC||{};
+
+  $('print-p2').innerHTML=hdr('Page 2/2 — Summary')+`
+    <table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:9.5pt">
+      <tr style="background:#1a2e4a;color:#fff;text-align:center">
+        <td style="padding:4px;font-weight:700">ระยะเวลา</td>
+        <td style="padding:4px;font-weight:700">Adrenaline</td>
+        <td style="padding:4px;font-weight:700">Defibrillation</td>
+        <td style="padding:4px;font-weight:700">Rhythm Checks</td>
+        <td style="padding:4px;font-weight:700">Outcome</td>
+      </tr>
+      <tr style="text-align:center;font-size:16pt;font-weight:800">
+        <td style="padding:6px;color:#1a2e4a">${dur} นาที</td>
+        <td style="padding:6px;color:#c94a08">${S.adrCount} amps</td>
+        <td style="padding:6px;color:#6b21a8">${S.defibCount} ครั้ง</td>
+        <td style="padding:6px">${rhChecks}</td>
+        <td style="padding:6px;color:${ocColor}">${oc}</td>
+      </tr>
+    </table>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div>
+        <div style="background:#1a2e4a;color:#fff;font-weight:800;padding:3px 7px;font-size:9pt;margin-bottom:3px">CPR Quality</div>
+        <table style="width:100%;border-collapse:collapse;font-size:8.5pt">
+          <tr><td class="pt">EtCO2 เฉลี่ย</td><td class="ptd" style="font-weight:700;color:${parseFloat(etAvg)>=10?'#15803d':'#b91c1c'}">${etAvg} mmHg ${parseFloat(etAvg)>=10?'✓ ดี':'✗ ต่ำ'}</td></tr>
+          <tr style="background:#f8fafc"><td class="pt">EtCO2 min / max</td><td class="ptd">${etMin} / ${etMax} mmHg</td></tr>
+          <tr><td class="pt">Adrenaline interval</td><td class="ptd">${adrInterval}</td></tr>
+          <tr style="background:#f8fafc"><td class="pt">Arrest → Start CPR</td><td class="ptd">${S.arrestTime&&S.startTime?Math.round((new Date(S.startTime)-new Date(S.arrestTime))/60000)+' min':'—'}</td></tr>
+        </table>
+      </div>
+      <div>
+        <div style="background:#1a2e4a;color:#fff;font-weight:800;padding:3px 7px;font-size:9pt;margin-bottom:3px">ยา / หัตถการ</div>
+        <table style="width:100%;border-collapse:collapse;font-size:8.5pt">${drugHtml}</table>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div>
+        <div style="background:#1a2e4a;color:#fff;font-weight:800;padding:3px 7px;font-size:9pt;margin-bottom:3px">5H — สาเหตุ</div>
+        ${h5.map(chk).join('')}
+      </div>
+      <div>
+        <div style="background:#1a2e4a;color:#fff;font-weight:800;padding:3px 7px;font-size:9pt;margin-bottom:3px">5T — สาเหตุ</div>
+        ${t5.map(chk).join('')}
+      </div>
+    </div>
+
+    ${oc==='ROSC'?`
+    <div style="margin-bottom:8px">
+      <div style="background:#15803d;color:#fff;font-weight:800;padding:3px 7px;font-size:9pt;margin-bottom:3px">V/S หลัง ROSC</div>
+      <table style="width:100%;border-collapse:collapse;font-size:8.5pt">
+        <tr>
+          <td class="pt">BT</td><td class="ptd"><b>${v.bt||'—'}°C</b></td>
+          <td class="pt">BP</td><td class="ptd"><b>${v.bp||'—'}</b></td>
+          <td class="pt">PR</td><td class="ptd"><b>${v.pr||'—'}</b></td>
+          <td class="pt">RR</td><td class="ptd"><b>${v.rr||'—'}</b></td>
+          <td class="pt">EtCO2</td><td class="ptd"><b>${v.etco2||'—'}</b></td>
+          <td class="pt">SpO2</td><td class="ptd"><b>${v.spo2||'—'}%</b></td>
+        </tr>
+        <tr style="background:#f8fafc">
+          <td class="pt" colspan="2">GCS</td>
+          <td class="ptd" colspan="4">E<b>${v.gcsE||'?'}</b> V<b>${v.gcsV||'?'}</b> M<b>${v.gcsM||'?'}</b></td>
+          <td class="pt" colspan="2">Pupil</td>
+          <td class="ptd" colspan="2">Rt <b>${v.pupilR||'—'}mm</b> · Lt <b>${v.pupilL||'—'}mm</b></td>
+        </tr>
+      </table>
+    </div>`:''}
+
+    <div style="margin-bottom:6px">
+      <div style="background:#1a2e4a;color:#fff;font-weight:800;padding:3px 7px;font-size:9pt;margin-bottom:3px">Notes</div>
+      <div style="font-size:8.5pt;padding:5px 7px;border:1px solid #ddd;min-height:30px">${S.notes||'—'}</div>
+    </div>
+
+    <div style="border-top:1px solid #ccc;padding-top:5px;display:flex;justify-content:space-between;font-size:7.5pt;color:#94a3b8">
+      <span>CPR Timeline v2 · Jainatnarendra Hospital ER · ACLS 2025</span>
+      <span>พิมพ์: ${new Date().toLocaleDateString('th')} ${fmtTime(new Date())}</span>
+    </div>`;
+}
+
+function saveSummaryOnly(){
+  S.notes=$('s-note').value;
+  S.vitalROSC=vsRead('r');
+  saveSession(S);
+  syncSession(S);
+  alert('บันทึกแล้ว ✅');
+}
+function saveThenPrint(){
+  S.notes=$('s-note').value;
+  S.vitalROSC=vsRead('r');
+  saveSession(S);
+  syncSession(S);
+  buildPrintPages();
+  window.print();
+}
+function saveThenDownload(){
+  S.notes=$('s-note').value;
+  S.vitalROSC=vsRead('r');
+  saveSession(S);
+  syncSession(S);
+  generatePDF(S);
+}
+
+// ════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════
+const THAI_M_SHORT=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const THAI_M_FULL=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+function dashPrevMonth(){
+  dashSelMonth--;
+  if(dashSelMonth<0){dashSelMonth=11;dashSelYear--;}
+  renderDashboard();
+}
+function dashNextMonth(){
+  dashSelMonth++;
+  if(dashSelMonth>11){dashSelMonth=0;dashSelYear++;}
+  renderDashboard();
+}
+
+function renderDashboard(){
+  const sessions=DB.sessions||[];
+  // Month label (Buddhist year)
+  const buddhistYear=dashSelYear+543;
+  $('dash-month-lbl').textContent=`${THAI_M_FULL[dashSelMonth]} ${buddhistYear}`;
+
+  const thisMonth=sessions.filter(s=>{
+    const d=new Date(s.date||s.startTime);
+    return d.getMonth()===dashSelMonth&&d.getFullYear()===dashSelYear;
+  });
+  const rosc=thisMonth.filter(s=>s.outcome==='ROSC').length;
+  const roscN=thisMonth.length;
+  const roRate=roscN?`${Math.round(rosc/roscN*100)}%`:'—';
+  const good=thisMonth.filter(s=>s.quality&&s.quality.qualScore>=3).length;
+  const goodN=thisMonth.length;
+  const gRate=goodN?`${Math.round(good/goodN*100)}%`:'—';
+
+  $('st-total').textContent=thisMonth.length||'0';
+  $('st-rosc').textContent=roRate;
+  $('st-qual').textContent=gRate;
+  $('st-total-lbl').textContent=`เคส ${THAI_M_SHORT[dashSelMonth]} ${buddhistYear}`;
+  $('case-count-lbl').textContent=`รวมทั้งหมด ${sessions.length} เคส`;
+  $('case-list-header-lbl').textContent=`เคส ${THAI_M_FULL[dashSelMonth]} ${buddhistYear}`;
+
+  const sorted=[...thisMonth].sort((a,b)=>new Date(b.startTime||0)-new Date(a.startTime||0));
+  if(!sorted.length){
+    $('case-list').innerHTML='<div style="text-align:center;color:var(--muted);padding:20px;font-size:13px">ไม่มีเคสในเดือนนี้</div>';
+  } else {
+    $('case-list').innerHTML=sorted.map(s=>{
+      const oc=s.outcome;
+      const badge=oc==='ROSC'?'badge-rosc':oc==='DEAD'?'badge-dead':'badge-open';
+      const dur=s.stopTime&&s.startTime?Math.floor((new Date(s.stopTime)-new Date(s.startTime))/60000)+' min':'—';
+      const hn=s.hn?` · HN: ${s.hn}`:'';
+      const qs=s.quality?.qualScore;
+      const qBadge=qs>=3?'qb-good':qs>=1?'qb-warn':'qb-bad';
+      const qLabel=qs>=3?'Quality ดี':qs>=1?'พอใช้':'ไม่ดี';
+      return `<div class="case-item" onclick="openCaseDetail('${s.id}')">
+        <div class="case-item-top">
+          <div><div class="case-name">${s.patientName}${hn}</div><div class="case-hn">${fmtDateTime(s.startTime)}</div></div>
+          <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+            <span class="case-badge ${badge}">${oc||'ongoing'}</span>
+            ${qs!=null?`<span class="quality-badge ${qBadge}">${qLabel}</span>`:''}
+          </div>
+        </div>
+        <div class="case-item-bot">
+          <span>⏱ ${dur}</span>
+          <span>💊 ${s.adrCount||0} amps</span>
+          <span>⚡ ${s.defibCount||0} defib</span>
+          ${s.synced?'<span style="color:var(--ok)">☁ synced</span>':'<span style="color:var(--muted)">📱 local</span>'}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Offline check
+  $('offline-banner').style.display=navigator.onLine?'none':'block';
+  updateFBStatus(fbRef?'ok':'off');
+}
+
+function openCaseDetail(id){
+  const s=DB.sessions.find(x=>x.id===id);
+  if(!s) return;
+  currentCaseDetailId=id;
+
+  // ── Timing info ──
+  const dur=s.stopTime&&s.startTime?Math.floor((new Date(s.stopTime)-new Date(s.startTime))/60000):null;
+  const durTxt=dur!=null?dur+' นาที':'—';
+  const typeLabel=s.patientType==='adult'?'ผู้ใหญ่':'เด็ก';
+  const etco2=s.quality?.etco2Avg?s.quality.etco2Avg+' mmHg':'—';
+
+  $('cd-title').textContent=`${s.patientName}${s.hn?' · '+s.hn:''}`;
+  $('cd-info').innerHTML=
+    `<b>วันที่:</b> ${fmtDateTime(s.startTime)} &nbsp;|&nbsp; ${typeLabel} · ${s.arrestType||'—'}<br>`+
+    `<b>Arrest:</b> ${fmtTime(s.arrestTime)} → <b>Start:</b> ${fmtTime(s.startTime)} → <b>Stop:</b> ${fmtTime(s.stopTime)}`;
+
+  // ── Stat boxes ──
+  const oc=s.outcome||'';
+  const ocColor=oc==='ROSC'?'var(--ok)':oc==='DEAD'?'var(--danger)':'var(--muted)';
+  const qs=s.quality?.qualScore;
+  const qLabel=qs>=3?'ดี':qs>=1?'พอใช้':qs===0?'ต้องปรับ':'—';
+  const qColor=qs>=3?'var(--ok)':qs>=1?'var(--warn)':qs===0?'var(--danger)':'var(--muted)';
+  const statBox=(val,lbl,color='var(--navy)')=>
+    `<div style="background:var(--bg);border-radius:10px;padding:10px 6px;text-align:center">
+      <div style="font-size:22px;font-weight:800;color:${color}">${val}</div>
+      <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:2px">${lbl}</div>
+    </div>`;
+  $('cd-stats').innerHTML=
+    statBox(durTxt,'ระยะเวลา')+
+    statBox(s.adrCount||0,'Adrenaline','var(--adr)')+
+    statBox(s.defibCount||0,'Defib','var(--defib)')+
+    statBox(oc||'—','Outcome',ocColor);
+
+  // ── Drug / event summary ──
+  const evs=s.events||[];
+  if(evs.length){
+    const dc={};
+    evs.forEach(e=>{ const b=(e.detail||'').replace(/\s*#\d+$/,'').trim(); if(b) dc[b]=(dc[b]||0)+1; });
+    const drugTxt=Object.entries(dc).map(([d,c])=>c>1?`${d} ×${c}`:d).join(' · ');
+    $('cd-drug-list').textContent=drugTxt||'—';
+    $('cd-drug-row').style.display='block';
+  } else {
+    $('cd-drug-row').style.display='none';
+  }
+
+  // ── Edit fields ──
+  $('cd-name').value=s.patientName||'';
+  $('cd-hn').value=s.hn||'';
+  $('cd-outcome').value=s.outcome||'';
+  $('cd-causes').value=(s.causes||[]).join(', ');
+  $('cd-notes').value=s.notes||'';
+  $('cd-note').value=s.adminNote||'';
+
+  // ── V/S หลัง ROSC (แก้ย้อนหลังได้) ──
+  vsLoad('cdv',s.vitalROSC);
+  $('cd-vs-wrap').style.display=s.outcome==='ROSC'?'block':'none';
+
+  // ── Editable timeline (events + rhythm) ──
+  cdEvents=(s.events||[]).map(e=>({...e})).sort((a,b)=>(a.minute||0)-(b.minute||0));
+  cdRhythms=Object.entries(s.rhythmData||{})
+    .map(([k,v])=>({min:parseInt(k),rhythm:v.rhythm||'',rate:v.rate||'',etco2:v.etco2||''}))
+    .sort((a,b)=>a.min-b.min);
+  renderCdEvents();
+  renderCdRhythms();
+
+  // ── Print/Download buttons (only if full timeline data available) ──
+  const hasFull=evs.length>0&&s.rhythmData&&Object.keys(s.rhythmData).length>0;
+  $('cd-out-row').style.display=hasFull?'flex':'none';
+
+  $('case-detail-modal').classList.remove('hide');
+}
+
+// ── Case-review editable timeline ──────────────────────
+function escAttr(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function renderCdEvents(){
+  const box=$('cd-events'); if(!box) return;
+  if(!cdEvents.length){ box.innerHTML='<div class="cd-empty">— ยังไม่มีรายการ —</div>'; return; }
+  box.innerHTML=cdEvents.map((e,i)=>{
+    const isAdr=e.type==='adr', isDefib=e.type==='defib';
+    const typeCell=(isAdr||isDefib)
+      ? `<input class="cd-ev-type" value="${isAdr?'💊Adr':'⚡Defib'}" disabled style="opacity:.65;text-align:center">`
+      : `<select class="cd-ev-type">
+           <option value="drug"${e.type!=='proc'?' selected':''}>💊ยา</option>
+           <option value="proc"${e.type==='proc'?' selected':''}>🔧หัต</option>
+         </select>`;
+    return `<div class="cd-ev-row" data-idx="${i}">
+      <input class="cd-ev-min" type="number" inputmode="numeric" value="${e.minute??0}" title="นาที">
+      ${typeCell}
+      <input class="cd-ev-detail" type="text" value="${escAttr(e.detail)}" placeholder="รายละเอียด">
+      <button class="cd-ev-del" onclick="cdDelEvent(${i})" title="ลบ">🗑</button>
+    </div>`;
+  }).join('');
+}
+function cdReadEvents(){
+  document.querySelectorAll('#cd-events .cd-ev-row').forEach(row=>{
+    const i=+row.dataset.idx, e=cdEvents[i]; if(!e) return;
+    e.minute=parseInt(row.querySelector('.cd-ev-min').value)||0;
+    const t=row.querySelector('.cd-ev-type');
+    if(t&&t.tagName==='SELECT') e.type=t.value;
+    e.detail=row.querySelector('.cd-ev-detail').value;
+  });
+}
+function cdAddEvent(){ cdReadEvents(); cdEvents.push({uid:'ev_'+Date.now(),minute:0,type:'drug',detail:'',ts:''}); renderCdEvents(); }
+function cdDelEvent(i){ cdReadEvents(); cdEvents.splice(i,1); renderCdEvents(); }
+
+function renderCdRhythms(){
+  const box=$('cd-rhythms'); if(!box) return;
+  if(!cdRhythms.length){ box.innerHTML='<div class="cd-empty">— ยังไม่มี rhythm —</div>'; return; }
+  const opts=['','VF','pVT','TdP','PEA','Asystole'];
+  box.innerHTML=cdRhythms.map((r,i)=>{
+    const sel=opts.map(o=>`<option value="${o}"${o===r.rhythm?' selected':''}>${o||'—'}</option>`).join('');
+    return `<div class="cd-ev-row" data-idx="${i}">
+      <input class="cd-ev-min" type="number" inputmode="numeric" value="${r.min??0}" title="นาที">
+      <select class="cd-ev-rh">${sel}</select>
+      <input class="cd-ev-num" type="number" inputmode="numeric" value="${r.rate||''}" placeholder="HR" title="HR">
+      <input class="cd-ev-num" type="number" inputmode="numeric" value="${r.etco2||''}" placeholder="CO2" title="EtCO2">
+      <button class="cd-ev-del" onclick="cdDelRhythm(${i})" title="ลบ">🗑</button>
+    </div>`;
+  }).join('');
+}
+function cdReadRhythms(){
+  document.querySelectorAll('#cd-rhythms .cd-ev-row').forEach(row=>{
+    const i=+row.dataset.idx, r=cdRhythms[i]; if(!r) return;
+    r.min=parseInt(row.querySelector('.cd-ev-min').value)||0;
+    r.rhythm=row.querySelector('.cd-ev-rh').value;
+    const nums=row.querySelectorAll('.cd-ev-num');
+    r.rate=nums[0].value; r.etco2=nums[1].value;
+  });
+}
+function cdAddRhythm(){ cdReadRhythms(); cdRhythms.push({min:0,rhythm:'',rate:'',etco2:''}); renderCdRhythms(); }
+function cdDelRhythm(i){ cdReadRhythms(); cdRhythms.splice(i,1); renderCdRhythms(); }
+
+function deleteCase(){
+  const s=DB.sessions.find(x=>x.id===currentCaseDetailId);
+  const nm=s?`${s.patientName||'—'}${s.hn?' · '+s.hn:''}`:'';
+  if(!confirm('ลบเคสนี้ถาวร?\n'+nm+'\n\n(กู้คืนไม่ได้)')) return;
+  DB.sessions=DB.sessions.filter(x=>x.id!==currentCaseDetailId);
+  markDeleted(currentCaseDetailId);   // ลบจาก Firebase + Google Sheets + กัน sync กลับ
+  saveDB();
+  hide('case-detail-modal');
+  renderDashboard();
+}
+
+// ── Print PDF from stored session data ──────────────────────
+function printCaseFromDashboard(id){
+  const stored=DB.sessions.find(x=>x.id===id);
+  if(!stored||!stored.events||!stored.rhythmData){
+    alert('ข้อมูล timeline ไม่ครบ\nเคสนี้อาจบันทึกก่อน version ปัจจุบัน');
+    return;
+  }
+  // Temporarily swap S to this session for buildPrintPages()
+  const prevS=S;
+  S={...stored};
+  buildPrintPages();
+  setTimeout(()=>{
+    window.print();
+    S=prevS;
+  },300);
+}
+
+// ── Download as real .pdf file (html2pdf) ──────────────────
+function generatePDF(session){
+  if(typeof html2pdf==='undefined'){
+    alert('โหมดออฟไลน์: สร้างไฟล์ PDF ไม่ได้\nกรุณาใช้ปุ่ม "พิมพ์" แล้วเลือก Save as PDF แทน');
+    return;
+  }
+  const prevS=S;
+  S={...session};
+  buildPrintPages();
+  const wrap=$('print-wrap');
+  $('print-p1').style.pageBreakAfter='always';
+  // ทำให้มองเห็นนอกจอเพื่อ render เป็นภาพ
+  wrap.style.display='block';
+  wrap.style.position='fixed';
+  wrap.style.left='-99999px';
+  wrap.style.top='0';
+  wrap.style.width='210mm';
+  wrap.style.background='#fff';
+  wrap.style.padding='8mm';
+  const nm=(session.patientName||'case').trim().replace(/[^\wก-๙]+/g,'_')||'case';
+  const dt=session.date||(session.startTime||'').slice(0,10)||new Date().toISOString().slice(0,10);
+  const filename=`CPR_${nm}_${dt}.pdf`;
+  const opt={
+    margin:0,
+    filename,
+    image:{type:'jpeg',quality:0.97},
+    html2canvas:{scale:2,backgroundColor:'#fff',useCORS:true},
+    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
+    pagebreak:{mode:['css','legacy']}
+  };
+  const cleanup=()=>{
+    wrap.style.display='none';
+    wrap.style.position=''; wrap.style.left=''; wrap.style.top='';
+    wrap.style.width=''; wrap.style.padding='';
+    S=prevS;
+  };
+  html2pdf().set(opt).from(wrap).save()
+    .then(cleanup)
+    .catch(err=>{ console.warn('[PDF]',err); alert('สร้าง PDF ไม่สำเร็จ ลองใช้ปุ่มพิมพ์แทน'); cleanup(); });
+}
+function downloadCasePDF(id){
+  const stored=DB.sessions.find(x=>x.id===id);
+  if(!stored||!stored.events||!stored.rhythmData){
+    alert('ข้อมูล timeline ไม่ครบ\nเคสนี้อาจบันทึกก่อน version ปัจจุบัน');
+    return;
+  }
+  generatePDF(stored);
+}
+function cdSaveThenDownload(){
+  applyCaseEdits();        // บันทึกที่แก้ก่อน เพื่อให้ PDF ตรง
+  downloadCasePDF(currentCaseDetailId);
+}
+function applyCaseEdits(){
+  const s=DB.sessions.find(x=>x.id===currentCaseDetailId);
+  if(!s) return null;
+  const nameVal=$('cd-name').value.trim();
+  if(nameVal) s.patientName=nameVal;
+  s.hn=$('cd-hn').value.trim();
+  s.outcome=$('cd-outcome').value;
+  const causesTxt=$('cd-causes').value.trim();
+  s.causes=causesTxt?causesTxt.split(',').map(c=>c.trim()).filter(Boolean):[];
+  s.notes=$('cd-notes').value.trim();
+  s.adminNote=$('cd-note').value.trim();
+  if(s.outcome==='ROSC') s.vitalROSC=vsRead('cdv');   // บันทึก V/S ที่แก้ใน dashboard
+
+  // ── Save edited timeline (events + rhythm) so PDF reflects changes ──
+  cdReadEvents(); cdReadRhythms();
+  s.events=cdEvents
+    .filter(e=>(e.detail||'').trim())
+    .sort((a,b)=>(a.minute||0)-(b.minute||0))
+    .map(e=>({...e}));
+  const rd={};
+  cdRhythms.forEach(r=>{
+    if(r.rhythm||String(r.rate||'').trim()||String(r.etco2||'').trim()){
+      rd[r.min]={rhythm:r.rhythm||'',rate:r.rate||'',etco2:r.etco2||''};
+    }
+  });
+  s.rhythmData=rd;
+  s.adrCount=s.events.filter(e=>e.type==='adr').length;
+  s.defibCount=s.events.filter(e=>e.type==='defib').length;
+
+  saveDB();
+  return s;
+}
+function saveCaseEdit(){
+  if(applyCaseEdits()) renderDashboard();
+  hide('case-detail-modal');
+}
+function cdSaveThenPrint(){
+  applyCaseEdits();        // บันทึกที่แก้ไว้ก่อน เพื่อให้ PDF ตรง
+  printCaseFromDashboard(currentCaseDetailId);
+}
+
+// ════════════════════════════════════════
+// ADMIN PIN
+// ════════════════════════════════════════
+function pinKey(k){
+  if(k==='←'){ pinBuffer=pinBuffer.slice(0,-1); updatePinDots(); return; }
+  if(k==='OK'||pinBuffer.length>=4){ checkPin(); return; }
+  pinBuffer+=k;
+  updatePinDots();
+  if(pinBuffer.length===4) setTimeout(checkPin,200);
+}
+function updatePinDots(){
+  for(let i=0;i<4;i++) $(`pd${i}`).classList.toggle('filled',i<pinBuffer.length);
+}
+function checkPin(){
+  if(pinBuffer===CFG.pin||pinBuffer==='1234'){
+    adminUnlocked=true;
+    $('admin-pin-gate').style.display='none';
+    $('admin-content').style.display='block';
+    renderAdminContent();
+    $('pin-error').textContent='';
+  } else {
+    $('pin-error').textContent='PIN ไม่ถูกต้อง';
+    pinBuffer=''; updatePinDots();
+  }
+}
+function renderAdminContent(){
+  if(CFG.firebase) $('cfg-firebase').value=CFG.firebase;
+  if(CFG.url) $('cfg-url').value=CFG.url;
+  if(CFG.pin) $('cfg-pin').value='';
+  if(CFG.hospital) $('cfg-hosp').value=CFG.hospital;
+  // Update Firebase status display
+  updateFBStatus(fbRef?'ok':'off');
+
+  const sessions=DB.sessions||[];
+  const rosc=sessions.filter(s=>s.outcome==='ROSC').length;
+  const good=sessions.filter(s=>s.quality?.qualScore>=3).length;
+  $('admin-stats').innerHTML=`
+    <div class="s-stat"><div class="s-stat-val">${sessions.length}</div><div class="s-stat-lbl">เคสทั้งหมด</div></div>
+    <div class="s-stat"><div class="s-stat-val">${sessions.length?Math.round(rosc/sessions.length*100):'—'}%</div><div class="s-stat-lbl">ROSC rate</div></div>
+    <div class="s-stat"><div class="s-stat-val">${sessions.length?Math.round(good/sessions.length*100):'—'}%</div><div class="s-stat-lbl">Good quality</div></div>
+    <div class="s-stat"><div class="s-stat-val">${sessions.filter(s=>!s.synced).length}</div><div class="s-stat-lbl">รอ sync</div></div>
+  `;
+
+  const sorted=[...sessions].sort((a,b)=>new Date(b.startTime||0)-new Date(a.startTime||0));
+  $('admin-cases').innerHTML=sorted.map(s=>{
+    const qs=s.quality?.qualScore;
+    const qBadge=qs>=3?'qb-good':qs>=1?'qb-warn':'qb-bad';
+    const qLabel=qs>=3?'ดี':qs>=1?'พอใช้':'ต้องปรับปรุง';
+    return `<div class="admin-case-item" onclick="openCaseDetail('${s.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:700;font-size:14px">${s.patientName}${s.hn?' · '+s.hn:''}</div>
+          <div style="font-size:12px;color:var(--muted)">${fmtDateTime(s.startTime)} · ${s.arrestType}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <span class="case-badge ${s.outcome==='ROSC'?'badge-rosc':s.outcome==='DEAD'?'badge-dead':'badge-open'}">${s.outcome||'—'}</span>
+          ${qs!=null?`<span class="quality-badge ${qBadge}">${qLabel}</span>`:''}
+        </div>
+      </div>
+      ${s.adminNote?`<div style="font-size:11px;color:var(--warn);margin-top:4px">📝 ${s.adminNote}</div>`:''}
+    </div>`;
+  }).join('')||'<div style="color:var(--muted);text-align:center;padding:20px">ยังไม่มีเคส</div>';
+}
+function saveSettings(){
+  const newFbUrl=$('cfg-firebase').value.trim();
+  const fbChanged=newFbUrl!==(CFG.firebase||'');
+  CFG.firebase=newFbUrl||null;
+  CFG.url=$('cfg-url').value.trim();
+  const newPin=$('cfg-pin').value.trim();
+  if(newPin.length===4&&/^\d+$/.test(newPin)) CFG.pin=newPin;
+  CFG.hospital=$('cfg-hosp').value.trim()||'Jainatnarendra Hospital';
+  saveDB();
+  if(fbChanged){
+    alert('บันทึก Settings แล้ว ✅\n\nโปรด Reload หน้านี้เพื่อเชื่อมต่อ Firebase');
+    location.reload();
+  } else {
+    alert('บันทึก Settings แล้ว ✅');
+  }
+}
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(DB.sessions,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`cpr-data-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+function clearAll(){
+  if(!confirm('ลบข้อมูลทั้งหมด? ไม่สามารถกู้คืนได้!')) return;
+  if(!confirm('ยืนยันอีกครั้ง — ลบทั้งหมดจริงๆ? (ลบทั้งเครื่องนี้ + Firebase + Google Sheets)')) return;
+  // tombstone ทุกเคส กันเด้งกลับจากเครื่องอื่น
+  (DB.sessions||[]).forEach(s=>{ if(s?.id) markDeleted(s.id, true); });
+  DB.sessions=[];
+  // ลบทั้ง node ใน Firebase
+  if(fbRef){ try{ fbRef.child('sessions').remove(); }catch(e){} }
+  // ลบทุกแถวใน Google Sheets
+  if(CFG.url){
+    fetch(CFG.url,{
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ action:'clearAll', key:'jnh-cpr-2025' })
+    }).catch(()=>{});
+  }
+  saveDB();
+  renderAdminContent();
+  alert('ลบข้อมูลทั้งหมดแล้ว (เครื่องนี้ + Firebase + Google Sheets)');
+}
+
+// ════════════════════════════════════════
+// GOOGLE SHEETS SYNC
+// ════════════════════════════════════════
+function syncSession(session){
+  if(!CFG.url) return;
+  fetch(CFG.url,{
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      action:'addSession',
+      id:session.id,
+      date:session.date||session.startTime?.slice(0,10),
+      patientName:session.patientName,
+      hn:session.hn||'',
+      patientType:session.patientType,
+      weight:session.weight||'',
+      arrestType:session.arrestType,
+      arrestTime:fmtTime(session.arrestTime),
+      startTime:fmtTime(session.startTime),
+      stopTime:fmtTime(session.stopTime),
+      duration:session.quality?.totalMin||'',
+      outcome:session.outcome||'',
+      adrCount:session.adrCount,
+      defibCount:session.defibCount,
+      etco2Avg:session.quality?.etco2Avg||'',
+      rhythmChecks:session.quality?.rhythmChecks||'',
+      qualScore:session.quality?.qualScore||'',
+      causes:(session.causes||[]).join(', '),
+      notes:session.notes||'',
+      events:JSON.stringify((session.events||[]).map(e=>({min:e.minute,ts:e.ts,detail:e.detail})))
+    })
+  }).then(()=>{
+    session.synced=true;
+    saveSession(session);
+  }).catch(()=>{});
+}
+function syncAll(){
+  const unsynced=(DB.sessions||[]).filter(s=>!s.synced);
+  if(!unsynced.length){alert('ทุกเคส sync แล้ว');return;}
+  if(!CFG.url){alert('กรุณาตั้งค่า Google Apps Script URL ก่อน');return;}
+  unsynced.forEach(s=>syncSession(s));
+  setTimeout(()=>{renderAdminContent();alert(`Sync ${unsynced.length} เคสแล้ว`);},2000);
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  loadDB();
+  S=buildSession();
+  // V/S stepper grids (summary + case detail)
+  $('rosc-vs-container').innerHTML=vsGridHTML('r');
+  $('cd-vs-container').innerHTML=vsGridHTML('cdv');
+  // Default patient type toggles
+  S.patientType='adult'; S.arrestType='IHCA';
+  goHome();
+
+  // Keyboard enter on drug/custom inputs
+  $('drug-custom').addEventListener('keydown',e=>{ if(e.key==='Enter') confirmCustomDrug(); });
+  $('proc-custom').addEventListener('keydown',e=>{ if(e.key==='Enter') confirmProc(); });
+  $('defib-j').addEventListener('keydown',e=>{ if(e.key==='Enter') confirmDefib(); });
+
+  // ── KEYBOARD SHORTCUTS (จอคอม) ──
+  // A=Adrenaline, D=Defib, N=Now, M=ยาอื่น, P=หัตถการ, Esc=ปิด modal
+  document.addEventListener('keydown',e=>{
+    if(e.metaKey||e.ctrlKey||e.altKey) return;
+    const t=e.target;
+    const typing=t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable);
+    // Esc: ปิด modal ที่เปิดอยู่ (ใช้ได้ทุกที่)
+    if(e.key==='Escape'){
+      const open=document.querySelector('.overlay:not(.hide)');
+      if(open){ hide(open.id); e.preventDefault(); }
+      return;
+    }
+    if(typing) return;
+    // ที่เหลือใช้เฉพาะหน้า CPR และไม่มี modal เปิดอยู่
+    if(!$('screen-cpr').classList.contains('active')) return;
+    if(document.querySelector('.overlay:not(.hide)')) return;
+    switch(e.key.toLowerCase()){
+      case 'a': giveAdr();        e.preventDefault(); break;
+      case 'd': showDefibModal(); e.preventDefault(); break;
+      case 'n': scrollToNow();    e.preventDefault(); break;
+      case 'm': showDrugModal();  e.preventDefault(); break;
+      case 'p': showProcModal();  e.preventDefault(); break;
+    }
+  });
+
+  // Init audio on first touch
+  document.addEventListener('touchstart',()=>{ if(!audioCtx) initAudio(); },{once:true,passive:true});
+
+  // Apply saved timeline zoom
+  applyTlZoom();
+
+  // บันทึกอัตโนมัติเมื่อพิมพ์ note / V/S ในหน้า summary
+  document.addEventListener('input',e=>{
+    if(!$('screen-summary').classList.contains('active')) return;
+    if(e.target.id==='s-note'||e.target.classList.contains('v-inp')) autoSaveSummary();
+  });
+
+  // Online/offline
+  window.addEventListener('online',()=>{ if($('offline-banner')) $('offline-banner').style.display='none'; });
+  window.addEventListener('offline',()=>{ if($('offline-banner')) $('offline-banner').style.display='block'; });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "cases": {
+      ".read": true,
+      ".write": true,
+      ".indexOn": ["createdAt"]
+    },
+    "vehicleUnits": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}

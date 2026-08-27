@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ER Monitor</title>
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icon-16.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f5820d">
+<style>
+  * { box-sizing: border-box; margin: 10px 10px 0 ; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Sarabun', sans-serif;
+    color: #1a1a1a;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    height: 100vh;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(0,0,0,0.12);
+    margin-bottom: 24px;
+    flex-shrink: 0;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .title {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #1a1a1a;
+  }
+  .clock {
+    font-size: 28px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(0,0,0,0.6);
+  }
+  .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ctrl-btn {
+    padding: 8px 14px;
+    background: transparent;
+    color: rgba(0,0,0,0.7);
+    border: 1px solid rgba(0,0,0,0.2);
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .ctrl-btn.on { color: #1f8a3a; border-color: rgba(31,138,58,0.5); }
+  .voice-select {
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1.5px solid #1f8a3a;
+    background: white;
+    font-size: 12px;
+    font-family: inherit;
+    max-width: 220px;
+    color: #1f8a3a;
+    font-weight: 600;
+  }
+  .conn-dot { width: 10px; height: 10px; border-radius: 50%; background: #aaa; }
+  .conn-dot.online { background: #1f8a3a; }
+  .conn-dot.offline { background: #d92121; }
+
+  .content {
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+  }
+  .empty {
+    text-align: center;
+    color: rgba(0,0,0,0.35);
+    padding: 80px 20px;
+    font-size: 22px;
+  }
+
+  .cases {
+    height: 100%;
+    column-gap: 18px;
+    column-fill: auto;
+  }
+  .case {
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+    page-break-inside: avoid;
+    padding: 22px 26px;
+    margin-bottom: 14px;
+    border-radius: 14px;
+    background: #f5f5f7;
+    display: grid;
+    grid-template-columns: 160px 1fr 200px;
+    align-items: center;
+    gap: 20px;
+    border-left: 8px solid;
+    transition: background 0.3s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .case.stroke { border-left-color: #1860d6; }
+  .case.stemi { border-left-color: #c81818; }
+  .case.sepsis { border-left-color: #1f8a3a; }
+
+  .bed-section { text-align: left; }
+  .bed-label {
+    font-size: 13px;
+    color: rgba(0,0,0,0.5);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+  }
+  .bed-num {
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+    color: #1a1a1a;
+  }
+  .bed-hn {
+    font-size: 13px;
+    color: rgba(0,0,0,0.55);
+    margin-top: 6px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+
+  .disease-section { text-align: left; }
+  .disease-name {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+  .case.stroke .disease-name { color: #1860d6; }
+  .case.stemi .disease-name { color: #c81818; }
+  .case.sepsis .disease-name { color: #1f8a3a; }
+  .disease-sub {
+    font-size: 14px;
+    color: rgba(0,0,0,0.55);
+  }
+
+  .time-section { text-align: right; }
+  .time-value {
+    font-size: 54px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    letter-spacing: -1px;
+    color: #1a1a1a;
+  }
+  .time-label {
+    font-size: 13px;
+    color: rgba(0,0,0,0.5);
+    margin-top: 4px;
+  }
+
+  .case.warning { animation: blink-warning 1s ease-in-out infinite; }
+  .case.warning .time-value { color: #c87010; }
+
+  .case.expired {
+    animation: blink-expired 0.8s ease-in-out infinite;
+    border-left-color: #c81818 !important;
+  }
+  .case.expired .time-value {
+    font-size: 38px;
+    color: #c81818;
+    font-weight: 800;
+  }
+  .case.expired .disease-name { color: #c81818 !important; }
+
+  @keyframes blink-warning {
+    0%, 100% { background: #f5f5f7; }
+    50% { background: #ffe9b3; }
+  }
+  @keyframes blink-expired {
+    0%, 100% { background: #ffd6d6; }
+    50% { background: #ff7a7a; }
+  }
+
+  .start-prompt { text-align: center; padding: 80px 20px; }
+  .start-prompt h2 { font-size: 32px; margin-bottom: 16px; color: #1a1a1a; }
+  .start-prompt p { color: rgba(0,0,0,0.6); margin-bottom: 28px; font-size: 18px; }
+  .start-btn {
+    padding: 16px 40px;
+    font-size: 20px;
+    background: #007aff;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  @media (min-width: 1200px) {
+    .title { font-size: 40px; }
+    .clock { font-size: 36px; }
+    .bed-num { font-size: 60px; }
+    .bed-hn { font-size: 16px; margin-top: 8px; }
+    .disease-name { font-size: 41px; }
+    .time-value { font-size: 68px; }
+    .case.expired .time-value { font-size: 46px; }
+    .case { grid-template-columns: 200px 1fr 250px; padding: 26px 30px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="title">ER FAST TRACK MONITOR</div>
+  <div class="controls">
+    <span class="conn-dot" id="connDot"></span>
+    <select class="voice-select" id="voiceSelect" title="เลือกเสียง">
+      <option value="browser">🔊 เสียงจาก Browser</option>
+    </select>
+    <button class="ctrl-btn" id="testBtn">🔊 ทดสอบเสียง</button>
+    <button class="ctrl-btn" id="soundBtn">🔇 ปิดเสียง</button>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</div>
+
+<div class="content">
+  <div id="startPrompt" class="start-prompt">
+    <h2>เริ่มแสดงผล</h2>
+    <p>กดปุ่มเพื่อเริ่มต้น (browser ต้องการการกดปุ่มก่อนเล่นเสียงแจ้งเตือน)</p>
+    <button class="start-btn" id="startBtn">เริ่ม</button>
+  </div>
+  <div id="caseContainer" style="display: none; height: 100%;"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { firebaseConfig } from "./config.js";
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const casesRef = ref(db, 'cases');
+
+const LABELS = { stroke: 'STROKE', stemi: 'STEMI', sepsis: 'SEPSIS' };
+
+// ===== คำอ่านชื่อโรค (ภาษาไทย) =====
+const DISEASE_SPEECH = {
+  stroke: 'stroke',
+  stemi: 'STEMI',
+  sepsis: 'sepsis'
+};
+const ACTION_WORDS = {
+  stroke: 'ให้ยา',
+  stemi: 'ส่งต่อ',
+  sepsis: 'ให้ยา'
+};
+
+const WARN_THRESHOLD_MIN = {
+  stroke: 15,
+  stemi: 10,
+  sepsis: 20
+};
+const KEEP_AFTER_EXPIRE_MIN = 5;
+const CASE_HEIGHT_PX = 150;
+
+let cases = {};
+let soundOn = false;
+let audioCtx = null;
+let warned = new Set();
+let expired = new Set();
+let started = false;
+let voiceMode = localStorage.getItem('er_voice_mode') || 'browser';
+
+// สร้างรายการเสียงในกล่องเลือก (Google / เสียงในเครื่อง / ไม่พูด)
+function populateVoices() {
+  const sel = document.getElementById('voiceSelect');
+  if (!sel) return;
+  const voices = ('speechSynthesis' in window) ? speechSynthesis.getVoices() : [];
+  const isThai = v => v.lang && v.lang.toLowerCase().startsWith('th');
+  const th = voices.filter(isThai);
+  const others = voices.filter(v => !isThai(v));
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let html = '';
+  html += '<option value="google">🌐 Google เสียงไทย (ต้องมีเน็ต)</option>';
+  html += '<option value="browser">🔊 เสียงไทยระบบ (อัตโนมัติ)</option>';
+  if (th.length) {
+    html += '<optgroup label="เสียงไทยในเครื่อง">';
+    th.forEach(v => { html += `<option value="voice:${esc(v.name)}">${esc(v.name)}</option>`; });
+    html += '</optgroup>';
+  }
+  if (others.length) {
+    html += '<optgroup label="เสียงภาษาอื่น">';
+    others.forEach(v => { html += `<option value="voice:${esc(v.name)}">${esc(v.name)} (${esc(v.lang)})</option>`; });
+    html += '</optgroup>';
+  }
+  html += '<option value="off">🔇 ไม่พูด (ไชม์อย่างเดียว)</option>';
+  sel.innerHTML = html;
+  sel.value = voiceMode;
+}
+populateVoices();
+// รายชื่อเสียงมักโหลดแบบ async — อัปเดตอีกครั้งเมื่อพร้อม
+if ('speechSynthesis' in window) {
+  speechSynthesis.onvoiceschanged = populateVoices;
+}
+
+onValue(ref(db, '.info/connected'), (snap) => {
+  const online = snap.val() === true;
+  document.getElementById('connDot').className = 'conn-dot ' + (online ? 'online' : 'offline');
+});
+
+onValue(casesRef, (snap) => {
+  cases = snap.val() || {};
+  if (started) render();
+});
+
+document.getElementById('voiceSelect').addEventListener('change', (e) => {
+  voiceMode = e.target.value;
+  localStorage.setItem('er_voice_mode', voiceMode);
+  // ทดสอบทันที
+  ensureAudio();
+  if (!soundOn) { soundOn = true; updateSoundBtn(); }
+  if (voiceMode === 'off') {
+    playMetroChime();   // โหมดไม่พูด — เล่นไชม์ให้ฟังแทน
+  } else {
+    speak('ทดสอบเสียง');
+  }
+});
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  started = true;
+  document.getElementById('startPrompt').style.display = 'none';
+  document.getElementById('caseContainer').style.display = 'block';
+  ensureAudio();
+  soundOn = true;
+  updateSoundBtn();
+  render();
+  if (document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+});
+
+document.getElementById('soundBtn').addEventListener('click', () => {
+  soundOn = !soundOn;
+  if (soundOn) {
+    ensureAudio();
+    playTone(523, 0.1);
+  }
+  updateSoundBtn();
+});
+
+document.getElementById('testBtn').addEventListener('click', () => {
+  ensureAudio();
+  if (!soundOn) {
+    soundOn = true;
+    updateSoundBtn();
+  }
+  const tests = [
+    [`${DISEASE_SPEECH.stroke}`, 'เตียง 1', 'เหลือเวลาให้ยา', '15 นาที'],
+    [`${DISEASE_SPEECH.stemi}`, 'เตียง 2', 'เหลือเวลาส่งต่อ', '10 นาที'],
+    [`${DISEASE_SPEECH.sepsis}`, 'เตียง 3', 'เหลือเวลาให้ยา', '20 นาที']
+  ];
+  let i = 0;
+  function next() {
+    if (i >= tests.length) return;
+    speakParts(tests[i], () => { i++; setTimeout(next, 800); });
+  }
+  next();
+});
+
+function updateSoundBtn() {
+  const btn = document.getElementById('soundBtn');
+  btn.textContent = soundOn ? '🔔 เปิดเสียง' : '🔇 ปิดเสียง';
+  btn.classList.toggle('on', soundOn);
+}
+
+function ensureAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+// ===== Unified speak() function =====
+// onEnd callback จะถูกเรียกเมื่อพูดเสร็จ (ใช้สำหรับ chain เสียงต่อกัน)
+let currentAudio = null;  // เก็บ <audio> element ปัจจุบัน
+
+function speak(text, onEnd) {
+  if (!soundOn) { if (onEnd) onEnd(); return; }
+  if (voiceMode === 'off') { if (onEnd) onEnd(); return; }   // โหมดไม่พูด
+
+  // หยุดเสียงเก่าที่กำลังเล่นอยู่
+  if (currentAudio) {
+    try { currentAudio.pause(); } catch(e) {}
+    currentAudio = null;
+  }
+  try { speechSynthesis.cancel(); } catch(e) {}
+
+  if (voiceMode === 'google') {
+    speakWithGoogle(text, onEnd);
+  } else if (voiceMode.indexOf('voice:') === 0) {
+    speakWithBrowser(text, onEnd, voiceMode.slice(6));   // เสียงเฉพาะที่เลือก
+  } else {
+    speakWithBrowser(text, onEnd);
+  }
+}
+
+// ใช้ Google Translate TTS (ฟรี ไม่ต้อง API key เสียงดี ต้องมีเน็ต)
+function speakWithGoogle(text, onEnd) {
+  try {
+    // Google TTS จำกัด ~200 ตัวอักษร — ถ้าเกินจะตัด
+    const t = text.length > 190 ? text.substring(0, 190) : text;
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(t)}&tl=th&client=tw-ob`;
+    const audio = new Audio(url);
+    audio.volume = 1.0;
+    currentAudio = audio;
+    audio.onended = () => {
+      currentAudio = null;
+      if (onEnd) onEnd();
+    };
+    audio.onerror = (e) => {
+      console.warn('Google TTS failed, falling back to browser TTS:', e);
+      currentAudio = null;
+      // Fallback ไป browser
+      speakWithBrowser(text, onEnd);
+    };
+    audio.play().catch(err => {
+      console.warn('Audio play failed:', err);
+      // ลอง fallback
+      speakWithBrowser(text, onEnd);
+    });
+  } catch(e) {
+    console.warn('Google TTS error:', e);
+    speakWithBrowser(text, onEnd);
+  }
+}
+
+function speakWithBrowser(text, onEnd, voiceName) {
+  if (!('speechSynthesis' in window)) { if (onEnd) onEnd(); return; }
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'th-TH';
+    u.rate = 0.7;   // ความเร็วเสียง (ยิ่งน้อยยิ่งช้า)
+    u.pitch = 1.0;
+    u.volume = 1.0;
+    // เลือกเสียง: ใช้เสียงที่ระบุก่อน ถ้าไม่มีค่อยหาเสียงไทย
+    const voices = speechSynthesis.getVoices();
+    let chosen = null;
+    if (voiceName) chosen = voices.find(v => v.name === voiceName);
+    if (!chosen) chosen = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('th'));
+    if (chosen) { u.voice = chosen; if (chosen.lang) u.lang = chosen.lang; }
+    u.onend = () => { if (onEnd) onEnd(); };
+    u.onerror = () => { if (onEnd) onEnd(); };
+    speechSynthesis.speak(u);
+  } catch(e) {
+    console.warn('Browser TTS error:', e);
+    if (onEnd) onEnd();
+  }
+}
+
+// ===== พูดแบ่งวรรค: พูดทีละท่อน เว้นช่วงระหว่างท่อน =====
+const PART_PAUSE_MS = 200;  // ช่วงเงียบระหว่างวรรค (มิลลิวินาที)
+
+function speakParts(parts, onEnd) {
+  let i = 0;
+  function next() {
+    if (i >= parts.length) { if (onEnd) onEnd(); return; }
+    const part = parts[i++];
+    speak(part, () => setTimeout(next, PART_PAUSE_MS));
+  }
+  next();
+}
+
+function playTone(freq, duration, delay = 0) {
+  if (!soundOn) return;
+  const ctx = ensureAudio();
+  if (!ctx) return;
+  const t = ctx.currentTime + delay;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(0.2, t + 0.05);
+  gain.gain.linearRampToValueAtTime(0.15, t + Math.max(0.1, duration - 0.15));
+  gain.gain.linearRampToValueAtTime(0, t + duration);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + duration);
+}
+
+// ===== Chime engine (Japanese subway style) =====
+// โน้ตที่ใช้ (Hz)
+const CHIME_N = { D5:587, Fs5:740, A5:880, B5:988, D6:1175, Fs6:1480 };
+
+// เสียงไวบราโฟนสั่นระริก (tremolo) + หางเสียงก้องเบาๆ
+function chimeVoice(freq, start, dur, peak, trem) {
+  const ctx = ensureAudio();
+  if (!ctx) return;
+  const env = ctx.createGain();
+  env.connect(ctx.destination);
+  env.gain.setValueAtTime(0.0001, start);
+  env.gain.exponentialRampToValueAtTime(peak, start + 0.01);
+  env.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  let dest = env;
+  if (trem) {
+    const tg = ctx.createGain(); tg.gain.value = 1; tg.connect(env);
+    const lfo = ctx.createOscillator(), lg = ctx.createGain();
+    lfo.type = 'sine'; lfo.frequency.value = 5.6; lg.gain.value = 0.14;
+    lfo.connect(lg); lg.connect(tg.gain);
+    lfo.start(start); lfo.stop(start + dur + 0.05); dest = tg;
+  }
+  [[1,1],[2,0.32],[4,0.12],[6,0.05]].forEach(p => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.value = freq * p[0]; g.gain.value = p[1];
+    o.connect(g); g.connect(dest);
+    o.start(start); o.stop(start + dur + 0.05);
+  });
+}
+function chimeNote(freq, start, dur, peak) {
+  const v = peak || 0.16;
+  chimeVoice(freq, start, dur, v, true);
+  chimeVoice(freq, start + 0.16, dur * 0.7, v * 0.24, false);
+}
+
+// เสียงเตือน — "ไชม์เมโทร": ทำนองขึ้น-ลง วนสองรอบ (~3 วินาที)
+function playMetroChime() {
+  if (!soundOn) return;
+  const ctx = ensureAudio();
+  if (!ctx) return;
+  const n = ctx.currentTime;
+  const m = [[CHIME_N.A5,0],[CHIME_N.D6,0.26],[CHIME_N.Fs6,0.52],[CHIME_N.D6,0.78],[CHIME_N.A5,1.04,0.6]];
+  m.forEach(s => chimeNote(s[0], n + s[1], s[2] || 0.5, 0.16));
+  const n2 = n + 1.35;
+  m.forEach(s => chimeNote(s[0], n2 + s[1], s[2] || 0.5, 0.16));
+}
+
+// เสียงหมดเวลา — "บี๊บนุ่ม 2 โทน": D6/A5 สลับ 4 คู่ (~2 วินาที)
+function playSoftTwoTone() {
+  if (!soundOn) return;
+  const ctx = ensureAudio();
+  if (!ctx) return;
+  const n = ctx.currentTime;
+  for (let i = 0; i < 4; i++) {
+    chimeNote(CHIME_N.D6, n + i * 0.42, 0.3, 0.15);
+    chimeNote(CHIME_N.A5, n + i * 0.42 + 0.2, 0.3, 0.15);
+  }
+}
+
+function alertCaseWarning(c, remainMin) {
+  playMetroChime();
+  const word = ACTION_WORDS[c.disease];
+  const disease = DISEASE_SPEECH[c.disease];
+  const bed = c.bed || '';
+  // พูดแบ่งวรรค: เคส... / เตียง... / เหลือเวลาทำ... / ...นาที
+  const parts = [
+    `${disease}`,
+    `เตียง ${bed}`,
+    `เหลือเวลา${word}`,
+    `${remainMin} นาที`
+  ];
+  // เริ่มพูดหลังไชม์จบ (~3 วินาที)
+  setTimeout(() => speakParts(parts), 3100);
+}
+
+function alertCaseExpired(c) {
+  playSoftTwoTone();
+  const word = ACTION_WORDS[c.disease];
+  const disease = DISEASE_SPEECH[c.disease];
+  const bed = c.bed || '';
+  const parts = [
+    `${disease}`,
+    `เตียง ${bed}`,
+    `หมดเวลา${word}แล้ว`
+  ];
+  // เริ่มพูดหลังเสียงหมดเวลาจบ (~2 วินาที)
+  setTimeout(() => speakParts(parts), 2100);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function formatTime(ts) {
+  const d = new Date(ts);
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+
+function getVisibleCases() {
+  const now = Date.now();
+  return Object.entries(cases)
+    .map(([id, c]) => ({ id, ...c }))
+    .filter(c => (now - c.startTime) < (c.duration + KEEP_AFTER_EXPIRE_MIN * 60 * 1000))
+    .filter(c => c.onTime !== true)
+    .filter(c => c.noDrug !== true);   // เคสที่ติ๊กไม่ให้ยา ไม่ต้องแสดงบนจอ
+}
+
+function sortCases(list, now) {
+  const getPriority = (c) => {
+    const remainMs = c.startTime + c.duration - now;
+    if (remainMs <= 0) return 0;
+    const warnMs = (WARN_THRESHOLD_MIN[c.disease] || 10) * 60 * 1000;
+    if (remainMs <= warnMs) return 1;
+    return 2;
+  };
+  return list.slice().sort((a, b) => {
+    const pa = getPriority(a);
+    const pb = getPriority(b);
+    if (pa !== pb) return pa - pb;
+    return (a.startTime + a.duration) - (b.startTime + b.duration);
+  });
+}
+
+function render() {
+  const container = document.getElementById('caseContainer');
+  const now = Date.now();
+  const visible = sortCases(getVisibleCases(), now);
+
+  if (visible.length === 0) {
+    container.innerHTML = '<div class="empty">ไม่มีเคสที่กำลังนับเวลา</div>';
+    return;
+  }
+
+  const availableHeight = container.clientHeight || window.innerHeight - 120;
+  const perColumn = Math.max(1, Math.floor(availableHeight / CASE_HEIGHT_PX));
+  const columnCount = Math.max(1, Math.ceil(visible.length / perColumn));
+
+  const cardsHtml = visible.map(c => {
+    const remainMs = c.startTime + c.duration - now;
+    const isExpired = remainMs <= 0;
+    const warnMin = WARN_THRESHOLD_MIN[c.disease] || 10;
+    const isWarning = !isExpired && remainMs <= warnMin * 60 * 1000;
+
+    let timeDisplay, timeLabel;
+    if (isExpired) {
+      const overMin = Math.floor(-remainMs / 60000);
+      timeDisplay = `+${overMin} นาที`;
+      timeLabel = 'เกินเวลา!';
+    } else {
+      const mins = Math.floor(remainMs / 60000);
+      const secs = Math.floor((remainMs % 60000) / 1000);
+      timeDisplay = String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+      timeLabel = 'นาที : วินาที';
+    }
+
+    const hnHtml = c.hn ? `<div class="bed-hn">HN ${escapeHtml(c.hn)}</div>` : '';
+
+    return `
+      <div class="case ${c.disease} ${isWarning ? 'warning' : ''} ${isExpired ? 'expired' : ''}">
+        <div class="bed-section">
+          <div class="bed-label">เตียง</div>
+          <div class="bed-num">${escapeHtml(c.bed)}</div>
+          ${hnHtml}
+        </div>
+        <div class="disease-section">
+          <div class="disease-name">${LABELS[c.disease]}</div>
+          <div class="disease-sub">เริ่ม ${formatTime(c.startTime)} · เป้าหมาย ${c.duration/60000} นาที</div>
+        </div>
+        <div class="time-section">
+          <div class="time-value">${timeDisplay}</div>
+          <div class="time-label">${timeLabel}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = `<div class="cases" style="column-count: ${columnCount};">${cardsHtml}</div>`;
+
+  visible.forEach(c => {
+    const remainMs = c.startTime + c.duration - now;
+    const warnMs = (WARN_THRESHOLD_MIN[c.disease] || 10) * 60 * 1000;
+    if (remainMs <= warnMs && remainMs > warnMs - 2000 && !warned.has(c.id)) {
+      warned.add(c.id);
+      alertCaseWarning(c, WARN_THRESHOLD_MIN[c.disease] || 10);
+    }
+    if (remainMs <= 0 && remainMs > -2000 && !expired.has(c.id)) {
+      expired.add(c.id);
+      alertCaseExpired(c);
+    }
+  });
+}
+
+function updateClock() {
+  const d = new Date();
+  document.getElementById('clock').textContent =
+    String(d.getHours()).padStart(2,'0') + ':' +
+    String(d.getMinutes()).padStart(2,'0') + ':' +
+    String(d.getSeconds()).padStart(2,'0');
+}
+
+updateClock();
+setInterval(() => {
+  updateClock();
+  if (started) render();
+}, 1000);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard - ER Fast Track</title>
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icon-16.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f5820d">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Sarabun', sans-serif;
+    background: #f5f5f7;
+    min-height: 100vh;
+    padding: 16px;
+    color: #1a1a1a;
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .home-link { color: #007aff; text-decoration: none; font-size: 14px; }
+  h1 {
+    text-align: center;
+    font-size: 26px;
+    letter-spacing: 2px;
+    margin: 16px 0 8px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  .month-picker {
+    background: white;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .month-picker label { font-size: 14px; color: #666; flex-shrink: 0; }
+  .month-picker input[type="month"] {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1.5px solid #d1d1d6;
+    font-size: 15px;
+    font-family: inherit;
+    background: white;
+  }
+  .nav-btn {
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1.5px solid #d1d1d6;
+    background: white;
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  .overall {
+    background: white;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .overall-title {
+    font-size: 13px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 12px;
+  }
+  .overall-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat { text-align: center; }
+  .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-value.pass { color: #1f8a3a; }
+  .stat-value.fail { color: #c81818; }
+  .stat-value.pending { color: #999; }
+  .stat-label { font-size: 12px; color: #666; margin-top: 6px; }
+
+  .disease-card {
+    background: white;
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    border-left: 6px solid;
+  }
+  .disease-card.stroke { border-left-color: #1860d6; }
+  .disease-card.stemi { border-left-color: #c81818; }
+  .disease-card.sepsis { border-left-color: #1f8a3a; }
+
+  .disease-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .disease-header-left { display: flex; flex-direction: column; }
+  .disease-name {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+  .disease-card.stroke .disease-name { color: #1860d6; }
+  .disease-card.stemi .disease-name { color: #c81818; }
+  .disease-card.sepsis .disease-name { color: #1f8a3a; }
+  .disease-target { font-size: 13px; color: #888; }
+
+  .pdf-btn {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1.5px solid;
+    background: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .disease-card.stroke .pdf-btn { border-color: #1860d6; color: #1860d6; }
+  .disease-card.stemi .pdf-btn { border-color: #c81818; color: #c81818; }
+  .disease-card.sepsis .pdf-btn { border-color: #1f8a3a; color: #1f8a3a; }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .stat-box {
+    background: #f5f5f7;
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+  }
+  .stat-box .stat-value { font-size: 22px; }
+  .stat-box .stat-label { font-size: 11px; }
+  .stat-value.avg { color: #007aff; }
+
+  .pct-bar {
+    height: 28px;
+    background: #ececef;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    margin-bottom: 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+  }
+  .pct-pass { background: #1f8a3a; display: flex; align-items: center; justify-content: center; }
+  .pct-fail { background: #c81818; display: flex; align-items: center; justify-content: center; }
+  .pct-pending { background: #b0b0b5; display: flex; align-items: center; justify-content: center; }
+
+  .hn-section { margin-top: 12px; }
+  .hn-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #444;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .hn-section-title.fail::before { content: '✗'; color: #c81818; font-size: 16px; }
+  .hn-section-title.pass::before { content: '✓'; color: #1f8a3a; font-size: 16px; }
+  .hn-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .hn-chip {
+    background: #f5f5f7;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: ui-monospace, 'SF Mono', monospace;
+    color: #444;
+    border: 1px solid #e5e5e7;
+  }
+  .hn-chip.fail { background: #ffe6e6; color: #800; border-color: #f5c6c6; }
+  .hn-chip.pass { background: #e6f7ed; color: #0a5a26; border-color: #c5e8d2; }
+  .hn-chip.none { color: #999; font-style: italic; background: white; }
+
+  .empty-msg {
+    text-align: center;
+    color: #999;
+    padding: 30px 20px;
+    font-size: 14px;
+  }
+
+  @media (max-width: 600px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .overall-stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <a href="index.html" class="home-link">← หน้าหลัก</a>
+    <a href="entry.html" class="home-link">ลงข้อมูล →</a>
+  </div>
+
+  <h1>DASHBOARD</h1>
+  <div class="subtitle">สรุปตัวชี้วัด Fast Track รายเดือน</div>
+
+  <div class="month-picker">
+    <button class="nav-btn" id="prevMonth">←</button>
+    <label>เดือน</label>
+    <input type="month" id="monthInput">
+    <button class="nav-btn" id="nextMonth">→</button>
+  </div>
+
+  <div id="content"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.0/jspdf.plugin.autotable.min.js"></script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { firebaseConfig } from "./config.js";
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const casesRef = ref(db, 'cases');
+
+const LABELS = { stroke: 'STROKE', stemi: 'STEMI', sepsis: 'SEPSIS' };
+// ===== เวลาเป้าหมายแต่ละโรค (นาที) =====
+const TARGETS = { stroke: 45, stemi: 30, sepsis: 60 };
+const ACTION_LABELS = { stroke: 'drug', stemi: 'refer', sepsis: 'drug' };
+const DISEASES = ['stroke', 'stemi', 'sepsis'];
+
+let cases = {};
+
+const now = new Date();
+document.getElementById('monthInput').value =
+  now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+
+document.getElementById('monthInput').addEventListener('change', render);
+document.getElementById('prevMonth').addEventListener('click', () => shiftMonth(-1));
+document.getElementById('nextMonth').addEventListener('click', () => shiftMonth(1));
+
+function shiftMonth(delta) {
+  const v = document.getElementById('monthInput').value;
+  if (!v) return;
+  const [y, m] = v.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  document.getElementById('monthInput').value =
+    d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  render();
+}
+
+onValue(casesRef, (snap) => {
+  cases = snap.val() || {};
+  render();
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function getMonthCases() {
+  const v = document.getElementById('monthInput').value;
+  if (!v) return [];
+  const [y, m] = v.split('-').map(Number);
+  const start = new Date(y, m - 1, 1).getTime();
+  const end = new Date(y, m, 1).getTime();
+  return Object.entries(cases)
+    .map(([id, c]) => ({ id, ...c }))
+    .filter(c => c.startTime >= start && c.startTime < end)
+    .sort((a, b) => a.startTime - b.startTime);
+}
+
+// ===== เหตุผลไม่ให้ยา (STROKE) =====
+const NODRUG_REASONS = {
+  hemorrhage: 'Hemorrhage',
+  large_infarct: 'Large infarct',
+  time_exceeded: 'เวลาเกิน',
+  minor_tia: 'Minor stroke / TIA',
+  other: 'อื่นๆ'
+};
+function noDrugReasonLabel(c) {
+  if (c.noDrugReason === 'other' && c.noDrugReasonOther) return c.noDrugReasonOther;
+  return NODRUG_REASONS[c.noDrugReason] || '';
+}
+
+// เคสที่ติ๊ก "ไม่ให้ยา" ถูกตัดออกจากการคำนวณทั้งหมด
+function statsFor(rawList) {
+  const list = rawList.filter(c => c.noDrug !== true);
+  const excluded = rawList.filter(c => c.noDrug === true);
+  const total = list.length;
+  const pass = list.filter(c => c.onTime === true).length;
+  const fail = list.filter(c => c.onTime === false).length;
+  const pending = total - pass - fail;
+  const evaluated = pass + fail;
+  const passPct = evaluated > 0 ? Math.round(pass * 100 / evaluated) : 0;
+  const failPct = evaluated > 0 ? 100 - passPct : 0;
+
+  const withAction = list.filter(c => c.actionTime && c.startTime);
+  let avgMin = null;
+  if (withAction.length > 0) {
+    const sum = withAction.reduce((s, c) => s + (c.actionTime - c.startTime) / 60000, 0);
+    avgMin = Math.round(sum / withAction.length);
+  }
+
+  return { total, pass, fail, pending, passPct, failPct, evaluated, avgMin, withActionCount: withAction.length, excluded };
+}
+
+function formatThaiMonth() {
+  const v = document.getElementById('monthInput').value;
+  if (!v) return '';
+  const [y, m] = v.split('-').map(Number);
+  const monthsTh = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                    'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  return monthsTh[m-1] + ' ' + (y + 543);
+}
+
+function render() {
+  const list = getMonthCases();
+  const container = document.getElementById('content');
+
+  if (list.length === 0) {
+    container.innerHTML = '<div class="overall"><div class="empty-msg">ไม่มีเคสในเดือนที่เลือก</div></div>';
+    return;
+  }
+
+  const overall = statsFor(list);
+  let html = `
+    <div class="overall">
+      <div class="overall-title">ภาพรวมเดือนนี้</div>
+      <div class="overall-stats">
+        <div class="stat">
+          <div class="stat-value">${overall.total}</div>
+          <div class="stat-label">เคสทั้งหมด</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value pass">${overall.pass}</div>
+          <div class="stat-label">ทันเวลา</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value fail">${overall.fail}</div>
+          <div class="stat-label">ไม่ทันเวลา</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value pending">${overall.pending}</div>
+          <div class="stat-label">ยังไม่ติ๊ก</div>
+        </div>
+      </div>
+      ${overall.excluded.length > 0
+        ? `<div style="text-align:center;font-size:12px;color:#888;margin-top:10px;">🚫 ไม่ให้ยา ${overall.excluded.length} เคส — ไม่นับรวมในการคำนวณ</div>`
+        : ''}
+    </div>
+  `;
+
+  DISEASES.forEach(d => {
+    const dList = list.filter(c => c.disease === d);
+    if (dList.length === 0) {
+      html += `
+        <div class="disease-card ${d}">
+          <div class="disease-header">
+            <div class="disease-header-left">
+              <div class="disease-name">${LABELS[d]}</div>
+              <div class="disease-target">เป้าหมาย ${TARGETS[d]} นาที</div>
+            </div>
+          </div>
+          <div class="empty-msg">ไม่มีเคสในเดือนนี้</div>
+        </div>
+      `;
+      return;
+    }
+
+    const s = statsFor(dList);
+    const dEval = dList.filter(c => c.noDrug !== true);
+    const passList = dEval.filter(c => c.onTime === true);
+    const failList = dEval.filter(c => c.onTime === false);
+
+    const passW = s.total > 0 ? (s.pass * 100 / s.total) : 0;
+    const failW = s.total > 0 ? (s.fail * 100 / s.total) : 0;
+    const pendW = s.total > 0 ? (s.pending * 100 / s.total) : 0;
+
+    const avgDisplay = s.avgMin !== null
+      ? `${s.avgMin}<span style="font-size:14px;font-weight:500;"> นาที</span>`
+      : '<span style="font-size:18px;color:#999;">—</span>';
+
+    html += `
+      <div class="disease-card ${d}">
+        <div class="disease-header">
+          <div class="disease-header-left">
+            <div class="disease-name">${LABELS[d]}</div>
+            <div class="disease-target">เป้าหมาย ${TARGETS[d]} นาที · Time to ${ACTION_LABELS[d]}</div>
+          </div>
+          <button class="pdf-btn" data-disease="${d}">📄 ดาวน์โหลด PDF</button>
+        </div>
+
+        <div class="stats-row">
+          <div class="stat-box">
+            <div class="stat-value">${s.total}</div>
+            <div class="stat-label">เคสทั้งหมด</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value pass">${s.pass}</div>
+            <div class="stat-label">ทัน (${s.passPct}%)</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value fail">${s.fail}</div>
+            <div class="stat-label">ไม่ทัน (${s.failPct}%)</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value pending">${s.pending}</div>
+            <div class="stat-label">รอติ๊ก</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value avg">${avgDisplay}</div>
+            <div class="stat-label">เฉลี่ย time to ${ACTION_LABELS[d]}<br>(${s.withActionCount} เคส)</div>
+          </div>
+        </div>
+
+        <div class="pct-bar">
+          <div class="pct-pass" style="width:${passW}%;">${passW >= 10 ? s.passPct + '%' : ''}</div>
+          <div class="pct-fail" style="width:${failW}%;">${failW >= 10 ? s.failPct + '%' : ''}</div>
+          <div class="pct-pending" style="width:${pendW}%;">${pendW >= 10 ? 'รอ' : ''}</div>
+        </div>
+
+        <div class="hn-section">
+          <div class="hn-section-title fail">HN ที่ไม่ทันเวลา (${failList.length})</div>
+          <div class="hn-list">
+            ${failList.length === 0
+              ? '<span class="hn-chip none">ไม่มี</span>'
+              : failList.map(c => `<span class="hn-chip fail">${c.hn ? 'HN ' + escapeHtml(c.hn) : 'เตียง ' + escapeHtml(c.bed) + ' (ไม่มี HN)'}</span>`).join('')
+            }
+          </div>
+        </div>
+
+        <div class="hn-section">
+          <div class="hn-section-title pass">HN ที่ทันเวลา (${passList.length})</div>
+          <div class="hn-list">
+            ${passList.length === 0
+              ? '<span class="hn-chip none">ไม่มี</span>'
+              : passList.map(c => `<span class="hn-chip pass">${c.hn ? 'HN ' + escapeHtml(c.hn) : 'เตียง ' + escapeHtml(c.bed) + ' (ไม่มี HN)'}</span>`).join('')
+            }
+          </div>
+        </div>
+
+        ${s.excluded.length > 0 ? `
+        <div class="hn-section">
+          <div class="hn-section-title">🚫 ไม่ให้ยา — ไม่นับรวมในการคำนวณ (${s.excluded.length})</div>
+          <div class="hn-list">
+            ${s.excluded.map(c => `<span class="hn-chip">${c.hn ? 'HN ' + escapeHtml(c.hn) : 'เตียง ' + escapeHtml(c.bed)} · ${escapeHtml(noDrugReasonLabel(c))}</span>`).join('')}
+          </div>
+        </div>` : ''}
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+
+  container.querySelectorAll('.pdf-btn').forEach(btn => {
+    btn.addEventListener('click', () => exportPDF(btn.dataset.disease));
+  });
+}
+
+function exportPDF(disease) {
+  const list = getMonthCases().filter(c => c.disease === disease);
+  const monthStr = formatThaiMonth();
+  const s = statsFor(list);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text(`${LABELS[disease]} Fast Track Report`, 105, 18, { align: 'center' });
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Month: ${monthStr}`, 105, 26, { align: 'center' });
+  doc.text(`Target: ${TARGETS[disease]} min  |  Metric: Time to ${ACTION_LABELS[disease]}`, 105, 32, { align: 'center' });
+
+  let y = 42;
+  doc.setDrawColor(180);
+  doc.roundedRect(15, y, 180, 38, 2, 2);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('SUMMARY', 20, y + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  const col1x = 20, col2x = 75, col3x = 130;
+  doc.text(`Total cases: ${s.total}`, col1x, y + 14);
+  doc.text(`On time: ${s.pass} (${s.passPct}%)`, col1x, y + 21);
+  doc.text(`Late: ${s.fail} (${s.failPct}%)`, col1x, y + 28);
+  doc.text(`Not marked yet: ${s.pending}`, col1x, y + 35);
+
+  doc.text(`Avg time to ${ACTION_LABELS[disease]}: ${s.avgMin !== null ? s.avgMin + ' min' : '-'}`, col2x, y + 14);
+  doc.text(`From ${s.withActionCount} cases with time recorded`, col2x, y + 21);
+  if (s.excluded.length > 0) {
+    doc.text(`No drug given (excluded): ${s.excluded.length}`, col2x, y + 28);
+  }
+
+  if (s.evaluated > 0) {
+    const barX = col3x, barY = y + 11, barW = 60, barH = 6;
+    doc.setFillColor(220, 220, 220);
+    doc.rect(barX, barY, barW, barH, 'F');
+    doc.setFillColor(31, 138, 58);
+    doc.rect(barX, barY, barW * s.passPct / 100, barH, 'F');
+    doc.setFontSize(8);
+    doc.text(`Pass rate: ${s.passPct}%`, barX, barY - 2);
+  }
+
+  y = 88;
+  const rows = list.map((c, i) => {
+    const date = new Date(c.startTime);
+    const dateStr = String(date.getDate()).padStart(2,'0') + '/' +
+                    String(date.getMonth()+1).padStart(2,'0');
+    const startStr = String(date.getHours()).padStart(2,'0') + ':' +
+                     String(date.getMinutes()).padStart(2,'0');
+    let actionStr = '-';
+    let ttaStr = '-';
+    if (c.actionTime) {
+      const at = new Date(c.actionTime);
+      actionStr = String(at.getHours()).padStart(2,'0') + ':' +
+                  String(at.getMinutes()).padStart(2,'0');
+      ttaStr = Math.round((c.actionTime - c.startTime) / 60000) + ' min';
+    }
+    let status = 'Pending';
+    if (c.noDrug === true) status = 'No drug (' + noDrugReasonLabel(c) + ')';
+    else if (c.onTime === true) status = 'On time';
+    else if (c.onTime === false) status = 'Late';
+    return [
+      i + 1,
+      dateStr,
+      startStr,
+      c.bed || '-',
+      c.hn || '-',
+      actionStr,
+      ttaStr,
+      status
+    ];
+  });
+
+  doc.autoTable({
+    startY: y,
+    head: [['#', 'Date', 'Start', 'Bed', 'HN', `${ACTION_LABELS[disease]} time`, `Time to ${ACTION_LABELS[disease]}`, 'Status']],
+    body: rows,
+    theme: 'grid',
+    headStyles: {
+      fillColor: disease === 'stroke' ? [24, 96, 214]
+               : disease === 'stemi'  ? [200, 24, 24]
+               :                        [31, 138, 58],
+      textColor: 255,
+      fontSize: 9
+    },
+    bodyStyles: { fontSize: 9 },
+    didParseCell: function(data) {
+      if (data.section === 'body' && data.column.index === 7) {
+        const v = data.cell.raw;
+        if (v === 'On time') data.cell.styles.textColor = [31, 138, 58];
+        else if (v === 'Late') data.cell.styles.textColor = [200, 24, 24];
+        else data.cell.styles.textColor = [140, 140, 140];
+      }
+    },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 10 },
+      1: { halign: 'center', cellWidth: 18 },
+      2: { halign: 'center', cellWidth: 18 },
+      3: { halign: 'center', cellWidth: 18 },
+      4: { halign: 'center', cellWidth: 30 },
+      5: { halign: 'center', cellWidth: 25 },
+      6: { halign: 'center', cellWidth: 35 },
+      7: { halign: 'center' }
+    }
+  });
+
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(140);
+    doc.text(`ER Fast Track  -  Generated ${new Date().toLocaleString('en-GB')}`,
+             105, doc.internal.pageSize.height - 8, { align: 'center' });
+    doc.text(`Page ${i} / ${pageCount}`, 195, doc.internal.pageSize.height - 8, { align: 'right' });
+  }
+
+  const v = document.getElementById('monthInput').value;
+  doc.save(`FastTrack_${LABELS[disease]}_${v}.pdf`);
+}
+</script>
+</body>
+</html>

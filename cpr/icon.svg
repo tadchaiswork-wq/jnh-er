@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E5484D"/>
+      <stop offset="1" stop-color="#9E0E1B"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#sheen)"/>
+  
+  <defs><clipPath id="hclip"><path d="M512 668 C 384 566, 262 472, 262 348 C 262 258, 332 206, 402 206 C 462 206, 506 248, 512 290 C 518 248, 562 206, 622 206 C 692 206, 762 258, 762 348 C 762 472, 640 566, 512 668 Z"/></clipPath>
+    <mask id="hmask"><rect width="1024" height="1024" fill="#fff"/>
+      <path d="M512 668 C 384 566, 262 472, 262 348 C 262 258, 332 206, 402 206 C 462 206, 506 248, 512 290 C 518 248, 562 206, 622 206 C 692 206, 762 258, 762 348 C 762 472, 640 566, 512 668 Z"/></mask></defs>
+  <path d="M512 668 C 384 566, 262 472, 262 348 C 262 258, 332 206, 402 206 C 462 206, 506 248, 512 290 C 518 248, 562 206, 622 206 C 692 206, 762 258, 762 348 C 762 472, 640 566, 512 668 Z" fill="#ffffff"/>
+  <path d="M120 430 L400 430 L438 462 L482 268 L524 560 L560 430 L904 430" fill="none" stroke="#B3131F" stroke-width="30"
+        stroke-linecap="round" stroke-linejoin="round" clip-path="url(#hclip)"/>
+  <path d="M120 430 L400 430 L438 462 L482 268 L524 560 L560 430 L904 430" fill="none" stroke="#ffffff" stroke-width="30"
+        stroke-linecap="round" stroke-linejoin="round" mask="url(#hmask)"/>
+  <g stroke="#ffffff" stroke-opacity="0.65" stroke-width="12" stroke-linecap="round">
+    <line x1="200" y1="800" x2="824" y2="800"/>
+    <line x1="200" y1="778" x2="200" y2="822"/>
+    <line x1="356" y1="784" x2="356" y2="816"/>
+    <line x1="512" y1="784" x2="512" y2="816"/>
+    <line x1="668" y1="784" x2="668" y2="816"/>
+    <line x1="824" y1="778" x2="824" y2="822"/>
+  </g>
+  <circle cx="512" cy="800" r="30" fill="#ffffff"/>
+
+</svg>

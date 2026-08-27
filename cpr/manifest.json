@@ -1,0 +1,16 @@
+{
+  "name": "CPR Timeline — JNH ER",
+  "short_name": "CPR Timeline",
+  "description": "CPR record form · ACLS 2025 · Jainatnarendra Hospital ER",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#9E0E1B",
+  "background_color": "#E5484D",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

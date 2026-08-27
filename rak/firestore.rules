@@ -1,0 +1,79 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (myRole() == 'admin' || myRole() == 'superadmin');
+    }
+
+    function isStation() {
+      return isSignedIn() && myRole() == 'station';
+    }
+
+    // ผู้ใช้ต้องมีเช็คอินของเวรนั้นจริง (คนอยู่ 2 เวรติดจะมีเช็คอินหลายเวร)
+    function workedShift(shiftKey) {
+      return exists(/databases/$(database)/documents/checkins/$(request.auth.uid + '_' + shiftKey));
+    }
+
+    // ---- ทะเบียนผู้ใช้ ----
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      // สมัครสมาชิกได้ด้วยตนเอง (สร้างเอกสารของตัวเอง)
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      // แก้ไข/ลบ: เจ้าของ หรือ admin
+      allow update, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // ---- การเข้าเวร (สแกน barcode) ----
+    match /checkins/{id} {
+      allow read: if isSignedIn();
+      // เช็คอินตัวเอง (จากแอป) หรือ เครื่อง station / admin เช็คอินแทนได้ (สแกนที่ ER)
+      allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isStation() || isAdmin());
+      allow update, delete: if isStation() || isAdmin();
+    }
+
+    // ---- รายงานเพื่อนร่วมงาน ----
+    match /reports/{id} {
+      allow read: if isSignedIn();
+      // สร้างได้เฉพาะเวรที่ตัวเองสแกนเข้าเวรจริง
+      allow create: if isSignedIn() && request.resource.data.fromUid == request.auth.uid
+        && workedShift(request.resource.data.shiftKey);
+      allow update: if isSignedIn() && (resource.data.fromUid == request.auth.uid || isAdmin());
+      // เจ้าของลบรายงานตนเองได้ (จำกัดเวลา 7 วันในฝั่งแอป) หรือ admin
+      allow delete: if isSignedIn() && (resource.data.fromUid == request.auth.uid || isAdmin());
+    }
+
+    // ---- ชื่นชมเพื่อนร่วมงาน ----
+    match /appreciations/{id} {
+      allow read: if isSignedIn();
+      // ชื่นชมได้เฉพาะเวรที่ตัวเองสแกนเข้าเวรจริง
+      allow create: if isSignedIn() && request.resource.data.fromUid == request.auth.uid
+        && workedShift(request.resource.data.shiftKey);
+      allow update: if isSignedIn() && (resource.data.fromUid == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // ---- การล็อกอินอยู่เวร (presence) ----
+    match /presence/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    // ---- ความพึงพอใจในการอยู่เวร ----
+    match /satisfaction/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.resource.data.uid == request.auth.uid
+        && workedShift(request.resource.data.shiftKey);
+      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+  }
+}

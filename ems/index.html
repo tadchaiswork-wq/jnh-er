@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EMS Record — ER JNH</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+
+<!-- Firebase (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<!-- Charts + exports -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<style>
+  :root{
+    --bg:#ffffff; --panel:#ffffff; --panel2:#f1f5f9; --line:#cbd5e1;
+    --txt:#1f2937; --muted:#64748b; --accent:#2563eb;
+    --green:#16a34a; --red:#dc2626; --gray:#6b7280; --yellow:#eab308;
+    --white:#e5e7eb; --black:#111827;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
+    font-family:'Sarabun',system-ui,sans-serif;font-size:14px}
+  button{font-family:inherit;cursor:pointer}
+  input,textarea,select{font-family:inherit}
+  a{color:var(--accent)}
+
+  /* ---------- Top bar ---------- */
+  .topbar{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);
+    position:sticky;top:0;z-index:50}
+  .brand{font-weight:700;font-size:18px;letter-spacing:.5px;cursor:pointer}
+  .brand span{color:var(--accent)}
+  .nav{display:flex;gap:8px;align-items:center}
+  .nav button{background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    padding:8px 14px;border-radius:8px;font-size:13px}
+  .nav button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .admin-chip{display:flex;align-items:center;gap:6px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:20px;padding:6px 12px;font-size:12px}
+  .admin-chip.on{border-color:var(--green);color:#a7f3c9}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--gray)}
+  .admin-chip.on .dot{background:var(--green)}
+
+  /* ---------- Home ---------- */
+  .home{min-height:calc(100vh - 58px);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:28px;padding:40px}
+  .home h1{font-size:34px;margin:0;text-align:center}
+  .home p{color:var(--muted);margin:0 0 10px}
+  .home-cards{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
+  .card{width:230px;height:180px;background:var(--panel);border:1px solid var(--line);
+    border-radius:18px;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:14px;transition:.15s;font-size:20px;font-weight:600}
+  .card:hover{transform:translateY(-4px);border-color:var(--accent);
+    box-shadow:0 10px 30px rgba(59,130,246,.25)}
+  .card .ic{font-size:46px}
+
+  /* ---------- Entry table ---------- */
+  .wrap{padding:14px}
+  .entry-head{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .btn-new{background:var(--accent);color:#fff;border:none;padding:10px 18px;
+    border-radius:8px;font-weight:600;font-size:14px}
+  .shift-tag{background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    padding:6px 12px;color:var(--muted);font-size:12px}
+  .table-scroll{overflow-x:auto;border:1px solid #e5e7eb;border-radius:12px}
+  table.cases{border-collapse:collapse;width:max-content;min-width:100%}
+  table.cases th{background:#f8fafc;color:var(--muted);font-weight:600;
+    font-size:11px;padding:8px 6px;border:none;border-bottom:2px solid #e5e7eb;
+    white-space:nowrap;position:sticky;top:0;z-index:5}
+  table.cases td{border:none;border-bottom:1px solid #eef2f6;border-right:1px solid #f4f6f9;
+    padding:5px;vertical-align:top;background:var(--panel)}
+  .col-notify{width:240px}
+  .col-veh{width:150px}
+  .col-btn{width:112px;text-align:center}
+  .col-rec{width:220px}
+  .col-note{width:210px}
+  .seq-num{color:#111827;font-weight:800;font-size:34px;line-height:1;margin-bottom:6px}
+  .del-case{width:100%;margin-top:6px;background:#fff;color:var(--red);
+    border:1px solid #fca5a5;border-radius:6px;padding:5px;font-size:12px;font-weight:600}
+  .del-case:hover{background:var(--red);color:#fff}
+  .f-row{display:flex;align-items:center;gap:5px;margin-bottom:4px}
+  .f-lbl{font-size:11px;color:var(--muted);min-width:52px;text-align:right}
+  input.mini2{flex:1;background:#fff;color:var(--txt);border:1px solid #e2e8f0;
+    border-radius:6px;padding:5px;font-size:12px;width:100%}
+  input.mini{width:100%;margin-top:4px;background:#fff;color:var(--txt);
+    border:1px solid #e2e8f0;border-radius:6px;padding:4px 5px;font-size:11px}
+  tr.shift-sep td{background:var(--panel2);text-align:center;color:var(--muted);
+    font-size:12px;font-weight:600;padding:6px}
+  /* เคสที่ยังไม่จบ (ยังไม่ถึงฐาน) = แถบสีส้มสว่างชัด */
+  tr.unfinished td{background:#ffedd5}
+  tr.unfinished td:first-child{border-left:7px solid #f97316;box-shadow:inset 3px 0 0 #fdba74}
+  tr.unfinished:hover td{background:#ffe3bf}
+  .live-clock{color:#111827;font-weight:700;font-size:28px;letter-spacing:.5px;
+    font-variant-numeric:tabular-nums}
+
+  textarea.cell{width:100%;min-height:54px;background:#fff;color:var(--txt);
+    border:1px solid #e2e8f0;border-radius:6px;padding:6px;resize:vertical;font-size:12px}
+  input.cell{width:100%;background:#fff;color:var(--txt);border:1px solid #e2e8f0;
+    border-radius:6px;padding:6px;font-size:12px}
+  select.cell{width:100%;background:#fff;color:var(--txt);border:1px solid #e2e8f0;
+    border-radius:6px;padding:6px;font-size:12px}
+  .save-sm{background:var(--accent);color:#fff;border:none;border-radius:6px;
+    padding:5px 10px;font-size:12px;margin-top:4px}
+  .time-lbl{font-size:11px;color:var(--muted);margin-top:4px}
+
+  /* triage swatches */
+  .triage{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+  .sw{width:22px;height:22px;border-radius:5px;border:2px solid transparent;cursor:pointer}
+  .sw.sel{border-color:#fff;outline:2px solid var(--accent)}
+  .sw.red{background:var(--red)} .sw.yellow{background:var(--yellow)}
+  .sw.green{background:var(--green)} .sw.white{background:var(--white)}
+  .sw.black{background:var(--black);border:2px solid #555}
+
+  /* stage buttons */
+  .stage-btn{width:100%;border:none;border-radius:8px;padding:10px 4px;font-weight:600;
+    font-size:12px;color:#fff;background:var(--gray)}
+  .stage-btn.green{background:var(--green)}
+  .stage-btn.red{background:var(--red)}
+  .stage-time{font-size:11px;color:var(--muted);margin-top:4px;text-align:center}
+
+  /* records (V/S) */
+  .rec-box{background:#fafbfc;border:1px solid #e5e7eb;border-radius:6px;padding:6px}
+  .rec-text{font-size:12px;white-space:pre-wrap;margin-top:2px}
+  .rec-draft{margin-top:6px;border-top:1px dashed #e5e7eb;padding-top:6px}
+  .rec-head{display:flex;justify-content:space-between;align-items:center;gap:6px}
+  .rec-toggle{background:none;border:none;color:var(--accent);font-size:12px;padding:0}
+  .rec-add{background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    border-radius:50%;width:22px;height:22px;font-size:14px;line-height:1;padding:0}
+  .rec-item{border-top:1px dashed var(--line);padding:5px 0;font-size:12px}
+  .rec-item .rt{color:var(--muted);font-size:10px;margin-bottom:3px}
+  .rec-collapsed .rec-item:not(:last-child){display:none}
+  .rec-summary{font-size:11px;color:var(--muted);margin-top:3px}
+  textarea.rec-ta{width:100%;min-height:46px;background:var(--bg);color:var(--txt);
+    border:1px solid var(--line);border-radius:6px;padding:5px;resize:vertical;font-size:12px}
+
+  .chk{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px}
+
+  /* ---------- TV ---------- */
+  .tv{padding:18px;min-height:calc(100vh - 58px)}
+  .tv-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .tv-head h2{margin:0;font-size:26px}
+  .tv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:18px}
+  .tv-card{border-radius:16px;padding:18px;border:4px solid var(--line);background:var(--panel)}
+  .tv-card.als{border-color:var(--red)}
+  .tv-card.ils{border-color:var(--yellow)}
+  .tv-card.flash-als{animation:flashRed 1s steps(1) infinite}
+  .tv-card.flash-ils{animation:flashYellow 1s steps(1) infinite}
+  @keyframes flashRed{50%{background:var(--red);border-color:#fff}}
+  @keyframes flashYellow{50%{background:var(--yellow);border-color:#fff;color:#111}}
+  .tv-veh{font-size:30px;font-weight:700}
+  .tv-triage{display:inline-block;width:20px;height:20px;border-radius:5px;vertical-align:middle;margin-left:8px}
+  .tv-detail{font-size:15px;color:var(--muted);margin:8px 0}
+  .tv-count{font-size:44px;font-weight:700;text-align:center;margin:8px 0}
+  .tv-count.warn{color:var(--red)}
+  .tv-status{font-size:18px;font-weight:600;text-align:center;padding:8px;
+    background:var(--panel2);border-radius:10px;margin-top:8px}
+  .tv-empty{color:var(--muted);font-size:20px;text-align:center;padding:60px}
+  .sound-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px}
+
+  /* ---------- Dashboard ---------- */
+  .dash{padding:18px}
+  .filters{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .fg{display:flex;flex-direction:column;gap:4px}
+  .fg label{font-size:11px;color:var(--muted)}
+  .fg select,.fg input{background:var(--bg);color:var(--txt);border:1px solid var(--line);
+    border-radius:8px;padding:8px}
+  .stat-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:18px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .stat .n{font-size:30px;font-weight:700}
+  .stat .l{color:var(--muted);font-size:12px}
+  .stat.late .n{color:var(--red)}
+  .chart-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:16px;margin-bottom:18px}
+  .export-row{display:flex;gap:10px;margin-bottom:14px}
+  .export-row button{background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    border-radius:8px;padding:9px 16px}
+
+  /* Admin table */
+  .admin-tbl{width:100%;border-collapse:collapse;font-size:12px}
+  .admin-tbl th,.admin-tbl td{border:1px solid var(--line);padding:6px}
+  .admin-tbl th{background:var(--panel2)}
+  .del-btn{background:var(--red);color:#fff;border:none;border-radius:6px;padding:4px 8px}
+
+  .lock-note{color:var(--muted);font-size:12px;margin-left:6px}
+  .banner{background:#7f1d1d;color:#fff;text-align:center;padding:8px;font-size:13px}
+  .hidden{display:none !important}
+
+  @media print{
+    .topbar,.filters,.export-row,.no-print{display:none !important}
+    body{background:#fff;color:#000}
+    .chart-box,.stat,.admin-tbl th,.admin-tbl td{color:#000}
+  }
+</style>
+</head>
+<body>
+
+<div id="fbBanner" class="banner hidden">
+  ⚠️ ยังไม่ได้ตั้งค่า Firebase — ข้อมูลจะยังไม่ถูกบันทึกจริง เปิดไฟล์ index.html แล้วแก้ firebaseConfig (ดู README)
+</div>
+
+<div class="topbar">
+  <div class="brand" onclick="go('home')">ER <span>JNH</span> · EMS</div>
+  <div class="nav" id="nav">
+    <button data-r="entry" onclick="go('entry')">ลงข้อมูล</button>
+    <button data-r="tv" onclick="go('tv')">TV Monitor</button>
+    <button data-r="dashboard" onclick="go('dashboard')">Dashboard</button>
+    <div class="admin-chip" id="adminChip" onclick="toggleAdmin()">
+      <span class="dot"></span><span id="adminLbl">Admin</span>
+    </div>
+  </div>
+</div>
+
+<div id="app"></div>
+
+<script>
+/* ============================================================
+   Firebase config — แก้ค่านี้ด้วยของโปรเจกต์คุณ (ดู README.md)
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyAiJNz0bF-NWcgvwCj5XN1lt2v7yYZsG2A",
+  authDomain: "ems-jnh.firebaseapp.com",
+  databaseURL: "https://ems-jnh-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "ems-jnh",
+  storageBucket: "ems-jnh.firebasestorage.app",
+  messagingSenderId: "522908351976",
+  appId: "1:522908351976:web:ef0abd3f65237c7c98385d",
+  measurementId: "G-Y45SZS3SL0"
+};
+
+const ADMIN_CODE = "er-jnh";
+
+/* ---------- state ---------- */
+let db = null, casesRef = null, unitsRef = null;
+let CASES = {};                 // id -> case object
+let UNITS = {};                 // id -> { name }  (รายการรถ ที่ admin กำหนด)
+let isAdmin = false;
+let currentRoute = "home";
+let expandedRecs = new Set();    // จำสถานะขยาย/ยุบ ช่องรายละเอียด
+let recDrafts = {};              // ข้อความที่กำลังพิมพ์ (ยังไม่กดบันทึก) key=id_field
+
+/* ---------- Firebase init ---------- */
+let fbOK = false;
+try{
+  if(firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY"){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    casesRef = db.ref("cases");
+    unitsRef = db.ref("vehicleUnits");
+    fbOK = true;
+  }
+}catch(e){ console.error("Firebase init error", e); }
+
+if(!fbOK){
+  document.getElementById("fbBanner").classList.remove("hidden");
+  // local fallback so the app is testable before Firebase is set up
+  casesRef = makeLocalRef("ems_cases_local");
+  unitsRef = makeLocalRef("ems_units_local");
+}
+
+function makeLocalRef(KEY){
+  // Minimal local stand-in mirroring the Firebase API we use
+  let store = JSON.parse(localStorage.getItem(KEY)||"{}");
+  let listeners=[];
+  const save=()=>{localStorage.setItem(KEY,JSON.stringify(store));fire();};
+  const fire=()=>listeners.forEach(cb=>cb({val:()=>store}));
+  return {
+    on:(_e,cb)=>{listeners.push(cb);cb({val:()=>store});},
+    push:()=>{const id="loc_"+Date.now()+"_"+Math.floor(Math.random()*9999);
+      return {key:id,set:(v)=>{store[id]=v;save();return Promise.resolve();}};},
+    child:(id)=>({
+      set:(v)=>{store[id]=v;save();return Promise.resolve();},
+      update:(v)=>{store[id]={...(store[id]||{}),...v};save();return Promise.resolve();},
+      remove:()=>{delete store[id];save();return Promise.resolve();}
+    })
+  };
+}
+
+/* ---------- helpers: time / shift ---------- */
+const pad=n=>String(n).padStart(2,"0");
+function fmtTime(ts){ if(!ts) return ""; const d=new Date(ts);
+  return pad(d.getHours())+":"+pad(d.getMinutes()); }
+function fmtDateTime(ts){ if(!ts) return ""; const d=new Date(ts);
+  return d.getDate()+"/"+(d.getMonth()+1)+"/"+(d.getFullYear()+543)+" "+
+    pad(d.getHours())+":"+pad(d.getMinutes()); }
+const THAI_DAY=["อา","จ","อ","พ","พฤ","ศ","ส"];
+function fmtClock(){ const d=new Date();
+  return `${THAI_DAY[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()+543}  `+
+    `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+function shiftStartOf(ts){
+  const d=new Date(ts); const h=d.getHours();
+  const s = h<8?0 : h<16?8 : 16;
+  d.setHours(s,0,0,0); return d.getTime();
+}
+function shiftLabel(startTs){
+  const h=new Date(startTs).getHours();
+  const map={0:"เวร 00:00–08:00",8:"เวร 08:00–16:00",16:"เวร 16:00–24:00"};
+  const d=new Date(startTs);
+  return map[h]+"  ("+d.getDate()+"/"+(d.getMonth()+1)+")";
+}
+
+/* ---------- data listener ---------- */
+casesRef.on("value",snap=>{
+  CASES = snap.val() || {};
+  render();  // re-render current route on any data change (realtime)
+});
+unitsRef.on("value",snap=>{
+  UNITS = snap.val() || {};
+  render();
+});
+
+/* ---------- routing ---------- */
+function go(r){ currentRoute=r; window.location.hash=r; render(); }
+window.addEventListener("hashchange",()=>{
+  const r=(location.hash||"#home").slice(1);
+  if(r!==currentRoute){currentRoute=r;render();}
+});
+
+function setNavActive(){
+  document.querySelectorAll("#nav [data-r]").forEach(b=>
+    b.classList.toggle("active", b.dataset.r===currentRoute));
+}
+
+/* ---------- admin ---------- */
+function toggleAdmin(){
+  if(isAdmin){ isAdmin=false; refreshAdminChip(); render(); return; }
+  const code=prompt("ใส่รหัส Admin:");
+  if(code===ADMIN_CODE){ isAdmin=true; refreshAdminChip();
+    go('admin'); }
+  else if(code!==null){ alert("รหัสไม่ถูกต้อง"); }
+}
+function refreshAdminChip(){
+  const chip=document.getElementById("adminChip");
+  chip.classList.toggle("on",isAdmin);
+  document.getElementById("adminLbl").textContent = isAdmin? "Admin ✓":"Admin";
+}
+
+/* ============================================================
+   RENDER dispatcher
+   ============================================================ */
+function render(){
+  const initial=(location.hash||"#home").slice(1);
+  currentRoute = initial||"home";
+  setNavActive();
+  const app=document.getElementById("app");
+  if(currentRoute==="home") return renderHome(app);
+  if(currentRoute==="entry") return renderEntry(app);
+  if(currentRoute==="tv") return renderTV(app);
+  if(currentRoute==="dashboard") return renderDashboard(app);
+  if(currentRoute==="admin") return renderAdmin(app);
+  renderHome(app);
+}
+
+/* ============================================================
+   HOME
+   ============================================================ */
+function renderHome(app){
+  stopTV();
+  app.innerHTML=`
+   <div class="home">
+     <div style="text-align:center">
+       <h1>ระบบบันทึกข้อมูล EMS</h1>
+       <p>โรงพยาบาล ER JNH — Real-time</p>
+     </div>
+     <div class="home-cards">
+       <div class="card" onclick="go('entry')"><div class="ic">📝</div>ลงข้อมูล</div>
+       <div class="card" onclick="go('tv')"><div class="ic">📺</div>TV Monitor</div>
+       <div class="card" onclick="go('dashboard')"><div class="ic">📊</div>Dashboard</div>
+     </div>
+   </div>`;
+}
+
+/* ============================================================
+   ENTRY
+   ============================================================ */
+const STAGE_DEFS = {
+  command:{label:"สั่งการ", base:"notifyTime", limitMin:1},
+  depart :{label:"ออกฐาน", base:"notifyTime", limitMin:2},
+  arrive :{label:"ถึงเหตุ", base:"notifyTime", limitMin:8},
+  leave  :{label:"ออกจากเหตุ", base:"arriveTime", limitMin:10},
+  hosp   :{label:"ถึง รพ.", base:null, limitMin:null},
+  toBase :{label:"ถึงฐาน", base:null, limitMin:null},
+};
+
+function newCase(){
+  const now=Date.now();
+  const ref=casesRef.push();
+  const obj={ createdAt:now, notifyTime:null,
+    sexAge:"", symptom:"", phone:"", other:"",
+    vehicle:"", vehicleUnit:"", triage:"",
+    command:null, depart:null, arrive:null, leave:null, hosp:null, toBase:null,
+    mileDepart:"", mileArrive:"", mileHosp:"", mileBase:"", departCrew:"",
+    vsRecords:[], caseRecords:[],
+    note:"", opNumber:"", summaryCode:"" };
+  ref.set(obj);
+}
+
+function computeColor(pressTs, baseTs, limitMin){
+  if(baseTs==null) return "green";
+  return (pressTs - baseTs) <= limitMin*60000 ? "green":"red";
+}
+function baseTsFor(c,stageKey){
+  const def=STAGE_DEFS[stageKey];
+  if(!def.base) return null;
+  return c[def.base] || null;
+}
+
+function pressStage(id,stageKey){
+  const c=CASES[id]; if(!c) return;
+  const now=Date.now();
+  const base=baseTsFor(c,stageKey);
+  const color=computeColor(now,base,STAGE_DEFS[stageKey].limitMin);
+  casesRef.child(id).update({[stageKey]:{time:now,color}});
+}
+function editStageTime(id,stageKey){
+  const c=CASES[id]; const cur=c[stageKey];
+  const def=STAGE_DEFS[stageKey];
+  const old = cur? fmtDateTime(cur.time): fmtDateTime(Date.now());
+  const inp=prompt(`แก้ไขเวลา "${def.label}"\nรูปแบบ HH:MM (หรือ วัน/เดือน/ปีพ.ศ. HH:MM)`, cur?fmtTime(cur.time):"");
+  if(inp===null) return;
+  const ts=parseTimeInput(inp, cur?cur.time:Date.now());
+  if(ts==null){ alert("รูปแบบเวลาไม่ถูกต้อง"); return; }
+  const base=baseTsFor(c,stageKey);
+  const color=computeColor(ts,base,def.limitMin);   // เงื่อนไขแรก → เปลี่ยนสีได้
+  casesRef.child(id).update({[stageKey]:{time:ts,color}});
+}
+function parseTimeInput(str, refTs){
+  str=str.trim();
+  let m=str.match(/^(\d{1,2}):(\d{2})$/);
+  if(m){ const d=new Date(refTs||Date.now());
+    d.setHours(+m[1],+m[2],0,0); return d.getTime(); }
+  m=str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})$/);
+  if(m){ let y=+m[3]; if(y>2400)y-=543; if(y<100)y+=2000;
+    const d=new Date(y,+m[2]-1,+m[1],+m[4],+m[5],0,0); return d.getTime(); }
+  return null;
+}
+
+function saveNotify(id){
+  const g=fid=>{const el=document.getElementById(fid);return el?el.value:"";};
+  const patch={
+    sexAge:  g("f_sexAge_"+id),
+    symptom: g("f_symptom_"+id),
+    phone:   g("f_phone_"+id),
+    other:   g("f_other_"+id)
+  };
+  const c=CASES[id];
+  if(!c.notifyTime) patch.notifyTime=Date.now();  // ครั้งแรกที่บันทึก = ลงเวลา
+  casesRef.child(id).update(patch);
+}
+function editNotifyTime(id){
+  const c=CASES[id];
+  const inp=prompt("แก้ไขเวลาแจ้งเหตุ (HH:MM)", c.notifyTime?fmtTime(c.notifyTime):"");
+  if(inp===null) return;
+  const ts=parseTimeInput(inp,c.notifyTime||Date.now());
+  if(ts==null){alert("รูปแบบเวลาไม่ถูกต้อง");return;}
+  casesRef.child(id).update({notifyTime:ts});
+}
+function setVehicle(id,v){ casesRef.child(id).update({vehicle:v}); }
+function setUnit(id,v){ casesRef.child(id).update({vehicleUnit:v}); }
+function unitList(){ return Object.values(UNITS).map(u=>u&&u.name).filter(Boolean); }
+function unitOptions(sel){
+  const names=unitList();
+  let opts=names.map(n=>`<option ${sel===n?'selected':''}>${escapeHtml(n)}</option>`).join("");
+  // ถ้าเคยเลือกค่าที่ไม่มีในรายการแล้ว (admin ลบทีหลัง) ก็ยังแสดงให้เห็น
+  if(sel && !names.includes(sel)) opts+=`<option selected>${escapeHtml(sel)}</option>`;
+  return opts;
+}
+function setTriage(id,t){ casesRef.child(id).update({triage:t}); }
+function setNote(id,v){ casesRef.child(id).update({note:v}); }
+function removeCase(id){ if(confirm("ลบเคสนี้ถาวร?")) casesRef.child(id).remove(); }
+function setField(id,field,v){ casesRef.child(id).update({[field]:v}); }
+/* เกิน 10 กม. = คำนวณจากเลขไมล์ (ถึงเหตุ − ออกฐาน) >= 10 */
+function isFarCase(c){
+  const a=parseFloat(c.mileArrive), d=parseFloat(c.mileDepart);
+  if(isNaN(a)||isNaN(d)) return false;
+  return (a-d)>=10;
+}
+function farKm(c){
+  const a=parseFloat(c.mileArrive), d=parseFloat(c.mileDepart);
+  if(isNaN(a)||isNaN(d)) return null;
+  return a-d;
+}
+function caseSummaryText(c){ return [c.sexAge,c.symptom].filter(Boolean).join(" · "); }
+
+/* records (V/S ch6, case ch8) */
+function commitRecord(id,field){
+  const key=`${id}_${field}`;
+  const val=(recDrafts[key]||"").trim();
+  if(!val){ alert("พิมพ์รายละเอียดก่อนกดบันทึก"); return; }
+  const c=CASES[id]; const arr=(c[field]||[]).slice();
+  arr.push({time:Date.now(),text:val});   // ลงเวลาตอนกดบันทึก
+  delete recDrafts[key];
+  expandedRecs.add(`rec_${id}_${field}`);
+  casesRef.child(id).update({[field]:arr});
+}
+function editRecord(id,field,idx){
+  const c=CASES[id]; const arr=(c[field]||[]).slice();
+  const cur=arr[idx]; if(!cur) return;
+  const t=prompt("แก้ไขข้อความบันทึก:",cur.text);
+  if(t===null) return;
+  arr[idx]={...cur,text:t};
+  casesRef.child(id).update({[field]:arr});
+}
+function saveRecordText(id,field,idx,val){
+  const c=CASES[id]; const arr=(c[field]||[]).slice();
+  if(!arr[idx])return; arr[idx]={...arr[idx],text:val,time:arr[idx].time||Date.now()};
+  casesRef.child(id).update({[field]:arr});
+}
+function toggleRec(boxId){
+  const el=document.getElementById(boxId); if(!el) return;
+  el.classList.toggle("rec-collapsed");
+  if(el.classList.contains("rec-collapsed")) expandedRecs.delete(boxId);
+  else expandedRecs.add(boxId);
+}
+
+const MILE_FIELDS={depart:'mileDepart',arrive:'mileArrive',hosp:'mileHosp',toBase:'mileBase'};
+function stageCell(id,c,stageKey){
+  const def=STAGE_DEFS[stageKey];
+  const v=c[stageKey];
+  const cls = v? ("stage-btn "+v.color) : "stage-btn";
+  const t = v? `<div class="stage-time">${fmtTime(v.time)}</div>`:"";
+  let extra="";
+  const mf=MILE_FIELDS[stageKey];
+  if(mf){
+    extra+=`<input class="mini" type="number" step="0.1" placeholder="เลขไมล์"
+      value="${c[mf]!=null?c[mf]:''}" onchange="setField('${id}','${mf}',this.value)">`;
+  }
+  if(stageKey==='depart'){
+    extra+=`<input class="mini" placeholder="ชื่อผู้ออกเหตุ"
+      value="${escapeHtml(c.departCrew||'')}" onchange="setField('${id}','departCrew',this.value)">`;
+  }
+  return `<td class="col-btn">
+     <button class="${cls}"
+       onclick="pressStage('${id}','${stageKey}')"
+       oncontextmenu="event.preventDefault();editStageTime('${id}','${stageKey}')">
+       ${def.label}</button>${t}${extra}</td>`;
+}
+function recCell(id,c,field,title){
+  const arr=c[field]||[];
+  const boxId=`rec_${id}_${field}`;
+  const key=`${id}_${field}`;
+  const items=arr.map((r,i)=>`
+     <div class="rec-item">
+       <div class="rt">🕒 ${fmtTime(r.time)}
+         <a href="#" onclick="event.preventDefault();editRecord('${id}','${field}',${i})">แก้</a></div>
+       <div class="rec-text">${escapeHtml(r.text||"")}</div>
+     </div>`).join("");
+  const collapsed = expandedRecs.has(boxId)? "":"rec-collapsed";
+  const draftVal = escapeHtml(recDrafts[key]||"");
+  return `<td class="col-rec">
+     <div class="rec-box ${collapsed}" id="${boxId}">
+       <div class="rec-head">
+         <button class="rec-toggle" onclick="toggleRec('${boxId}')">▸ ${title} ${arr.length?'('+arr.length+')':''}</button>
+       </div>
+       ${items}
+       <div class="rec-draft">
+         <textarea class="rec-ta" placeholder="พิมพ์รายละเอียด..."
+           oninput="recDrafts['${key}']=this.value">${draftVal}</textarea>
+         <button class="save-sm" onclick="commitRecord('${id}','${field}')">บันทึก + เวลา</button>
+       </div>
+     </div></td>`;
+}
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+
+let entryRange="shift2";   // ค่าเริ่มต้น: 2 เวรล่าสุด
+function setEntryRange(v){ entryRange=v; render(); }
+function entryCutoff(){
+  const now=Date.now();
+  if(entryRange==="shift2") return shiftStartOf(now)-8*3600000;
+  if(entryRange==="today"){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
+  if(entryRange==="7d")  return now-7*86400000;
+  if(entryRange==="30d") return now-30*86400000;
+  if(entryRange==="60d") return now-60*86400000;
+  return shiftStartOf(now)-8*3600000;
+}
+
+function renderEntry(app){
+  stopTV();
+  const now=Date.now();
+  const curShift=shiftStartOf(now);
+  const cutoff=entryCutoff();   // ย้อนหลังได้สูงสุด 2 เดือน
+
+  // ลำดับการออกเหตุในแต่ละเวร (เคสที่ 1,2,3... ต่อเวร) — คำนวณจากทุกเคส
+  const seqMap={}, byShift={};
+  Object.entries(CASES).forEach(([id,c])=>{
+    const s=shiftStartOf(c.createdAt);
+    (byShift[s]=byShift[s]||[]).push([id,c]);
+  });
+  Object.values(byShift).forEach(list=>{
+    list.sort((a,b)=> (a[1].createdAt||0)-(b[1].createdAt||0));
+    list.forEach(([id],i)=> seqMap[id]=i+1);
+  });
+
+  // sort cases newest-first ภายในช่วงที่เลือก
+  const rows=Object.entries(CASES)
+    .filter(([id,c])=> (c.createdAt||0) >= cutoff)
+    .sort((a,b)=> b[1].createdAt - a[1].createdAt);
+
+  let body="";
+  let lastShift=null;
+  rows.forEach(([id,c])=>{
+    const sh=shiftStartOf(c.createdAt);
+    if(sh!==lastShift){
+      body+=`<tr class="shift-sep"><td colspan="12">${shiftLabel(sh)}${sh===curShift?" · เวรปัจจุบัน":" · เวรก่อนหน้า"}</td></tr>`;
+      lastShift=sh;
+    }
+    body+=renderCaseRow(id,c,seqMap[id]);
+  });
+  if(!rows.length) body=`<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:30px">ยังไม่มีเคสในเวรนี้ กด "＋ New case"</td></tr>`;
+
+  app.innerHTML=`
+   <div class="wrap">
+     <div class="entry-head">
+       <button class="btn-new" onclick="newCase()">＋ New case</button>
+       <span class="live-clock" id="liveClock">${fmtClock()}</span>
+       <span class="shift-tag">${shiftLabel(curShift)} · เวรปัจจุบัน</span>
+       <label class="shift-tag">แสดงย้อนหลัง:
+         <select onchange="setEntryRange(this.value)" style="background:#fff;border:none;font-weight:600;color:var(--txt)">
+           <option value="shift2" ${entryRange==='shift2'?'selected':''}>2 เวรล่าสุด</option>
+           <option value="today" ${entryRange==='today'?'selected':''}>วันนี้</option>
+           <option value="7d" ${entryRange==='7d'?'selected':''}>7 วัน</option>
+           <option value="30d" ${entryRange==='30d'?'selected':''}>30 วัน</option>
+           <option value="60d" ${entryRange==='60d'?'selected':''}>2 เดือน</option>
+         </select></label>
+     </div>
+     <div class="table-scroll">
+       <table class="cases">
+         <thead><tr>
+           <th class="col-notify">1. รับเคส / แจ้งเหตุ</th>
+           <th class="col-veh">2. รถ + Triage</th>
+           <th class="col-btn">3. สั่งการ</th>
+           <th class="col-btn">4. ออกฐาน</th>
+           <th class="col-btn">5. ถึงเหตุ</th>
+           <th class="col-rec">6. รายละเอียด</th>
+           <th class="col-btn">7. ออกจากเหตุ</th>
+           <th class="col-rec">8. รายละเอียดนำส่ง</th>
+           <th class="col-btn">9. ถึง รพ.</th>
+           <th class="col-btn">10. ถึงฐาน</th>
+           <th class="col-note">11. หมายเหตุ</th>
+         </tr></thead>
+         <tbody>${body}</tbody>
+       </table>
+     </div>
+   </div>`;
+}
+
+function renderCaseRow(id,c,seq){
+  const unfinished = c.toBase? "":"unfinished";
+  const triages=["red","yellow","green","white","black"];
+  const sw=triages.map(t=>`<div class="sw ${t} ${c.triage===t?'sel':''}"
+       title="${t}" onclick="setTriage('${id}','${t}')"></div>`).join("");
+  return `<tr class="${unfinished}">
+    <td class="col-notify">
+      <div class="seq-num">${seq||'-'}</div>
+      <div class="f-row"><span class="f-lbl">เพศ/อายุ</span>
+        <input class="mini2" id="f_sexAge_${id}" value="${escapeHtml(c.sexAge||'')}"></div>
+      <div class="f-row"><span class="f-lbl">อาการ</span>
+        <input class="mini2" id="f_symptom_${id}" value="${escapeHtml(c.symptom||'')}"></div>
+      <div class="f-row"><span class="f-lbl">เบอร์โทร</span>
+        <input class="mini2" id="f_phone_${id}" value="${escapeHtml(c.phone||'')}"></div>
+      <div class="f-row"><span class="f-lbl">อื่นๆ</span>
+        <input class="mini2" id="f_other_${id}" value="${escapeHtml(c.other||'')}"></div>
+      <button class="save-sm" onclick="saveNotify('${id}')">บันทึก</button>
+      ${c.notifyTime?`<div class="time-lbl" oncontextmenu="event.preventDefault();editNotifyTime('${id}')">🕒 ${fmtDateTime(c.notifyTime)} <a href="#" onclick="event.preventDefault();editNotifyTime('${id}')">แก้</a></div>`:""}
+    </td>
+    <td class="col-veh">
+      <select class="cell" onchange="setVehicle('${id}',this.value)">
+        <option value="" ${!c.vehicle?'selected':''}>-- ประเภทรถ --</option>
+        <option ${c.vehicle==='ALS'?'selected':''}>ALS</option>
+        <option ${c.vehicle==='ILS'?'selected':''}>ILS</option>
+        <option ${c.vehicle==='BLS'?'selected':''}>BLS</option>
+      </select>
+      <select class="cell" style="margin-top:4px" onchange="setUnit('${id}',this.value)">
+        <option value="" ${!c.vehicleUnit?'selected':''}>-- รถที่ออก --</option>
+        ${unitOptions(c.vehicleUnit)}
+      </select>
+      <div class="triage">${sw}</div>
+    </td>
+    ${stageCell(id,c,'command')}
+    ${stageCell(id,c,'depart')}
+    ${stageCell(id,c,'arrive')}
+    ${recCell(id,c,'vsRecords','รายละเอียด')}
+    ${stageCell(id,c,'leave')}
+    ${recCell(id,c,'caseRecords','นำส่ง')}
+    ${stageCell(id,c,'hosp')}
+    ${stageCell(id,c,'toBase')}
+    <td class="col-note">
+      <div class="f-row"><span class="f-lbl">เลขออกเหตุ</span>
+        <input class="mini2" placeholder="หมายเลขออกเหตุ" value="${escapeHtml(c.opNumber||'')}"
+          onchange="setField('${id}','opNumber',this.value)"></div>
+      <div class="f-row"><span class="f-lbl">รหัสสรุป</span>
+        <select class="mini2" onchange="setField('${id}','summaryCode',this.value)">
+          <option value="">-</option>
+          ${Array.from({length:25},(_,i)=>i+1).map(n=>`<option ${String(c.summaryCode||'')===String(n)?'selected':''}>${n}</option>`).join("")}
+        </select></div>
+      <textarea class="cell" placeholder="หมายเหตุ..." onchange="setNote('${id}',this.value)">${escapeHtml(c.note||"")}</textarea>
+      ${isFarCase(c)?`<div class="time-lbl" style="color:#ea580c;font-weight:600">🚩 เกิน 10 กม. (${farKm(c).toFixed(1)} กม.)</div>`:(farKm(c)!=null?`<div class="time-lbl">ระยะ ${farKm(c).toFixed(1)} กม.</div>`:"")}
+      <button class="del-case" onclick="removeCase('${id}')">🗑 ลบเคส</button>
+    </td>
+  </tr>`;
+}
+
+/* ============================================================
+   TV MONITOR
+   ============================================================ */
+let tvTimer=null, audioCtx=null, alarmedIds={};
+function stopTV(){ if(tvTimer){clearInterval(tvTimer);tvTimer=null;} }
+
+function ensureAudio(){
+  if(!audioCtx){ try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} }
+  if(audioCtx && audioCtx.state==="suspended") audioCtx.resume();
+}
+function playTrainChime(){   // เสียงติ๊งๆ คล้ายรถไฟญี่ปุ่น ~10 วินาที ดังชัด
+  ensureAudio(); if(!audioCtx) return;
+  const notes=[880,988,1319,1175]; // มิ-โซ ประมาณ
+  const master=audioCtx.createGain();
+  master.gain.value=0.9;           // ดังขึ้น
+  master.connect(audioCtx.destination);
+  let t=audioCtx.currentTime;
+  const step=0.42, total=10;       // ~10 วินาที
+  const reps=Math.ceil(total/(notes.length*step));
+  for(let rep=0; rep<reps; rep++){
+    notes.forEach(f=>{
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.type="triangle"; o.frequency.value=f;
+      o.connect(g); g.connect(master);
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(0.9,t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+step-0.02);
+      o.start(t); o.stop(t+step); t+=step;
+    });
+  }
+}
+
+function tvStatusText(c){
+  if(c.toBase) return "✅ กลับถึงฐานแล้ว";
+  if(c.hosp)   return "🏥 ถึงโรงพยาบาล";
+  if(c.leave)  return "↩️ ออกจากที่เกิดเหตุ";
+  if(c.arrive) return "📍 ถึงที่เกิดเหตุ";
+  if(c.depart) return "🚑 ออกจากฐานแล้ว";
+  if(c.command)return "🟢 สั่งการแล้ว รอออกฐาน";
+  return "รอสั่งการ";
+}
+
+function renderTV(app){
+  stopTV();
+  app.innerHTML=`
+   <div class="tv">
+     <div class="tv-head">
+       <h2>📺 EMS Live Monitor — ห้องฉุกเฉิน</h2>
+       <button class="sound-btn" onclick="ensureAudio();playTrainChime()">🔔 เปิดเสียงเตือน</button>
+     </div>
+     <div class="tv-grid" id="tvGrid"></div>
+   </div>`;
+  drawTV();
+  tvTimer=setInterval(drawTV,1000);   // countdown ทุกวินาที
+}
+
+function drawTV(){
+  const grid=document.getElementById("tvGrid");
+  if(!grid){stopTV();return;}
+  const now=Date.now();
+  // เฉพาะ ALS/ILS, เริ่มเมื่อกดสั่งการ, ยังไม่จบ (ยังไม่ถึงฐาน)
+  const list=Object.entries(CASES).filter(([id,c])=>
+    (c.vehicle==="ALS"||c.vehicle==="ILS") && c.command && !c.toBase)
+    .sort((a,b)=> a[1].command.time - b[1].command.time);
+
+  if(!list.length){ grid.innerHTML=`<div class="tv-empty">— ไม่มีเคส ALS/ILS ที่กำลังดำเนินการ —</div>`; return; }
+
+  grid.innerHTML=list.map(([id,c])=>{
+    const isALS=c.vehicle==="ALS";
+    const flashing = !c.depart;   // กระพริบจนกดยืนยันออกฐาน (ช่อง4)
+    let cls="tv-card "+(isALS?"als":"ils");
+    if(flashing) cls+= isALS?" flash-als":" flash-ils";
+
+    // countdown 2 นาที จากเวลาแจ้งเหตุ (ช่อง1)
+    let countHtml="";
+    if(c.notifyTime && !c.depart){
+      const remain=Math.ceil((c.notifyTime+2*60000 - now)/1000);
+      if(remain>0){
+        countHtml=`<div class="tv-count ${remain<=30?'warn':''}">${pad(Math.floor(remain/60))}:${pad(remain%60)}</div>
+                   <div style="text-align:center;color:var(--muted)">เหลือเวลาออกฐาน</div>`;
+      }else{
+        countHtml=`<div class="tv-count warn">00:00</div>
+                   <div style="text-align:center;color:var(--red)">เกินเวลาออกฐาน!</div>`;
+        if(!alarmedIds[id]){ alarmedIds[id]=true; playTrainChime(); }
+      }
+    }
+    const triClr={red:'var(--red)',yellow:'var(--yellow)',green:'var(--green)',white:'var(--white)',black:'#000'}[c.triage]||'transparent';
+    return `<div class="${cls}">
+       <div class="tv-veh">${c.vehicle}
+         <span class="tv-triage" style="background:${triClr}"></span></div>
+       <div class="tv-detail">${escapeHtml(caseSummaryText(c).slice(0,120))||"(ไม่มีรายละเอียด)"}</div>
+       ${countHtml}
+       <div class="tv-status">${tvStatusText(c)}</div>
+     </div>`;
+  }).join("");
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+let dashChart=null;
+function isLate(c,stage){ return c[stage] && c[stage].color==="red"; }
+
+function renderDashboard(app){
+  stopTV();
+  app.innerHTML=`
+   <div class="dash">
+     <div class="filters no-print">
+       <div class="fg"><label>ช่วงเวลา</label>
+         <select id="fPeriod" onchange="drawDash()">
+           <option value="day">รายวัน</option>
+           <option value="month" selected>รายเดือน</option>
+           <option value="quarter">รายไตรมาส</option>
+           <option value="year">รายปี</option>
+         </select></div>
+       <div class="fg"><label>ปี (ค.ศ.)</label>
+         <input id="fYear" type="number" value="${new Date().getFullYear()}" onchange="drawDash()" style="width:100px"></div>
+       <div class="fg"><label>แสดงกลุ่ม</label>
+         <select id="fGroup" onchange="drawDash()">
+           <option value="all">ทั้งหมด</option>
+           <option value="command">สั่งการช้า</option>
+           <option value="depart">ออกฐานช้า</option>
+           <option value="arrive">ถึงเหตุช้า</option>
+           <option value="onscene">On scene เกิน 10 นาที</option>
+         </select></div>
+       <div class="fg"><label>&nbsp;</label>
+         <label class="chk" style="margin:0"><input type="checkbox" id="fExclFar" onchange="drawDash()"> ตัดเคสไกลเกิน 10 กม.</label></div>
+     </div>
+
+     <div class="export-row no-print">
+       <button onclick="exportExcel()">⬇ Excel</button>
+       <button onclick="window.print()">🖨 Print / PDF</button>
+     </div>
+
+     <div class="stat-cards" id="statCards"></div>
+     <div class="chart-box"><canvas id="dashChart" height="110"></canvas></div>
+     <div class="chart-box" id="dashTableBox"></div>
+   </div>`;
+  drawDash();
+}
+
+function periodKey(ts,period){
+  const d=new Date(ts);
+  const y=d.getFullYear();
+  if(period==="day") return `${y}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  if(period==="month") return `${y}-${pad(d.getMonth()+1)}`;
+  if(period==="quarter") return `${y}-Q${Math.floor(d.getMonth()/3)+1}`;
+  return `${y}`;
+}
+
+function getDashData(){
+  const period=document.getElementById("fPeriod").value;
+  const year=+document.getElementById("fYear").value;
+  const exclFar=document.getElementById("fExclFar").checked;
+  let list=Object.values(CASES).filter(c=>c.createdAt && new Date(c.createdAt).getFullYear()===year);
+
+  const buckets={};
+  list.forEach(c=>{
+    const k=periodKey(c.createdAt,period);
+    if(!buckets[k]) buckets[k]={total:0,command:0,depart:0,arrive:0,arriveDenom:0,onscene:0,onsceneDenom:0};
+    const b=buckets[k];
+    b.total++;
+    if(isLate(c,'command')) b.command++;
+    if(isLate(c,'depart')) b.depart++;
+    // ถึงเหตุช้า: ตัดเคสไกลเกิน 10km ออกได้ (คำนวณจากเลขไมล์)
+    if(!(exclFar && isFarCase(c))){ b.arriveDenom++; if(isLate(c,'arrive')) b.arrive++; }
+    // On scene time = ออกจากเหตุ − ถึงเหตุ ควร < 10 นาที
+    if(c.arrive && c.leave){ b.onsceneDenom++;
+      if((c.leave.time - c.arrive.time) >= 10*60000) b.onscene++; }
+  });
+  return {period,year,buckets,list,exclFar};
+}
+
+function drawDash(){
+  const {period,buckets,list,exclFar}=getDashData();
+  const group=document.getElementById("fGroup").value;
+  const keys=Object.keys(buckets).sort();
+
+  // summary
+  let tot=0,lc=0,ld=0,la=0,laDen=0,los=0,losDen=0;
+  keys.forEach(k=>{const b=buckets[k];tot+=b.total;lc+=b.command;ld+=b.depart;la+=b.arrive;laDen+=b.arriveDenom;los+=b.onscene;losDen+=b.onsceneDenom;});
+  const pct=(a,b)=> b? Math.round(a/b*100):0;
+  document.getElementById("statCards").innerHTML=`
+    <div class="stat"><div class="n">${tot}</div><div class="l">เคสทั้งหมด</div></div>
+    <div class="stat late"><div class="n">${pct(lc,tot)}%</div><div class="l">สั่งการช้า (${lc})</div></div>
+    <div class="stat late"><div class="n">${pct(ld,tot)}%</div><div class="l">ออกฐานช้า (${ld})</div></div>
+    <div class="stat late"><div class="n">${pct(la,laDen)}%</div><div class="l">ถึงเหตุช้า (${la}${exclFar?' · ตัดไกล':''})</div></div>
+    <div class="stat late"><div class="n">${pct(los,losDen)}%</div><div class="l">On scene เกิน 10 น. (${los}/${losDen})</div></div>`;
+
+  // chart — % ช้า ต่อช่วงเวลา
+  const dataCmd=keys.map(k=>pct(buckets[k].command,buckets[k].total));
+  const dataDep=keys.map(k=>pct(buckets[k].depart,buckets[k].total));
+  const dataArr=keys.map(k=>pct(buckets[k].arrive,buckets[k].arriveDenom));
+  const dataOns=keys.map(k=>pct(buckets[k].onscene,buckets[k].onsceneDenom));
+  let datasets=[];
+  if(group==='all'||group==='command') datasets.push({label:'% สั่งการช้า',data:dataCmd,backgroundColor:'#f97316'});
+  if(group==='all'||group==='depart')  datasets.push({label:'% ออกฐานช้า',data:dataDep,backgroundColor:'#dc2626'});
+  if(group==='all'||group==='arrive')  datasets.push({label:'% ถึงเหตุช้า',data:dataArr,backgroundColor:'#a855f7'});
+  if(group==='all'||group==='onscene') datasets.push({label:'% On scene เกิน 10 น.',data:dataOns,backgroundColor:'#0891b2'});
+
+  if(dashChart) dashChart.destroy();
+  dashChart=new Chart(document.getElementById("dashChart"),{
+    type:'bar',
+    data:{labels:keys,datasets},
+    options:{responsive:true,scales:{y:{beginAtZero:true,max:100,ticks:{color:'#374151',callback:v=>v+'%'}},
+      x:{ticks:{color:'#374151'}}},plugins:{legend:{labels:{color:'#111827'}},
+      title:{display:true,text:'ร้อยละความล่าช้า ต่อ'+({day:'วัน',month:'เดือน',quarter:'ไตรมาส',year:'ปี'}[period]),color:'#111827'}}}
+  });
+
+  // table
+  document.getElementById("dashTableBox").innerHTML=`
+    <table class="admin-tbl">
+      <tr><th>ช่วง</th><th>เคส</th><th>สั่งการช้า</th><th>ออกฐานช้า</th><th>ถึงเหตุช้า${exclFar?' (ตัดไกล)':''}</th><th>On scene เกิน 10 น.</th></tr>
+      ${keys.map(k=>{const b=buckets[k];return `<tr><td>${k}</td><td>${b.total}</td>
+        <td>${b.command} (${pct(b.command,b.total)}%)</td>
+        <td>${b.depart} (${pct(b.depart,b.total)}%)</td>
+        <td>${b.arrive} (${pct(b.arrive,b.arriveDenom)}%)</td>
+        <td>${b.onscene} (${pct(b.onscene,b.onsceneDenom)}%)</td></tr>`;}).join("")||`<tr><td colspan="6" style="text-align:center;color:var(--muted)">ไม่มีข้อมูลในปีนี้</td></tr>`}
+    </table>`;
+}
+
+function exportExcel(){
+  const rows=Object.values(CASES).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0)).map(c=>({
+    "วันเวลาแจ้งเหตุ":fmtDateTime(c.notifyTime||c.createdAt),
+    "รถ":c.vehicle||"","รถที่ออก":c.vehicleUnit||"","Triage":c.triage||"",
+    "เพศ/อายุ":c.sexAge||"","อาการ":c.symptom||"","เบอร์โทร":c.phone||"","อื่นๆ":c.other||"",
+    "สั่งการ":c.command?fmtTime(c.command.time):"","สั่งการช้า":isLate(c,'command')?"ช้า":"",
+    "ออกฐาน":c.depart?fmtTime(c.depart.time):"","ออกฐานช้า":isLate(c,'depart')?"ช้า":"",
+    "ผู้ออกเหตุ":c.departCrew||"",
+    "ถึงเหตุ":c.arrive?fmtTime(c.arrive.time):"","ถึงเหตุช้า":isLate(c,'arrive')?"ช้า":"",
+    "ออกจากเหตุ":c.leave?fmtTime(c.leave.time):"",
+    "On scene(นาที)":(c.arrive&&c.leave)?Math.round((c.leave.time-c.arrive.time)/60000):"",
+    "On scene เกิน10น.":(c.arrive&&c.leave&&(c.leave.time-c.arrive.time)>=600000)?"เกิน":"",
+    "ถึงรพ.":c.hosp?fmtTime(c.hosp.time):"",
+    "ถึงฐาน":c.toBase?fmtTime(c.toBase.time):"",
+    "ไมล์ออกฐาน":c.mileDepart||"","ไมล์ถึงเหตุ":c.mileArrive||"","ไมล์ถึงรพ.":c.mileHosp||"","ไมล์ถึงฐาน":c.mileBase||"",
+    "ระยะ(กม.)":farKm(c)!=null?farKm(c):"","เกิน10กม.":isFarCase(c)?"ใช่":"",
+    "หมายเลขออกเหตุ":c.opNumber||"","รหัสสรุป":c.summaryCode||"","หมายเหตุ":c.note||""
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"EMS");
+  XLSX.writeFile(wb,"EMS_report_"+new Date().toISOString().slice(0,10)+".xlsx");
+}
+
+/* ============================================================
+   ADMIN — ดู/แก้ไข/ลบ ทุกเคส
+   ============================================================ */
+function renderAdmin(app){
+  stopTV();
+  if(!isAdmin){
+    app.innerHTML=`<div class="home"><div style="text-align:center">
+      <h1>🔒 Admin</h1><p>กรุณาใส่รหัสที่มุมขวาบน (ปุ่ม Admin)</p>
+      <button class="btn-new" onclick="toggleAdmin()">ใส่รหัส Admin</button></div></div>`;
+    return;
+  }
+  // ---- กรอง/จัดกลุ่ม รายวัน/เดือน/ไตรมาส ----
+  let entries=Object.entries(CASES).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+  if(adminGroup!=='all' && adminValue!=='all')
+    entries=entries.filter(([id,c])=>periodKey(c.notifyTime||c.createdAt,adminGroup)===adminValue);
+  const valueOpts=(adminGroup==='all')?"":(()=>{
+    const keys=[...new Set(Object.values(CASES).map(c=>periodKey(c.notifyTime||c.createdAt,adminGroup)))].sort().reverse();
+    return `<select onchange="setAdminValue(this.value)" style="background:#fff;padding:6px;border:1px solid var(--line);border-radius:8px">
+        <option value="all">ทั้งหมด</option>
+        ${keys.map(k=>`<option ${adminValue===k?'selected':''}>${k}</option>`).join("")}
+      </select>`;
+  })();
+
+  const unitRows=Object.entries(UNITS).map(([uid,u])=>`
+      <span style="display:inline-flex;align-items:center;gap:6px;background:var(--panel2);
+        border:1px solid var(--line);border-radius:20px;padding:4px 10px;margin:3px;font-size:13px">
+        🚑 ${escapeHtml((u&&u.name)||"")}
+        <a href="#" title="เปลี่ยนชื่อ" onclick="event.preventDefault();renameUnit('${uid}')">✎</a>
+        <a href="#" title="ลบ" style="color:var(--red)" onclick="event.preventDefault();delUnit('${uid}')">✕</a>
+      </span>`).join("") || `<span class="lock-note">ยังไม่มีรถในรายการ</span>`;
+  app.innerHTML=`
+    <div class="dash">
+      <div class="chart-box no-print" style="margin-bottom:16px">
+        <div style="font-weight:600;margin-bottom:8px">🚑 จัดการรายการรถ (ให้ผู้ลงข้อมูลเลือกในช่อง "รถที่ออก")</div>
+        <div>${unitRows}</div>
+        <button class="btn-new" style="margin-top:10px" onclick="addUnit()">＋ เพิ่มรถ</button>
+      </div>
+      <div class="filters no-print">
+        <div class="fg"><label>จัดกลุ่ม / เรียงตาม</label>
+          <select onchange="setAdminGroup(this.value)">
+            <option value="all" ${adminGroup==='all'?'selected':''}>ทั้งหมด (ล่าสุดก่อน)</option>
+            <option value="day" ${adminGroup==='day'?'selected':''}>รายวัน</option>
+            <option value="month" ${adminGroup==='month'?'selected':''}>รายเดือน</option>
+            <option value="quarter" ${adminGroup==='quarter'?'selected':''}>รายไตรมาส</option>
+          </select></div>
+        ${valueOpts?`<div class="fg"><label>เลือกช่วง</label>${valueOpts}</div>`:""}
+        <div class="fg"><label>&nbsp;</label><span class="lock-note">พบ ${entries.length} เคส · คลิกที่ช่องเพื่อแก้ไข</span></div>
+      </div>
+      <div class="export-row no-print">
+        <button onclick="exportExcel()">⬇ Excel</button>
+        <button onclick="window.print()">🖨 Print / PDF</button>
+      </div>
+      <div style="overflow-x:auto">
+      <table class="admin-tbl">
+        <tr><th>วันเวลา</th><th>รถ</th><th>รถที่ออก</th><th>Triage</th><th>แจ้งเหตุ</th>
+            <th>สั่งการ</th><th>ออกฐาน</th><th>ถึงเหตุ</th><th>ออกจากเหตุ</th>
+            <th>ถึงรพ.</th><th>ถึงฐาน</th><th>เกิน10</th>
+            <th>หมายเลขออกเหตุ</th><th>รหัสเคส</th><th></th></tr>
+        ${entries.map(([id,c])=>adminRow(id,c)).join("")||`<tr><td colspan="15" style="text-align:center;color:var(--muted);padding:20px">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>`}
+      </table></div>
+    </div>`;
+}
+function adminRow(id,c){
+  const st=(k)=>{const v=c[k];return v?`<span style="color:${v.color==='green'?'#16a34a':'#dc2626'};cursor:pointer;font-weight:600" onclick="editStageTime('${id}','${k}')">${fmtTime(v.time)}</span>`:`<a href="#" onclick="event.preventDefault();pressStage('${id}','${k}')">-</a>`;};
+  return `<tr>
+    <td style="white-space:nowrap;cursor:pointer" onclick="editNotifyTime('${id}')">${fmtDateTime(c.notifyTime||c.createdAt)}</td>
+    <td>${c.vehicle||""}</td><td>${escapeHtml(c.vehicleUnit||"")}</td><td>${c.triage||""}</td>
+    <td style="max-width:200px">${escapeHtml(caseSummaryText(c).slice(0,80))}</td>
+    <td>${st('command')}</td><td>${st('depart')}</td><td>${st('arrive')}</td>
+    <td>${st('leave')}</td><td>${st('hosp')}</td><td>${st('toBase')}</td>
+    <td style="text-align:center">${isFarCase(c)?"✓":""}</td>
+    <td>${escapeHtml(c.opNumber||"")}</td><td style="text-align:center">${c.summaryCode||""}</td>
+    <td><button class="del-btn" onclick="delCase('${id}')">ลบ</button></td>
+  </tr>`;
+}
+/* admin: filter state */
+let adminGroup='all', adminValue='all';
+function setAdminGroup(v){ adminGroup=v; adminValue='all'; render(); }
+function setAdminValue(v){ adminValue=v; render(); }
+function delCase(id){
+  if(!isAdmin){alert("เฉพาะ Admin");return;}
+  if(confirm("ลบเคสนี้ถาวร?")) casesRef.child(id).remove();
+}
+
+/* ---------- vehicle units (admin) ---------- */
+function unitErr(e){
+  alert("บันทึกรายการรถไม่สำเร็จ: "+(e&&e.message||e)+
+    "\n\nถ้าเป็น PERMISSION_DENIED ให้ไปที่ Firebase Console → Realtime Database → Rules "+
+    "แล้ววางกฎจากไฟล์ database.rules.json (ที่มี vehicleUnits) กด Publish");
+  console.error(e);
+}
+function addUnit(){
+  if(!isAdmin){alert("เฉพาะ Admin");return;}
+  const name=prompt("ชื่อรถ / หน่วยที่ออก (เช่น รถ EMS-1, ฐานบ้านนา):");
+  if(name && name.trim())
+    unitsRef.push().set({name:name.trim()}).catch(unitErr);
+}
+function renameUnit(uid){
+  if(!isAdmin){alert("เฉพาะ Admin");return;}
+  const cur=UNITS[uid]&&UNITS[uid].name||"";
+  const name=prompt("แก้ไขชื่อรถ:",cur);
+  if(name!==null && name.trim())
+    unitsRef.child(uid).update({name:name.trim()}).catch(unitErr);
+}
+function delUnit(uid){
+  if(!isAdmin){alert("เฉพาะ Admin");return;}
+  if(confirm("ลบรถนี้ออกจากรายการ?")) unitsRef.child(uid).remove().catch(unitErr);
+}
+
+/* ---------- boot ---------- */
+refreshAdminChip();
+render();
+// นาฬิกาเดินจริงทุกวินาที (อัปเดตเฉพาะ element ไม่ re-render ทั้งหน้า)
+setInterval(()=>{ const el=document.getElementById("liveClock");
+  if(el) el.textContent=fmtClock(); },1000);
+</script>
+</body>
+</html>
