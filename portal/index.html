@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JNH ER</title>
+<meta name="theme-color" content="#0e7490" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#f1f5f9;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;
+    --brand:#0e7490;--brand-d:#155e75;--brand-l:#e0f2fe;
+    --ok:#16a34a;--ok-l:#dcfce7;--warn:#d97706;--warn-l:#fef3c7;--danger:#dc2626;--danger-l:#fee2e2;
+    --shadow:0 1px 3px rgba(15,23,42,.08),0 10px 30px rgba(15,23,42,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{min-height:100%}
+  body{font-family:'Sarabun',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+  button{font-family:inherit;cursor:pointer}
+  .hidden{display:none!important}
+
+  /* ---------- auth screen ---------- */
+  .authwrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:radial-gradient(1200px 500px at 50% -10%,#cffafe,transparent),var(--bg)}
+  .authcard{background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);
+    width:100%;max-width:410px;padding:30px 26px}
+  .brand{display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:20px}
+  .brand .mark{width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#0e7490,#155e75);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;box-shadow:0 8px 20px rgba(14,116,144,.35)}
+  .brand h1{font-size:24px;font-weight:800;letter-spacing:.5px;color:var(--brand-d)}
+  .brand p{color:var(--muted);font-size:13px}
+  .seg{display:flex;background:#f1f5f9;border-radius:12px;padding:4px;margin-bottom:18px}
+  .seg button{flex:1;border:none;background:none;padding:9px;border-radius:9px;font-weight:600;color:var(--muted);font-size:14px}
+  .seg button.on{background:#fff;color:var(--brand-d);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .field{margin-bottom:13px}
+  .field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:5px}
+  .field input{width:100%;border:1.5px solid var(--line);border-radius:11px;padding:12px 13px;font-family:inherit;font-size:15px;outline:none;transition:.15s}
+  .field input:focus{border-color:var(--brand);box-shadow:0 0 0 4px var(--brand-l)}
+  .remember{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink);margin:4px 0 16px;cursor:pointer;user-select:none}
+  .remember input{width:18px;height:18px;accent-color:var(--brand)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;background:var(--brand);color:#fff;
+    border-radius:12px;padding:13px 18px;font-size:15px;font-weight:700;width:100%;transition:.15s}
+  .btn:hover{background:var(--brand-d)} .btn:disabled{opacity:.55;cursor:not-allowed}
+  .btn.ghost{background:#fff;color:var(--brand-d);border:1px solid var(--line)} .btn.ghost:hover{background:#f8fafc}
+  .btn.sm{width:auto;padding:8px 13px;font-size:13.5px;border-radius:10px}
+  .btn.danger{background:var(--danger)} .btn.danger:hover{background:#b91c1c}
+  .btn.warn{background:var(--warn)} .btn.warn:hover{background:#b45309}
+  .msg{font-size:13.5px;padding:10px 12px;border-radius:10px;margin-bottom:14px;display:none}
+  .msg.err{display:block;background:var(--danger-l);color:#991b1b}
+  .msg.ok{display:block;background:var(--ok-l);color:#166534}
+  .msg.info{display:block;background:var(--brand-l);color:#0c4a6e}
+  .foot{text-align:center;font-size:12px;color:var(--muted);margin-top:16px}
+
+  /* ---------- app shell ---------- */
+  .topbar{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,#155e75,#0e7490);color:#fff;box-shadow:var(--shadow)}
+  .topbar .in{max-width:1040px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:12px 18px}
+  .topbar .logo{font-weight:800;font-size:18px;letter-spacing:.4px;display:flex;align-items:center;gap:9px}
+  .topbar .logo .m{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-size:17px}
+  .topbar .sp{flex:1}
+  .whoami{font-size:13px;text-align:right;line-height:1.25}
+  .whoami b{font-weight:700}.whoami .role{font-size:11px;opacity:.85}
+  .tbtn{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600}
+  .tbtn:hover{background:rgba(255,255,255,.24)}
+  .wrap{max-width:1040px;margin:0 auto;padding:22px 18px 60px}
+  .pageTitle{font-size:20px;font-weight:800;color:var(--brand-d);margin:6px 2px 2px}
+  .pageSub{color:var(--muted);font-size:14px;margin-bottom:18px}
+
+  /* launcher tiles */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+  .tile{display:flex;flex-direction:column;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:18px;
+    padding:18px;box-shadow:var(--shadow);text-decoration:none;color:inherit;transition:.15s;position:relative;overflow:hidden}
+  .tile:hover{transform:translateY(-2px);border-color:var(--brand)}
+  .tile .ic{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;color:#fff}
+  .tile .nm{font-weight:700;font-size:16px}
+  .tile .ds{font-size:13px;color:var(--muted)}
+  .tile .go{margin-top:auto;font-size:13px;font-weight:700;color:var(--brand-d)}
+
+  /* pending screen */
+  .center-card{max-width:460px;margin:60px auto;background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:34px;text-align:center}
+  .center-card .big{font-size:46px;margin-bottom:8px}
+  .center-card h2{font-size:20px;color:var(--brand-d);margin-bottom:8px}
+  .center-card p{color:var(--muted);font-size:14px}
+
+  /* admin table */
+  .adminbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 16px}
+  .pill-count{background:var(--warn-l);color:var(--warn);font-weight:700;border-radius:999px;padding:3px 11px;font-size:13px}
+  .utable{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .utable th{background:#f8fafc;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.3px;text-align:left;padding:11px;border-bottom:1px solid var(--line)}
+  .utable td{padding:11px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle}
+  .utable tr:last-child td{border-bottom:none}
+  .tag{font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:999px}
+  .tag.pending{background:var(--warn-l);color:var(--warn)} .tag.approved{background:var(--ok-l);color:var(--ok)}
+  .tag.suspended{background:var(--danger-l);color:var(--danger)}
+  .tag.superadmin{background:#ede9fe;color:#6d28d9}.tag.admin{background:var(--brand-l);color:var(--brand-d)}.tag.member{background:#f1f5f9;color:var(--muted)}
+  .rowact{display:flex;gap:6px;flex-wrap:wrap}
+  .rowact button{border:none;border-radius:8px;padding:6px 10px;font-size:12.5px;font-weight:600}
+  .a-ok{background:var(--ok-l);color:var(--ok)} .a-warn{background:var(--warn-l);color:var(--warn)}
+  .a-key{background:var(--brand-l);color:var(--brand-d)} .a-del{background:var(--danger-l);color:var(--danger)}
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:60}
+  .modal .box{background:#fff;border-radius:16px;max-width:400px;width:100%;box-shadow:var(--shadow);padding:22px}
+  .modal h3{font-size:18px;color:var(--brand-d);margin-bottom:6px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;background:#0f172a;color:#fff;
+    padding:11px 18px;border-radius:12px;font-size:14px;font-weight:500;box-shadow:var(--shadow);transition:.25s;z-index:90;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .subtabs{display:flex;gap:6px;margin:0 0 16px}
+  .subtabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:8px 15px;font-weight:600;color:var(--muted);font-size:14px}
+  .subtabs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .cfgb{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:12px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<!-- ==================== AUTH ==================== -->
+<div id="auth" class="authwrap">
+  <div class="authcard">
+    <div class="brand">
+      <div class="mark">✚</div>
+      <h1>JNH ER</h1>
+      <p>ศูนย์รวมระบบงานห้องฉุกเฉิน</p>
+    </div>
+    <div class="seg">
+      <button id="segLogin" class="on">เข้าสู่ระบบ</button>
+      <button id="segReg">สมัครสมาชิก</button>
+    </div>
+    <div id="authMsg" class="msg"></div>
+
+    <!-- login -->
+    <form id="loginForm">
+      <div class="field"><label>Username</label><input id="lUser" autocomplete="username" placeholder="ชื่อผู้ใช้" /></div>
+      <div class="field"><label>รหัสผ่าน</label><input id="lPass" type="password" autocomplete="current-password" placeholder="••••••••" /></div>
+      <label class="remember"><input type="checkbox" id="lRemember" checked /> จดจำการเข้าใช้งานในเครื่องนี้</label>
+      <button class="btn" type="submit">เข้าสู่ระบบ</button>
+    </form>
+
+    <!-- register -->
+    <form id="regForm" class="hidden">
+      <div class="field"><label>ชื่อ–สกุล</label><input id="rName" autocomplete="name" placeholder="เช่น สมชาย ใจดี" /></div>
+      <div class="field"><label>Username</label><input id="rUser" autocomplete="username" placeholder="ตั้งชื่อผู้ใช้ (ภาษาอังกฤษ/ตัวเลข)" /></div>
+      <div class="field"><label>รหัสผ่าน</label><input id="rPass" type="password" autocomplete="new-password" placeholder="อย่างน้อย 4 ตัว" /></div>
+      <div class="field"><label>ยืนยันรหัสผ่าน</label><input id="rPass2" type="password" autocomplete="new-password" placeholder="พิมพ์รหัสผ่านอีกครั้ง" /></div>
+      <button class="btn" type="submit">สมัครสมาชิก</button>
+      <div class="foot">สมัครแล้วต้องรอ <b>แอดมินอนุมัติ</b> ก่อนเข้าใช้งาน</div>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== APP SHELL ==================== -->
+<div id="app" class="hidden">
+  <div class="topbar"><div class="in">
+    <div class="logo"><span class="m">✚</span> JNH ER</div>
+    <div class="sp"></div>
+    <div class="whoami"><b id="uName">—</b><div class="role" id="uRole"></div></div>
+    <button class="tbtn" id="adminNav">👥 จัดการผู้ใช้</button>
+    <button class="tbtn" id="homeNav">🏠 หน้าหลัก</button>
+    <button class="tbtn" id="logoutBtn">ออกจากระบบ</button>
+  </div></div>
+
+  <div class="wrap">
+    <!-- launcher -->
+    <section id="viewHome">
+      <div class="pageTitle">เลือกระบบที่ต้องการใช้งาน</div>
+      <div class="pageSub">ทุกระบบของ ER JNH รวมไว้ที่เดียว</div>
+      <div class="tiles" id="tiles"></div>
+    </section>
+
+    <!-- admin -->
+    <section id="viewAdmin" class="hidden">
+      <div class="pageTitle">จัดการผู้ใช้งาน</div>
+      <div class="pageSub">อนุมัติสมาชิกใหม่ · รีเซ็ตรหัสผ่าน · กำหนดสิทธิ์</div>
+      <div class="subtabs">
+        <button id="tabPending" class="on">รออนุมัติ <span id="pendCount" class="pill-count" style="display:none">0</span></button>
+        <button id="tabAll">ผู้ใช้ทั้งหมด</button>
+      </div>
+      <div id="adminBody"></div>
+    </section>
+  </div>
+</div>
+
+<!-- pw reset modal -->
+<div id="pwModal" class="modal hidden"><div class="box">
+  <h3>รีเซ็ตรหัสผ่าน</h3>
+  <p style="color:var(--muted);font-size:13.5px" id="pwWho"></p>
+  <div class="field" style="margin-top:12px"><label>รหัสผ่านใหม่</label><input id="pwNew" placeholder="รหัสผ่านใหม่ (อย่างน้อย 4 ตัว)" /></div>
+  <div style="display:flex;gap:8px;margin-top:8px">
+    <button class="btn ghost sm" id="pwCancel" style="flex:1">ยกเลิก</button>
+    <button class="btn sm" id="pwSave" style="flex:1">บันทึกรหัสใหม่</button>
+  </div>
+</div></div>
+
+<div id="toast" class="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="../firebase-config.js"></script>
+<script>
+/* ================================================================
+   JNH ER Portal — custom username/password auth in shared DB
+   (client-only, so admin can reset passwords without a backend)
+   ================================================================ */
+
+/* ---------- apps shown on the launcher (แก้/เพิ่มได้) ---------- */
+const APPS=[
+  {name:"ER Fast Track", ds:"หน้าจอเคสเร่งด่วน / Monitor", icon:"🟧", color:"#f97316",
+   url:"../FASTTRACT%20%E0%B8%88%E0%B8%A3%E0%B8%B4%E0%B8%87%20copy/er-fasttrack/index.html"},
+  {name:"EMS Record", ds:"บันทึก & สั่งการ EMS", icon:"🚑", color:"#0ea5e9",
+   url:"../EMS%20Record%20+%20activate%20%E0%B8%88%E0%B8%A3%E0%B8%B4%E0%B8%87%20copy/index.html"},
+  {name:"Triage", ds:"คัดแยกผู้ป่วย ESI/MOPH", icon:"🧮", color:"#8b5cf6",
+   url:"../Triage%20%E0%B8%88%E0%B8%A3%E0%B8%B4%E0%B8%87%20copy/index.html"},
+  {name:"CPR Timeline", ds:"ไทม์ไลน์ช่วยฟื้นคืนชีพ", icon:"❤️‍🩹", color:"#e11d48",
+   url:"../cpr-timeline%20copy/index.html"},
+  {name:"รักและใส่ใจ ER", ds:"ลงเวร · รายงาน · ชื่นชม", icon:"💗", color:"#ec4899",
+   url:"../rak-er-jnh%20copy/index.html"},
+  {name:"Checklist ของ", ds:"เช็คของ ER & EMS รายเวร", icon:"✅", color:"#0e7490",
+   url:"../checklist/index.html"},
+  {name:"Monitor รวม", ds:"จอแสดงผลรวมใน ER", icon:"📺", color:"#334155",
+   url:"../monitor/index.html"},
+];
+
+/* ---------- storage (Firebase RTDB or local) ---------- */
+const cfg=window.FIREBASE_CONFIG||{};
+const FB_OK=cfg.apiKey&&cfg.apiKey!=="PASTE_API_KEY"&&cfg.databaseURL&&!/PASTE/.test(cfg.databaseURL);
+let db=null;
+if(FB_OK){try{firebase.initializeApp(cfg);db=firebase.database();}catch(e){console.error(e);}}
+const SUPER=(window.SUPERADMIN_USERNAME||"pettoo").toLowerCase();
+
+const LS={get(k,d){try{const v=localStorage.getItem("jnher_"+k);return v?JSON.parse(v):d;}catch(e){return d;}},
+  set(k,v){try{localStorage.setItem("jnher_"+k,JSON.stringify(v));}catch(e){}},
+  del(k){try{localStorage.removeItem("jnher_"+k);}catch(e){}}};
+
+/* local-mode store = one nested tree (mirrors Realtime Database structure) */
+const TREE_KEY="jnher_tree";
+function loadTree(){try{return JSON.parse(localStorage.getItem(TREE_KEY))||{};}catch(e){return{};}}
+function saveTree(t){try{localStorage.setItem(TREE_KEY,JSON.stringify(t));}catch(e){}}
+function tget(path){let n=loadTree();for(const k of path.split("/")){if(n==null||typeof n!=="object")return null;n=n[k];}return n===undefined?null:n;}
+function tset(path,val){const t=loadTree();const ps=path.split("/");let n=t;for(let i=0;i<ps.length-1;i++){if(typeof n[ps[i]]!=="object"||n[ps[i]]===null)n[ps[i]]={};n=n[ps[i]];}n[ps[ps.length-1]]=val;saveTree(t);}
+function tupdate(path,val){const cur=tget(path);tset(path,Object.assign({},(cur&&typeof cur==="object")?cur:{},val));}
+function tremove(path){const t=loadTree();const ps=path.split("/");let n=t;for(let i=0;i<ps.length-1;i++){if(!n[ps[i]])return;n=n[ps[i]];}delete n[ps[ps.length-1]];saveTree(t);}
+
+const DB={
+  async get(path){ if(db){const s=await db.ref(path).once("value");return s.val();} return tget(path); },
+  async set(path,val){ if(db)return db.ref(path).set(val); tset(path,val); },
+  async update(path,val){ if(db)return db.ref(path).update(val); tupdate(path,val); },
+  async remove(path){ if(db)return db.ref(path).remove(); tremove(path); },
+};
+
+/* ---------- password hashing ---------- */
+async function sha256(str){
+  if(window.crypto&&crypto.subtle){
+    const buf=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(str));
+    return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+  }
+  // fallback (non-crypto, only when subtle unavailable e.g. file://)
+  let h=0x811c9dc5; for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,0x01000193);}
+  return ("00000000"+(h>>>0).toString(16)).slice(-8)+"_fnv";
+}
+function randToken(){return Math.random().toString(36).slice(2)+Date.now().toString(36)+Math.random().toString(36).slice(2);}
+async function makeHash(pw,salt){return await sha256(salt+"::"+pw);}
+
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id);
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2000);}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function authMsg(kind,text){const m=$("authMsg");m.className="msg "+kind;m.textContent=text;}
+function clearAuthMsg(){const m=$("authMsg");m.className="msg";m.textContent="";}
+const uKey=u=>u.toLowerCase().replace(/[.#$/\[\]]/g,"_");
+
+let CURRENT=null; // current user object
+
+/* ---------- AUTH: register ---------- */
+$("regForm").addEventListener("submit",async e=>{
+  e.preventDefault(); clearAuthMsg();
+  const name=$("rName").value.trim(), user=$("rUser").value.trim(), p=$("rPass").value, p2=$("rPass2").value;
+  if(!name){authMsg("err","กรุณากรอกชื่อ–สกุล");return;}
+  if(!/^[a-zA-Z0-9_.]{3,20}$/.test(user)){authMsg("err","username ใช้ a-z, 0-9, _ . ยาว 3–20 ตัว");return;}
+  if(p.length<4){authMsg("err","รหัสผ่านอย่างน้อย 4 ตัว");return;}
+  if(p!==p2){authMsg("err","รหัสผ่านสองช่องไม่ตรงกัน");return;}
+  const key=uKey(user);
+  const existing=await DB.get("portal/users/"+key);
+  if(existing){authMsg("err","username นี้ถูกใช้แล้ว");return;}
+  const salt=randToken().slice(0,16);
+  const isSuper=(user.toLowerCase()===SUPER);
+  const rec={name,username:user,salt,hash:await makeHash(p,salt),
+    role:isSuper?"superadmin":"member",status:isSuper?"approved":"pending",createdAt:Date.now()};
+  await DB.set("portal/users/"+key,rec);
+  if(isSuper){ authMsg("ok","สร้างบัญชีแอดมินใหญ่สำเร็จ — เข้าสู่ระบบได้เลย"); switchSeg("login"); $("lUser").value=user; }
+  else { authMsg("ok","สมัครสำเร็จ! รอแอดมินอนุมัติก่อนเข้าใช้งาน"); switchSeg("login"); $("lUser").value=user; }
+  $("regForm").reset();
+});
+
+/* ---------- AUTH: login ---------- */
+$("loginForm").addEventListener("submit",async e=>{
+  e.preventDefault(); clearAuthMsg();
+  const user=$("lUser").value.trim(), p=$("lPass").value, remember=$("lRemember").checked;
+  const key=uKey(user);
+  const rec=await DB.get("portal/users/"+key);
+  if(!rec){authMsg("err","ไม่พบผู้ใช้นี้");return;}
+  const h=await makeHash(p,rec.salt);
+  if(h!==rec.hash){authMsg("err","รหัสผ่านไม่ถูกต้อง");return;}
+  if(rec.status==="pending"){authMsg("info","บัญชีนี้ยังรอแอดมินอนุมัติ");return;}
+  if(rec.status==="suspended"){authMsg("err","บัญชีนี้ถูกระงับการใช้งาน");return;}
+  // success -> session
+  const token=randToken();
+  await DB.set("portal/sessions/"+token,{user:key,exp:Date.now()+1000*60*60*24*30});
+  if(remember) LS.set("session",{token,user:key});
+  else { sessionStorageSafe("session",{token,user:key}); }
+  enterApp(rec);
+});
+function sessionStorageSafe(k,v){try{sessionStorage.setItem("jnher_"+k,JSON.stringify(v));}catch(e){}}
+function sessionStorageGet(k){try{const v=sessionStorage.getItem("jnher_"+k);return v?JSON.parse(v):null;}catch(e){return null;}}
+
+/* ---------- segment toggle ---------- */
+function switchSeg(which){
+  const login=which==="login";
+  $("segLogin").classList.toggle("on",login); $("segReg").classList.toggle("on",!login);
+  $("loginForm").classList.toggle("hidden",!login); $("regForm").classList.toggle("hidden",login);
+  clearAuthMsg();
+}
+$("segLogin").onclick=()=>switchSeg("login");
+$("segReg").onclick=()=>switchSeg("register");
+
+/* ---------- enter / exit app ---------- */
+function enterApp(rec){
+  CURRENT=rec;
+  $("auth").classList.add("hidden"); $("app").classList.remove("hidden");
+  $("uName").textContent=rec.name||rec.username;
+  const roleTH={superadmin:"แอดมินใหญ่",admin:"แอดมิน",member:"สมาชิก"}[rec.role]||"สมาชิก";
+  $("uRole").textContent="@"+rec.username+" · "+roleTH;
+  const isAdmin=rec.role==="admin"||rec.role==="superadmin";
+  $("adminNav").style.display=isAdmin?"":"none";
+  renderTiles();
+  showView("home");
+  if(isAdmin) watchPending();
+}
+$("logoutBtn").onclick=async()=>{
+  const s=LS.get("session",null)||sessionStorageGet("session");
+  if(s&&s.token) await DB.remove("portal/sessions/"+s.token);
+  LS.del("session"); try{sessionStorage.removeItem("jnher_session");}catch(e){}
+  CURRENT=null; $("app").classList.add("hidden"); $("auth").classList.remove("hidden");
+  switchSeg("login"); $("loginForm").reset();
+};
+
+/* ---------- views ---------- */
+function showView(v){
+  $("viewHome").classList.toggle("hidden",v!=="home");
+  $("viewAdmin").classList.toggle("hidden",v!=="admin");
+}
+$("homeNav").onclick=()=>showView("home");
+$("adminNav").onclick=()=>{showView("admin");loadAdmin();};
+
+function renderTiles(){
+  const t=$("tiles"); t.innerHTML="";
+  APPS.forEach(a=>{
+    const el=document.createElement("a"); el.className="tile"; el.href=a.url;
+    el.innerHTML=`<div class="ic" style="background:${a.color}">${a.icon}</div>
+      <div class="nm">${esc(a.name)}</div><div class="ds">${esc(a.ds)}</div>
+      <div class="go">เปิด →</div>`;
+    t.appendChild(el);
+  });
+}
+
+/* ---------- ADMIN ---------- */
+let adminTab="pending";
+$("tabPending").onclick=()=>{adminTab="pending";$("tabPending").classList.add("on");$("tabAll").classList.remove("on");loadAdmin();};
+$("tabAll").onclick=()=>{adminTab="all";$("tabAll").classList.add("on");$("tabPending").classList.remove("on");loadAdmin();};
+
+async function getAllUsers(){ const all=await DB.get("portal/users")||{}; return Object.entries(all).map(([k,v])=>({key:k,...v})); }
+
+function watchPending(){
+  const paint=(users)=>{
+    const n=(users||[]).filter(u=>u.status==="pending").length;
+    const b=$("pendCount"); b.textContent=n; b.style.display=n?"":"none";
+  };
+  if(db){ db.ref("portal/users").on("value",s=>{const v=s.val()||{};paint(Object.values(v));}); }
+  else { getAllUsers().then(paint); }
+}
+
+async function loadAdmin(){
+  const users=(await getAllUsers()).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const body=$("adminBody");
+  const list = adminTab==="pending" ? users.filter(u=>u.status==="pending") : users;
+  if(!list.length){ body.innerHTML=`<div class="center-card" style="margin:20px auto"><div class="big">${adminTab==="pending"?"✅":"👤"}</div><h2>${adminTab==="pending"?"ไม่มีคำขอรออนุมัติ":"ยังไม่มีผู้ใช้"}</h2></div>`; return; }
+  let rows=list.map(u=>{
+    const canManage = CURRENT.role==="superadmin" || (CURRENT.role==="admin" && u.role==="member");
+    const isSelf = u.key===CURRENT.key;
+    let acts="";
+    if(u.status==="pending"){ acts+=`<button class="a-ok" data-app="${u.key}">✓ อนุมัติ</button>`; }
+    if(canManage&&!isSelf){
+      if(u.status==="approved") acts+=`<button class="a-warn" data-susp="${u.key}">ระงับ</button>`;
+      if(u.status==="suspended") acts+=`<button class="a-ok" data-act="${u.key}">เปิดใช้</button>`;
+      acts+=`<button class="a-key" data-pw="${u.key}">🔑 รหัสผ่าน</button>`;
+      if(CURRENT.role==="superadmin" && u.role!=="superadmin"){
+        acts+= u.role==="admin" ? `<button class="a-warn" data-demote="${u.key}">ถอดแอดมิน</button>` : `<button class="a-key" data-promote="${u.key}">ตั้งแอดมิน</button>`;
+      }
+      acts+=`<button class="a-del" data-del="${u.key}">ลบ</button>`;
+    }
+    if(isSelf) acts+=`<span style="color:var(--muted);font-size:12px">(บัญชีของคุณ)</span>`;
+    return `<tr>
+      <td><b>${esc(u.name||"-")}</b><div style="color:var(--muted);font-size:12.5px">@${esc(u.username)}</div></td>
+      <td><span class="tag ${u.role}">${({superadmin:"แอดมินใหญ่",admin:"แอดมิน",member:"สมาชิก"}[u.role])}</span></td>
+      <td><span class="tag ${u.status}">${({pending:"รออนุมัติ",approved:"ใช้งาน",suspended:"ระงับ"}[u.status])}</span></td>
+      <td><div class="rowact">${acts||"—"}</div></td>
+    </tr>`;
+  }).join("");
+  body.innerHTML=`<table class="utable"><thead><tr><th>ผู้ใช้</th><th>สิทธิ์</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>${rows}</tbody></table>`;
+  // bind
+  body.querySelectorAll("[data-app]").forEach(b=>b.onclick=()=>setStatus(b.dataset.app,"approved"));
+  body.querySelectorAll("[data-susp]").forEach(b=>b.onclick=()=>setStatus(b.dataset.susp,"suspended"));
+  body.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>setStatus(b.dataset.act,"approved"));
+  body.querySelectorAll("[data-promote]").forEach(b=>b.onclick=()=>setRole(b.dataset.promote,"admin"));
+  body.querySelectorAll("[data-demote]").forEach(b=>b.onclick=()=>setRole(b.dataset.demote,"member"));
+  body.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>delUser(b.dataset.del));
+  body.querySelectorAll("[data-pw]").forEach(b=>b.onclick=()=>openPw(b.dataset.pw));
+}
+async function setStatus(key,status){ await DB.update("portal/users/"+key,{status,approvedBy:CURRENT.username}); toast(status==="approved"?"อนุมัติแล้ว":status==="suspended"?"ระงับแล้ว":"อัปเดตแล้ว"); loadAdmin(); }
+async function setRole(key,role){ await DB.update("portal/users/"+key,{role}); toast("ปรับสิทธิ์แล้ว"); loadAdmin(); }
+async function delUser(key){
+  const u=await DB.get("portal/users/"+key); if(!u)return;
+  if(!confirm(`ลบผู้ใช้ @${u.username} ?`))return;
+  await DB.remove("portal/users/"+key); toast("ลบผู้ใช้แล้ว"); loadAdmin();
+}
+/* reset password */
+let pwKey=null;
+async function openPw(key){ const u=await DB.get("portal/users/"+key); pwKey=key; $("pwWho").textContent=`ผู้ใช้: ${u.name} (@${u.username})`; $("pwNew").value=""; $("pwModal").classList.remove("hidden"); setTimeout(()=>$("pwNew").focus(),40); }
+$("pwCancel").onclick=()=>$("pwModal").classList.add("hidden");
+$("pwModal").addEventListener("click",e=>{if(e.target===$("pwModal"))$("pwModal").classList.add("hidden");});
+$("pwSave").onclick=async()=>{
+  const np=$("pwNew").value; if(np.length<4){toast("รหัสผ่านอย่างน้อย 4 ตัว");return;}
+  const u=await DB.get("portal/users/"+pwKey); const salt=randToken().slice(0,16);
+  await DB.update("portal/users/"+pwKey,{salt,hash:await makeHash(np,salt)});
+  $("pwModal").classList.add("hidden"); toast("รีเซ็ตรหัสผ่านแล้ว");
+};
+
+/* ---------- auto login (remember me) ---------- */
+async function tryAutoLogin(){
+  const s=LS.get("session",null)||sessionStorageGet("session");
+  if(!s||!s.token)return false;
+  const sess=await DB.get("portal/sessions/"+s.token);
+  if(!sess||(sess.exp&&sess.exp<Date.now())){ LS.del("session"); return false; }
+  const rec=await DB.get("portal/users/"+sess.user);
+  if(!rec||rec.status!=="approved"){ return false; }
+  rec.key=sess.user; enterApp(rec); return true;
+}
+
+/* ---------- boot ---------- */
+(async function boot(){
+  if(!FB_OK){
+    // show config note on auth card
+    const note=document.createElement("div"); note.className="cfgb";
+    note.style.margin="0 0 14px";
+    note.innerHTML="⚠️ ยังไม่ได้ตั้งค่า Firebase — ตอนนี้ทำงานเฉพาะในเครื่องนี้ (ทดสอบได้ แต่ยังไม่แชร์ข้ามเครื่อง). แก้ <b>firebase-config.js</b> ตาม README แล้วรีเฟรช";
+    $("loginForm").parentNode.insertBefore(note,$("authMsg"));
+  }
+  await tryAutoLogin();
+})();
+</script>
+</body>
+</html>

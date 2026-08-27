@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ER Whole Monitor — JNH</title>
+<meta name="theme-color" content="#0b1220" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --gap:10px;
+    --ink:#e5edf5; --muted:#8ea3b8; --panel:#0f1a2b; --panel2:#132339;
+    --line:#213349; --ok:#22c55e; --ok-d:#16a34a; --warn:#f59e0b; --bad:#ef4444; --brand:#38bdf8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{font-family:'Sarabun',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:#0b1220;color:var(--ink)}
+  /* ---- overall grid: left (fasttrack) + right column ---- */
+  .stage{display:grid;grid-template-columns:var(--leftW) 1fr;gap:var(--gap);height:100vh;padding:var(--gap)}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column}
+  .cell > .cap{position:absolute;top:0;left:0;right:0;z-index:3;display:flex;align-items:center;gap:8px;
+    padding:6px 12px;font-size:13px;font-weight:700;letter-spacing:.3px;color:#cfe0f0;
+    background:linear-gradient(180deg,rgba(9,15,26,.92),rgba(9,15,26,0));pointer-events:none;text-shadow:0 1px 2px #000}
+  .cell iframe{border:0;width:100%;height:100%;background:#fff;flex:1}
+  .frameScale{flex:1;position:relative;overflow:hidden}
+  .frameScale iframe{position:absolute;top:0;left:0;transform-origin:top left}
+  .rightcol{display:grid;grid-template-rows:var(--emsH) 1fr;gap:var(--gap);min-height:0}
+
+  /* ---- checklist status panel ---- */
+  #status{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 12px 8px;display:flex;flex-direction:column;min-height:0}
+  .st-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .st-head h2{font-size:15px;font-weight:800;color:#cfe0f0}
+  .st-head .sh{font-size:12px;color:var(--muted);margin-left:auto;text-align:right;line-height:1.35}
+  .st-head .sh b{color:var(--brand)}
+  .st-list{display:flex;flex-direction:column;gap:8px;overflow:auto;flex:1;padding-right:2px}
+  .st{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .st.done{border-color:rgba(34,197,94,.55);background:linear-gradient(180deg,rgba(34,197,94,.14),rgba(19,35,57,.6))}
+  .st .top{display:flex;align-items:center;gap:10px}
+  .st .ic{font-size:20px;width:26px;text-align:center}
+  .st .nm{font-weight:700;font-size:15px}
+  .st .pct{margin-left:auto;font-weight:800;font-size:20px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .st.done .pct{color:var(--ok)}
+  .st.part .pct{color:var(--warn)}
+  .st .bar{height:8px;border-radius:999px;background:#0b1626;overflow:hidden;margin-top:8px;border:1px solid rgba(255,255,255,.04)}
+  .st .bar>i{display:block;height:100%;width:0;background:var(--brand);transition:width .5s}
+  .st.done .bar>i{background:var(--ok)}
+  .st.part .bar>i{background:var(--warn)}
+  .st .sub{display:flex;justify-content:space-between;margin-top:5px;font-size:11.5px;color:var(--muted)}
+  .st .sub .who{color:#aab8c8}
+  .st .badge{font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:#0b1626;color:var(--muted)}
+  .st.done .badge{background:rgba(34,197,94,.2);color:#86efac}
+  .overall{display:flex;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+  .overall b{color:#cfe0f0}
+  .overall .ring{margin-left:auto;font-weight:800;font-size:16px;color:var(--brand)}
+  .cfgwarn{position:fixed;left:12px;bottom:10px;z-index:9;background:#7c2d12;color:#fed7aa;border:1px solid #9a3412;
+    border-radius:10px;padding:6px 12px;font-size:12px;max-width:60vw}
+  .clock{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="stage">
+  <!-- LEFT 70% : ER Fast Track TV -->
+  <div class="cell">
+    <div class="cap">🟧 ER FAST TRACK</div>
+    <div class="frameScale" id="ftWrap"><iframe id="ftFrame" title="Fast Track"></iframe></div>
+  </div>
+
+  <!-- RIGHT column -->
+  <div class="rightcol">
+    <!-- EMS TV (top-right) -->
+    <div class="cell">
+      <div class="cap">🚑 EMS MONITOR</div>
+      <div class="frameScale" id="emsWrap"><iframe id="emsFrame" title="EMS Monitor"></iframe></div>
+    </div>
+
+    <!-- Checklist status -->
+    <div id="status">
+      <div class="st-head">
+        <h2>✅ ตรวจเช็คของ (รายเวร)</h2>
+        <div class="sh" id="shiftText">—</div>
+      </div>
+      <div class="st-list" id="stList"></div>
+      <div class="overall">สรุปทั้งเวร <b id="ovText">0/5 ครบ</b><span class="ring" id="ovPct">0%</span></div>
+    </div>
+  </div>
+</div>
+<div id="cfgWarn" class="cfgwarn" style="display:none">⚠️ ยังไม่ได้ตั้งค่า Firebase — สถานะเช็คของยังไม่แชร์ข้ามเครื่อง (แก้ firebase-config.js)</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="../firebase-config.js"></script>
+<script>
+/* =======================================================================
+   ตั้งค่าได้ตรงนี้ — สัดส่วนหน้าจอ และที่อยู่ (URL) ของแต่ละเว็บที่จะฝัง
+   ถ้า deploy แยกคนละที่ ให้ใส่เป็น URL เต็ม เช่น https://.../tv.html
+   ======================================================================= */
+const CONFIG = {
+  leftWidth: "70%",     // ความกว้างฝั่ง Fast Track
+  emsHeight: "42%",     // ความสูงของกล่อง EMS ในคอลัมน์ขวา
+  fastTrackURL: "../FASTTRACT%20%E0%B8%88%E0%B8%A3%E0%B8%B4%E0%B8%87%20copy/er-fasttrack/tv.html",
+  emsURL:       "../EMS%20Record%20+%20activate%20%E0%B8%88%E0%B8%A3%E0%B8%B4%E0%B8%87%20copy/index.html#tv",
+  // ถ้าอยากซูมเนื้อหาใน iframe (จอ TV ใหญ่) ปรับตัวคูณ; 1 = ปกติ
+  fastTrackZoom: 1,
+  emsZoom: 1,
+};
+document.documentElement.style.setProperty("--leftW", CONFIG.leftWidth);
+document.documentElement.style.setProperty("--emsH", CONFIG.emsHeight);
+document.getElementById("ftFrame").src = CONFIG.fastTrackURL;
+document.getElementById("emsFrame").src = CONFIG.emsURL;
+
+/* ---------- positions ---------- */
+const POSITIONS=[
+  {key:"incharge",name:"Incharge",icon:"🩺"},
+  {key:"nurse_aid",name:"Nurse aid",icon:"🧑‍⚕️"},
+  {key:"emt",name:"EMT",icon:"🚑"},
+  {key:"bag_ab",name:"กระเป๋า A/B",icon:"🎒"},
+  {key:"bag_cd",name:"กระเป๋า C/D",icon:"💊"},
+];
+
+/* ---------- shift ---------- */
+function bkkNow(){ return new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Bangkok"})); }
+function shiftInfo(){
+  const d=bkkNow(),h=d.getHours(); let key,label;
+  if(h>=8&&h<16){key="morning";label="เช้า 08–16";}
+  else if(h>=16){key="afternoon";label="บ่าย 16–24";}
+  else{key="night";label="ดึก 00–08";}
+  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");
+  return {key,label,dateKey:`${y}-${m}-${day}`,dateTH:`${day}/${m}/${y}`,recKey:`${y}-${m}-${day}_${key}`};
+}
+let S=shiftInfo();
+
+/* ---------- data ---------- */
+const cfg=window.FIREBASE_CONFIG||{};
+const FB_OK=cfg.apiKey&&cfg.apiKey!=="PASTE_API_KEY"&&cfg.databaseURL&&!/PASTE/.test(cfg.databaseURL);
+let db=null;
+if(FB_OK){try{firebase.initializeApp(cfg);db=firebase.database();}catch(e){console.error(e);}}
+else document.getElementById("cfgWarn").style.display="block";
+
+function lsGet(k,d){try{const v=localStorage.getItem("jnher_"+k);return v?JSON.parse(v):d;}catch(e){return d;}}
+const DBread={
+  onValue(path,cb){ if(db){db.ref(path).on("value",s=>cb(s.val()));} else {cb(lsGet(path,null));} }
+};
+
+let templates={}, records={};
+function progress(posKey){
+  const items=templates[posKey]||[]; const total=items.length;
+  const rec=(records[posKey]||{}); const checks=rec.checks||{};
+  let done=0; items.forEach(it=>{ if(checks[it.id]&&checks[it.id].checked)done++; });
+  return {done,total,pct:total?Math.round(done/total*100):0,checker:rec.checker||"",updatedAt:rec.updatedAt||0};
+}
+function timeAgo(ts){ if(!ts)return""; const s=Math.floor((Date.now()-ts)/1000);
+  if(s<60)return"เมื่อครู่"; if(s<3600)return Math.floor(s/60)+" นาทีก่อน"; if(s<86400)return Math.floor(s/3600)+" ชม.ก่อน"; return Math.floor(s/86400)+" วันก่อน";}
+
+function render(){
+  document.getElementById("shiftText").innerHTML=`เวร <b>${S.label}</b><br>${S.dateTH}`;
+  const list=document.getElementById("stList"); list.innerHTML="";
+  let full=0, counted=0;
+  POSITIONS.forEach(p=>{
+    const pr=progress(p.key);
+    const cls=pr.total===0?"":(pr.pct===100?"done":(pr.done>0?"part":""));
+    if(pr.total>0){ counted++; if(pr.pct===100)full++; }
+    const el=document.createElement("div"); el.className="st "+cls;
+    el.innerHTML=`<div class="top">
+        <div class="ic">${p.icon}</div><div class="nm">${p.name}</div>
+        <div class="pct">${pr.total?pr.pct+"%":"—"}</div>
+      </div>
+      <div class="bar"><i style="width:${pr.pct}%"></i></div>
+      <div class="sub">
+        <span class="who">${pr.total?(pr.checker?("👤 "+escapeHtml(pr.checker)):"ยังไม่มีผู้เช็ค"):"ยังไม่มีรายการ"}</span>
+        <span class="badge">${pr.total? (pr.pct===100?"ครบ":pr.done+"/"+pr.total) : "—"}${pr.updatedAt?(" · "+timeAgo(pr.updatedAt)):""}</span>
+      </div>`;
+    list.appendChild(el);
+  });
+  const ovpct = counted?Math.round(full/counted*100):0;
+  document.getElementById("ovText").textContent=`${full}/${POSITIONS.length} ครบ`;
+  const ov=document.getElementById("ovPct"); ov.textContent=ovpct+"%"; ov.style.color=ovpct===100?"#22c55e":"#38bdf8";
+}
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* subscribe */
+function subscribe(){
+  DBread.onValue("checklist/templates",t=>{templates=t||{};render();});
+  POSITIONS.forEach(p=>{
+    DBread.onValue(`checklist/records/${S.recKey}/${p.key}`,rec=>{records[p.key]=rec||{};render();});
+  });
+}
+subscribe();
+render();
+
+/* handle shift rollover + local-mode polling */
+setInterval(()=>{
+  const n=shiftInfo();
+  if(n.recKey!==S.recKey){ location.reload(); return; }
+  if(!db){ // local mode: re-read
+    templates=lsGet("checklist/templates",{})||{};
+    POSITIONS.forEach(p=>records[p.key]=lsGet(`checklist/records/${S.recKey}/${p.key}`,{})||{});
+    render();
+  } else render();
+},15000);
+
+/* optional zoom of embedded frames */
+function applyZoom(wrapId,frameId,zoom){
+  if(zoom===1)return;
+  const wrap=document.getElementById(wrapId),f=document.getElementById(frameId);
+  function fit(){ const w=wrap.clientWidth,h=wrap.clientHeight;
+    f.style.width=(w/zoom)+"px";f.style.height=(h/zoom)+"px";f.style.transform=`scale(${zoom})`; }
+  fit(); new ResizeObserver(fit).observe(wrap);
+}
+applyZoom("ftWrap","ftFrame",CONFIG.fastTrackZoom);
+applyZoom("emsWrap","emsFrame",CONFIG.emsZoom);
+</script>
+</body>
+</html>

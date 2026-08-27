@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Checklist — ER & EMS JNH</title>
+<meta name="theme-color" content="#0e7490" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#f1f5f9; --card:#ffffff; --ink:#0f172a; --muted:#64748b;
+    --line:#e2e8f0; --brand:#0e7490; --brand-d:#155e75; --brand-l:#e0f2fe;
+    --ok:#16a34a; --ok-l:#dcfce7; --warn:#d97706; --danger:#dc2626; --danger-l:#fee2e2;
+    --shadow:0 1px 3px rgba(15,23,42,.08),0 8px 24px rgba(15,23,42,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:'Sarabun',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.5;-webkit-text-size-adjust:100%}
+  .wrap{max-width:820px;margin:0 auto;padding:16px 16px 60px}
+  .hidden{display:none!important}
+  button{font-family:inherit;cursor:pointer}
+
+  /* top bar */
+  .topbar{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,#155e75,#0e7490);
+    color:#fff;box-shadow:var(--shadow)}
+  .topbar .in{max-width:820px;margin:0 auto;display:flex;align-items:center;gap:10px;
+    padding:12px 16px}
+  .topbar .logo{font-weight:700;font-size:17px;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+  .topbar .logo .dot{width:11px;height:11px;border-radius:50%;background:#38bdf8;box-shadow:0 0 0 4px rgba(56,189,248,.25)}
+  .topbar .sp{flex:1}
+  .adminbtn{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.25);
+    border-radius:10px;padding:7px 12px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .adminbtn:hover{background:rgba(255,255,255,.24)}
+
+  /* shift banner */
+  .shiftline{background:var(--brand-l);border:1px solid #bae6fd;border-radius:14px;
+    padding:12px 16px;margin:16px 0;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;
+    font-weight:600;color:#0c4a6e}
+  .shiftline .pill{background:#fff;border:1px solid #bae6fd;border-radius:999px;padding:4px 12px;font-size:14px}
+  .shiftline .pill b{color:var(--brand-d)}
+
+  h1.hero{font-size:26px;font-weight:700;text-align:center;margin:26px 0 4px;color:var(--brand-d)}
+  .hero-sub{text-align:center;color:var(--muted);margin-bottom:18px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:20px}
+
+  /* name input */
+  .namebox{width:100%;border:2px solid #cbd5e1;border-radius:999px;padding:16px 22px;
+    font-size:16px;font-family:inherit;outline:none;transition:.15s;background:#fff}
+  .namebox:focus{border-color:var(--brand);box-shadow:0 0 0 4px var(--brand-l)}
+  .namebox::placeholder{color:#94a3b8}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;
+    background:var(--brand);color:#fff;border-radius:12px;padding:14px 20px;font-size:16px;font-weight:600;
+    transition:.15s;width:100%}
+  .btn:hover{background:var(--brand-d)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.ghost{background:#fff;color:var(--brand-d);border:1px solid var(--line)}
+  .btn.ghost:hover{background:#f8fafc}
+  .btn.sm{width:auto;padding:9px 14px;font-size:14px;border-radius:10px}
+  .btn.ok{background:var(--ok)} .btn.ok:hover{background:#15803d}
+
+  /* position cards */
+  .poslist{display:grid;grid-template-columns:1fr;gap:12px;margin-top:6px}
+  @media(min-width:560px){.poslist{grid-template-columns:1fr 1fr}}
+  .pos{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;padding:16px;box-shadow:var(--shadow);text-align:left;transition:.15s;width:100%}
+  .pos:hover{border-color:var(--brand);transform:translateY(-1px)}
+  .pos .ic{width:48px;height:48px;border-radius:12px;background:var(--brand-l);color:var(--brand-d);
+    display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+  .pos .body{flex:1;min-width:0}
+  .pos .nm{font-weight:700;font-size:16px}
+  .pos .mt{font-size:13px;color:var(--muted)}
+  .pos .pct{font-weight:700;font-size:15px;padding:4px 10px;border-radius:999px;background:#f1f5f9;color:var(--muted)}
+  .pos .pct.done{background:var(--ok-l);color:var(--ok)}
+  .pos .pct.part{background:#fef3c7;color:var(--warn)}
+  .bar{height:7px;border-radius:999px;background:#eef2f6;overflow:hidden;margin-top:8px}
+  .bar > i{display:block;height:100%;background:var(--brand);border-radius:999px;transition:width .3s}
+  .bar > i.done{background:var(--ok)}
+
+  /* checklist table */
+  .secttl{font-weight:700;color:var(--brand-d);margin:18px 0 8px;font-size:15px;
+    display:flex;align-items:center;gap:8px}
+  .secttl:before{content:"";width:4px;height:16px;border-radius:2px;background:var(--brand)}
+  table.chk{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);
+    border-radius:12px;overflow:hidden}
+  table.chk th{background:#f8fafc;color:var(--muted);font-size:12px;font-weight:600;text-align:left;
+    padding:10px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.3px}
+  table.chk td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14.5px}
+  table.chk tr:last-child td{border-bottom:none}
+  table.chk tr.checked{background:#f6fef9}
+  .cel-no{width:34px;color:var(--muted);font-weight:600}
+  .cel-item .q{display:inline-block;margin-left:6px;font-size:12px;color:#94a3b8}
+  .cel-chk{width:52px;text-align:center}
+  .cel-note{width:34%}
+  .chkbox{appearance:none;-webkit-appearance:none;width:26px;height:26px;border:2px solid #cbd5e1;
+    border-radius:7px;cursor:pointer;position:relative;transition:.12s;background:#fff;vertical-align:middle}
+  .chkbox:checked{background:var(--ok);border-color:var(--ok)}
+  .chkbox:checked:after{content:"";position:absolute;left:8px;top:3px;width:6px;height:12px;
+    border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
+  .noteinp{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-family:inherit;
+    font-size:13.5px;outline:none;background:#fff}
+  .noteinp:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-l)}
+  .noteinp.has{border-color:#fca5a5;background:#fff7f7}
+
+  .rowhead{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .backlink{background:none;border:none;color:var(--brand-d);font-weight:600;font-size:14px;
+    display:inline-flex;align-items:center;gap:6px;padding:6px 2px}
+  .prog-wrap{display:flex;align-items:center;gap:12px;margin:10px 0 14px}
+  .prog-wrap .big{font-size:22px;font-weight:800;color:var(--brand-d)}
+  .prog-wrap .big.done{color:var(--ok)}
+  .savehint{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .savehint .d{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+
+  /* admin */
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.5);display:flex;align-items:flex-start;
+    justify-content:center;padding:24px 14px;z-index:50;overflow:auto}
+  .modal .box{background:#fff;border-radius:16px;max-width:760px;width:100%;box-shadow:var(--shadow);padding:22px}
+  .modal h3{font-size:18px;margin-bottom:4px;color:var(--brand-d)}
+  .modal .close{float:right;background:#f1f5f9;border:none;border-radius:9px;width:34px;height:34px;font-size:18px;color:var(--muted)}
+  .field{margin:12px 0}
+  .field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:5px}
+  .field input,.field select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;
+    font-family:inherit;font-size:15px;outline:none}
+  .field input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-l)}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0}
+  .tabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 13px;font-size:13.5px;font-weight:600;color:var(--muted)}
+  .tabs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .edrow{display:grid;grid-template-columns:40px 1fr 90px 130px 34px;gap:6px;align-items:center;margin-bottom:6px}
+  .edrow input{border:1px solid var(--line);border-radius:8px;padding:8px;font-family:inherit;font-size:13.5px;width:100%}
+  .edrow .del{background:var(--danger-l);color:var(--danger);border:none;border-radius:8px;height:34px;font-size:16px}
+  .edhint{font-size:12px;color:var(--muted);margin:4px 0 10px}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:#0f172a;color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;font-weight:500;
+    box-shadow:var(--shadow);transition:.25s;z-index:80;pointer-events:none;max-width:90vw}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .banner{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:12px;padding:10px 14px;
+    font-size:13px;margin:12px 0;display:flex;gap:8px;align-items:flex-start}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="in">
+  <div class="logo"><span class="dot"></span> Checklist · ER &amp; EMS</div>
+  <div class="sp"></div>
+  <button class="adminbtn" id="adminBtn">⚙️ Admin</button>
+</div></div>
+
+<div class="wrap">
+  <div id="cfgBanner" class="banner hidden">
+    <span>⚠️</span><span>ยังไม่ได้ตั้งค่า Firebase — ตอนนี้บันทึกลงเครื่องนี้เท่านั้น (ยังไม่แชร์ข้ามเครื่อง/ยังไม่ขึ้น Monitor รวม). แก้ค่าในไฟล์ <b>firebase-config.js</b> ตาม README แล้วรีเฟรช</span>
+  </div>
+
+  <!-- ===================== PAGE 1 : HOME ===================== -->
+  <section id="page1">
+    <h1 class="hero">Check list item available</h1>
+    <div class="hero-sub">ระบบตรวจเช็คความพร้อมอุปกรณ์ ห้องฉุกเฉิน &amp; EMS</div>
+    <div class="shiftline" id="shiftline1"></div>
+    <div class="card">
+      <div class="field" style="margin:0">
+        <label for="checker" style="font-size:14px;color:var(--ink);font-weight:600;margin-bottom:10px">ผู้ทำการตรวจสอบ</label>
+        <input id="checker" class="namebox" placeholder="กรุณาใส่ชื่อผู้ทำการตรวจสอบ" autocomplete="name" />
+      </div>
+      <div style="height:16px"></div>
+      <button class="btn" id="startBtn" disabled>เริ่มตรวจเช็ค →</button>
+    </div>
+  </section>
+
+  <!-- ===================== PAGE 2 : POSITIONS ===================== -->
+  <section id="page2" class="hidden">
+    <div class="shiftline" id="shiftline2"></div>
+    <div class="rowhead">
+      <button class="backlink" id="back1">← เปลี่ยนชื่อ/หน้าแรก</button>
+      <div class="savehint">ผู้ตรวจสอบ: <b id="who2" style="color:var(--ink);margin-left:4px"></b></div>
+    </div>
+    <div style="font-weight:700;font-size:16px;margin:6px 2px 2px">เลือกตำแหน่งที่จะเช็คของ</div>
+    <div class="hero-sub" style="text-align:left;margin-bottom:10px">แตะการ์ดเพื่อเปิดตารางเช็คของเฉพาะเวรนี้</div>
+    <div class="poslist" id="poslist"></div>
+  </section>
+
+  <!-- ===================== PAGE 3 : CHECKLIST ===================== -->
+  <section id="page3" class="hidden">
+    <div class="shiftline" id="shiftline3"></div>
+    <div class="rowhead">
+      <button class="backlink" id="back2">← เลือกตำแหน่งอื่น</button>
+      <div class="savehint"><span class="d"></span> บันทึกอัตโนมัติ</div>
+    </div>
+    <h2 id="p3title" style="font-size:20px;color:var(--brand-d);margin:4px 2px"></h2>
+    <div class="savehint" style="margin:2px 2px 0">ผู้ตรวจสอบ: <b id="who3" style="color:var(--ink);margin-left:4px"></b></div>
+    <div class="prog-wrap">
+      <div class="big" id="p3pct">0%</div>
+      <div style="flex:1"><div class="bar"><i id="p3bar" style="width:0"></i></div></div>
+      <button class="btn ok sm" id="allBtn">✓ เช็คครบทั้งหมด</button>
+    </div>
+    <div id="p3body"></div>
+  </section>
+</div>
+
+<!-- ===================== ADMIN MODALS ===================== -->
+<div id="adminGate" class="modal hidden"><div class="box" style="max-width:380px">
+  <button class="close" data-closeadmin>×</button>
+  <h3>เข้าสู่โหมด Admin</h3>
+  <p style="color:var(--muted);font-size:13.5px">ใส่รหัส admin เพื่อแก้ไขรายการเช็คของและตั้งค่า</p>
+  <div class="field"><label>รหัส Admin</label><input id="adminPin" type="password" inputmode="numeric" placeholder="••••" /></div>
+  <button class="btn" id="adminEnter">เข้าสู่ระบบ</button>
+</div></div>
+
+<div id="adminPanel" class="modal hidden"><div class="box">
+  <button class="close" data-closeadmin>×</button>
+  <h3>⚙️ ตั้งค่า Admin</h3>
+  <p style="color:var(--muted);font-size:13.5px">แก้ไขรายการอุปกรณ์ของแต่ละตำแหน่ง (มีผลกับทุกเวรถัดไป)</p>
+  <div class="tabs" id="adminTabs"></div>
+  <div id="editHint" class="edhint"></div>
+  <div id="editRows"></div>
+  <button class="btn ghost sm" id="addRow" style="margin-top:8px">+ เพิ่มรายการ</button>
+  <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+    <button class="btn ok" id="saveTpl" style="flex:1">💾 บันทึกรายการ</button>
+  </div>
+  <hr style="border:none;border-top:1px solid var(--line);margin:20px 0" />
+  <div class="field"><label>เปลี่ยนรหัส Admin</label>
+    <div style="display:flex;gap:8px">
+      <input id="newPin" inputmode="numeric" placeholder="รหัสใหม่" />
+      <button class="btn sm" id="savePin" style="width:auto">เปลี่ยน</button>
+    </div>
+  </div>
+</div></div>
+
+<div id="toast" class="toast"></div>
+
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="../firebase-config.js"></script>
+<script src="templates-seed.js"></script>
+<script>
+/* ================================================================
+   JNH ER — Checklist app
+   ================================================================ */
+const POSITIONS = [
+  {key:"incharge", name:"Incharge",       icon:"🩺"},
+  {key:"nurse_aid",name:"Nurse aid",      icon:"🧑‍⚕️"},
+  {key:"emt",      name:"EMT (รถ EMS)",    icon:"🚑"},
+  {key:"bag_ab",   name:"กระเป๋า A/B",     icon:"🎒"},
+  {key:"bag_cd",   name:"กระเป๋า C/D",     icon:"💊"},
+];
+const SEED_MAP = {emt:"emt", bag_ab:"bag_ab", bag_cd:"bag_cd"};
+
+/* ---------- shift / date helpers (Asia/Bangkok) ---------- */
+function bkkNow(){
+  // build a Date reflecting Asia/Bangkok wall-clock
+  const s = new Date().toLocaleString("en-US",{timeZone:"Asia/Bangkok"});
+  return new Date(s);
+}
+function shiftInfo(){
+  const d = bkkNow(); const h = d.getHours();
+  let key,label;
+  if(h>=8 && h<16){key="morning";label="เช้า (08:00–16:00)";}
+  else if(h>=16){key="afternoon";label="บ่าย (16:00–24:00)";}
+  else {key="night";label="ดึก (00:00–08:00)";}
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
+  const dateKey=`${y}-${m}-${day}`;
+  const dateTH=`${day}/${m}/${y}`;
+  const time=`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  return {key,label,dateKey,dateTH,time,recKey:`${dateKey}_${key}`};
+}
+
+/* ---------- storage abstraction (Firebase RTDB or local) ---------- */
+const cfg = window.FIREBASE_CONFIG||{};
+const FB_OK = cfg.apiKey && cfg.apiKey!=="PASTE_API_KEY" && cfg.databaseURL && !/PASTE/.test(cfg.databaseURL);
+let db=null;
+if(FB_OK){ try{ firebase.initializeApp(cfg); db=firebase.database(); }catch(e){ console.error(e); } }
+
+const LS = {
+  get(k,def){ try{const v=localStorage.getItem("jnher_"+k);return v?JSON.parse(v):def;}catch(e){return def;} },
+  set(k,v){ try{localStorage.setItem("jnher_"+k,JSON.stringify(v));}catch(e){} },
+};
+// local pub/sub for local mode
+const localSubs={};
+function localEmit(path){ (localSubs[path]||[]).forEach(cb=>cb(LS.get(path,null))); }
+
+const DB = {
+  onValue(path, cb){
+    if(db){ db.ref(path).on("value", s=>cb(s.val())); }
+    else { (localSubs[path]=localSubs[path]||[]).push(cb); cb(LS.get(path,null)); }
+  },
+  set(path, val){
+    if(db){ return db.ref(path).set(val); }
+    LS.set(path,val); localEmit(path); return Promise.resolve();
+  },
+  update(path, val){
+    if(db){ return db.ref(path).update(val); }
+    const cur=LS.get(path,{})||{}; Object.assign(cur,val); LS.set(path,cur); localEmit(path); return Promise.resolve();
+  },
+  async once(path){
+    if(db){ const s=await db.ref(path).once("value"); return s.val(); }
+    return LS.get(path,null);
+  }
+};
+
+/* ---------- state ---------- */
+let templates={};      // {posKey: [{id,seq,item,qty,section}]}
+let adminCode="1234";
+let checker="";
+let curPos=null;
+let curRec={};         // checks for current position/shift
+const S = shiftInfo();
+
+/* ---------- seeding ---------- */
+function buildSeed(){
+  const seed=window.TEMPLATES_SEED||{};
+  const out={};
+  POSITIONS.forEach(p=>{
+    const src=seed[SEED_MAP[p.key]]||[];
+    out[p.key]=src.map((it,i)=>({id:`${p.key}-${i+1}`,seq:it.seq||String(i+1),item:it.item||"",qty:it.qty||"",section:it.section||""}));
+  });
+  return out;
+}
+async function ensureSeed(){
+  const existing = await DB.once("checklist/templates");
+  if(existing && Object.keys(existing).length){ return; }
+  const seed=buildSeed();
+  await DB.set("checklist/templates", seed);
+  const code=await DB.once("checklist/adminCode");
+  if(!code) await DB.set("checklist/adminCode","1234");
+}
+
+/* ---------- DOM helpers ---------- */
+const $=id=>document.getElementById(id);
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1900);}
+function shiftBannerHTML(){
+  return `<span class="pill">เวร <b>${S.label}</b></span>
+          <span class="pill">วันที่ <b>${S.dateTH}</b></span>
+          <span class="pill">เวลา <b>${S.time} น.</b></span>`;
+}
+function paintShiftlines(){ ["shiftline1","shiftline2","shiftline3"].forEach(id=>{const e=$(id);if(e)e.innerHTML=shiftBannerHTML();}); }
+
+/* ---------- navigation ---------- */
+function show(page){ ["page1","page2","page3"].forEach(p=>$(p).classList.toggle("hidden",p!==page)); window.scrollTo(0,0); }
+
+/* progress for a position given its record checks */
+function progressOf(posKey, checks){
+  const items=templates[posKey]||[]; const total=items.length;
+  if(!total) return {done:0,total:0,pct:0};
+  let done=0; items.forEach(it=>{ if(checks && checks[it.id] && checks[it.id].checked) done++; });
+  return {done,total,pct:Math.round(done/total*100)};
+}
+
+/* ---------- PAGE 2 : positions list ---------- */
+let recCache={}; // posKey -> checks (for current shift), live
+function renderPositions(){
+  const wrap=$("poslist"); wrap.innerHTML="";
+  POSITIONS.forEach(p=>{
+    const pr=progressOf(p.key, recCache[p.key]);
+    const cls = pr.total===0 ? "" : (pr.pct===100?"done":(pr.done>0?"part":""));
+    const btn=document.createElement("button");
+    btn.className="pos";
+    btn.innerHTML=`<div class="ic">${p.icon}</div>
+      <div class="body">
+        <div class="nm">${esc(p.name)}</div>
+        <div class="mt">${pr.total? `${pr.done}/${pr.total} รายการ` : "ยังไม่มีรายการ — ตั้งค่าที่ Admin"}</div>
+        <div class="bar"><i class="${pr.pct===100?'done':''}" style="width:${pr.pct}%"></i></div>
+      </div>
+      <div class="pct ${cls}">${pr.total? pr.pct+"%" : "—"}</div>`;
+    btn.onclick=()=>openPosition(p.key);
+    wrap.appendChild(btn);
+  });
+}
+function subscribeShiftRecords(){
+  POSITIONS.forEach(p=>{
+    DB.onValue(`checklist/records/${S.recKey}/${p.key}/checks`, checks=>{
+      recCache[p.key]=checks||{};
+      if(!$("page2").classList.contains("hidden")) renderPositions();
+      if(curPos===p.key && !$("page3").classList.contains("hidden")) { curRec=checks||{}; paintChecklistState(); }
+    });
+  });
+}
+
+/* ---------- PAGE 3 : checklist table ---------- */
+function openPosition(posKey){
+  curPos=posKey; curRec=recCache[posKey]||{};
+  const p=POSITIONS.find(x=>x.key===posKey);
+  $("p3title").textContent=p.name;
+  $("who3").textContent=checker;
+  renderChecklist();
+  show("page3");
+  // record checker name for this position/shift
+  DB.update(`checklist/records/${S.recKey}/${posKey}`, {checker:checker, updatedAt:Date.now()});
+}
+function renderChecklist(){
+  const items=templates[curPos]||[];
+  const body=$("p3body");
+  if(!items.length){
+    body.innerHTML=`<div class="banner"><span>ℹ️</span><span>ตำแหน่งนี้ยังไม่มีรายการอุปกรณ์ — ให้ Admin เพิ่มรายการก่อน (ปุ่ม ⚙️ Admin มุมขวาบน)</span></div>`;
+    $("p3pct").textContent="0%"; $("p3bar").style.width="0";
+    return;
+  }
+  // group by section
+  const groups=[]; const idx={};
+  items.forEach(it=>{
+    const s=it.section||"";
+    if(!(s in idx)){ idx[s]=groups.length; groups.push({section:s,rows:[]}); }
+    groups[idx[s]].rows.push(it);
+  });
+  let html="";
+  groups.forEach(g=>{
+    if(g.section) html+=`<div class="secttl">${esc(g.section)}</div>`;
+    html+=`<table class="chk"><thead><tr>
+      <th class="cel-no">#</th><th>รายการ</th><th class="cel-chk">ครบ</th><th class="cel-note">หมายเหตุ (ชำรุด/รอซ่อม/อื่นๆ)</th>
+    </tr></thead><tbody>`;
+    g.rows.forEach(it=>{
+      const rc=curRec[it.id]||{};
+      html+=`<tr data-row="${it.id}" class="${rc.checked?'checked':''}">
+        <td class="cel-no">${esc(it.seq)}</td>
+        <td class="cel-item">${esc(it.item)}${it.qty?`<span class="q">(${esc(it.qty)})</span>`:""}</td>
+        <td class="cel-chk"><input type="checkbox" class="chkbox" data-chk="${it.id}" ${rc.checked?"checked":""}></td>
+        <td class="cel-note"><input class="noteinp ${rc.note?'has':''}" data-note="${it.id}" value="${esc(rc.note||"")}" placeholder="—"></td>
+      </tr>`;
+    });
+    html+=`</tbody></table>`;
+  });
+  body.innerHTML=html;
+  // events
+  body.querySelectorAll("[data-chk]").forEach(cb=>cb.addEventListener("change",onCheck));
+  body.querySelectorAll("[data-note]").forEach(inp=>{
+    inp.addEventListener("input",()=>{inp.classList.toggle("has",!!inp.value.trim());});
+    inp.addEventListener("change",onNote);
+  });
+  paintChecklistState();
+}
+function onCheck(e){
+  const id=e.target.dataset.chk; const checked=e.target.checked;
+  e.target.closest("tr").classList.toggle("checked",checked);
+  curRec[id]=Object.assign({},curRec[id],{checked});
+  saveCheck(id);
+  paintChecklistState();
+}
+function onNote(e){
+  const id=e.target.dataset.note; const note=e.target.value.trim();
+  curRec[id]=Object.assign({},curRec[id],{note});
+  saveCheck(id);
+}
+function saveCheck(id){
+  const c=curRec[id]||{};
+  DB.update(`checklist/records/${S.recKey}/${curPos}`, {checker, updatedAt:Date.now()});
+  DB.set(`checklist/records/${S.recKey}/${curPos}/checks/${id}`, {checked:!!c.checked, note:c.note||""});
+}
+function paintChecklistState(){
+  const pr=progressOf(curPos,curRec);
+  $("p3pct").textContent=pr.pct+"%"; $("p3pct").classList.toggle("done",pr.pct===100);
+  $("p3bar").style.width=pr.pct+"%"; $("p3bar").classList.toggle("done",pr.pct===100);
+  // reflect current record onto rows (when live update arrives)
+  document.querySelectorAll("#p3body [data-chk]").forEach(cb=>{
+    const rc=curRec[cb.dataset.chk]||{}; cb.checked=!!rc.checked;
+    cb.closest("tr").classList.toggle("checked",!!rc.checked);
+  });
+  document.querySelectorAll("#p3body [data-note]").forEach(inp=>{
+    if(document.activeElement!==inp){ const rc=curRec[inp.dataset.note]||{}; inp.value=rc.note||""; inp.classList.toggle("has",!!(rc.note));}
+  });
+}
+
+/* ---------- ADMIN ---------- */
+let editPos="incharge", editItems=[];
+function openAdminGate(){ $("adminPin").value=""; $("adminGate").classList.remove("hidden"); setTimeout(()=>$("adminPin").focus(),50); }
+function closeAdmin(){ $("adminGate").classList.add("hidden"); $("adminPanel").classList.add("hidden"); }
+function openAdminPanel(){
+  $("adminGate").classList.add("hidden"); $("adminPanel").classList.remove("hidden");
+  renderAdminTabs(); loadEditPos("incharge");
+}
+function renderAdminTabs(){
+  const t=$("adminTabs"); t.innerHTML="";
+  POSITIONS.forEach(p=>{
+    const b=document.createElement("button"); b.textContent=p.name; b.className=(p.key===editPos?"on":"");
+    b.onclick=()=>{loadEditPos(p.key);}; t.appendChild(b);
+  });
+}
+function loadEditPos(posKey){
+  editPos=posKey; renderAdminTabs();
+  editItems=JSON.parse(JSON.stringify(templates[posKey]||[]));
+  $("editHint").innerHTML=`แก้ไขรายการของ <b>${esc(POSITIONS.find(p=>p.key===posKey).name)}</b> — ช่อง: ลำดับ · รายการ · จำนวน · หมวด (เว้นว่างได้)`;
+  renderEditRows();
+}
+function renderEditRows(){
+  const w=$("editRows"); w.innerHTML="";
+  if(!editItems.length){ w.innerHTML=`<div class="edhint">ยังไม่มีรายการ กด “+ เพิ่มรายการ”</div>`; }
+  editItems.forEach((it,i)=>{
+    const r=document.createElement("div"); r.className="edrow";
+    r.innerHTML=`<input value="${esc(it.seq)}" data-f="seq" placeholder="#">
+      <input value="${esc(it.item)}" data-f="item" placeholder="ชื่อรายการอุปกรณ์">
+      <input value="${esc(it.qty)}" data-f="qty" placeholder="จำนวน">
+      <input value="${esc(it.section)}" data-f="section" placeholder="หมวด/กระเป๋า">
+      <button class="del" title="ลบ">×</button>`;
+    r.querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{it[inp.dataset.f]=inp.value;}));
+    r.querySelector(".del").onclick=()=>{editItems.splice(i,1);renderEditRows();};
+    w.appendChild(r);
+  });
+}
+$("addRow").onclick=()=>{
+  const n=editItems.length+1;
+  editItems.push({id:`${editPos}-new-${Date.now()}-${n}`,seq:String(n),item:"",qty:"",section:editItems.length?editItems[editItems.length-1].section:""});
+  renderEditRows();
+  $("editRows").lastChild.querySelector("[data-f=item]").focus();
+};
+$("saveTpl").onclick=async()=>{
+  const clean=editItems.filter(it=>(it.item||"").trim());
+  clean.forEach((it,i)=>{ if(!it.id) it.id=`${editPos}-${i+1}`; });
+  await DB.set(`checklist/templates/${editPos}`, clean);
+  templates[editPos]=clean;
+  toast("บันทึกรายการแล้ว");
+  if(!$("page2").classList.contains("hidden")) renderPositions();
+};
+$("savePin").onclick=async()=>{
+  const v=$("newPin").value.trim();
+  if(!/^\d{4,8}$/.test(v)){ toast("รหัสต้องเป็นตัวเลข 4–8 หลัก"); return; }
+  await DB.set("checklist/adminCode",v); adminCode=v; $("newPin").value=""; toast("เปลี่ยนรหัส Admin แล้ว");
+};
+$("adminEnter").onclick=()=>{
+  if($("adminPin").value===adminCode){ openAdminPanel(); }
+  else toast("รหัสไม่ถูกต้อง");
+};
+$("adminPin").addEventListener("keydown",e=>{if(e.key==="Enter")$("adminEnter").click();});
+document.querySelectorAll("[data-closeadmin]").forEach(b=>b.onclick=closeAdmin);
+[$("adminGate"),$("adminPanel")].forEach(m=>m.addEventListener("click",e=>{if(e.target===m)closeAdmin();}));
+$("adminBtn").onclick=openAdminGate;
+
+/* ---------- page nav events ---------- */
+$("checker").addEventListener("input",e=>{ checker=e.target.value.trim(); $("startBtn").disabled=!checker; });
+$("checker").addEventListener("keydown",e=>{ if(e.key==="Enter" && checker){$("startBtn").click();} });
+$("startBtn").onclick=()=>{
+  LS.set("lastChecker",checker);
+  $("who2").textContent=checker;
+  renderPositions();
+  show("page2");
+};
+$("back1").onclick=()=>show("page1");
+$("back2").onclick=()=>{ renderPositions(); show("page2"); };
+$("allBtn").onclick=()=>{
+  const items=templates[curPos]||[]; if(!items.length)return;
+  const updates={};
+  items.forEach(it=>{ const rc=curRec[it.id]||{}; curRec[it.id]={checked:true,note:rc.note||""}; updates[it.id]={checked:true,note:rc.note||""}; });
+  DB.update(`checklist/records/${S.recKey}/${curPos}`, {checker, updatedAt:Date.now()});
+  DB.set(`checklist/records/${S.recKey}/${curPos}/checks`, curRec);
+  renderChecklist(); toast("เช็คครบทั้งหมดแล้ว");
+};
+
+/* ---------- init ---------- */
+async function init(){
+  if(!FB_OK) $("cfgBanner").classList.remove("hidden");
+  paintShiftlines();
+  const last=LS.get("lastChecker","");
+  if(last){ $("checker").value=last; checker=last; $("startBtn").disabled=false; }
+  await ensureSeed();
+  DB.onValue("checklist/templates", t=>{
+    templates = t || buildSeed();
+    POSITIONS.forEach(p=>{ if(!templates[p.key]) templates[p.key]=[]; });
+    if(!$("page2").classList.contains("hidden")) renderPositions();
+    if(!$("page3").classList.contains("hidden")) renderChecklist();
+  });
+  DB.onValue("checklist/adminCode", c=>{ if(c) adminCode=c; });
+  subscribeShiftRecords();
+}
+init();
+// refresh shift banner each minute (handles shift rollover)
+setInterval(()=>{ const n=shiftInfo(); if(n.recKey!==S.recKey){ location.reload(); } else { S.time=n.time; paintShiftlines(); } },60000);
+</script>
+</body>
+</html>

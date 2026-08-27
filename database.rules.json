@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "checklist": {
+      ".read": true,
+      ".write": true
+    },
+    "portal": {
+      ".read": true,
+      ".write": true,
+      "users": { ".indexOn": ["status", "createdAt"] }
+    }
+  }
+}
