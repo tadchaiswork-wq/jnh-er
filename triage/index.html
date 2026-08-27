@@ -207,7 +207,7 @@ select{padding:7px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-family
 
 <!-- HOME -->
 <div id="page-home" class="page">
-<nav><div class="brand">🏥 TriageLearn</div><div class="nav-right"><span id="nav-name" style="opacity:.8"></span><span id="nav-badge"></span><button onclick="doLogout()">ออกจากระบบ</button></div></nav>
+<nav><div class="brand">🏥 TriageLearn</div><div class="nav-right"><span id="nav-name" style="opacity:.8"></span><span id="nav-badge"></span><button onclick="openTriageMember()" title="ข้อมูลสมาชิก">👤 ข้อมูลสมาชิก</button><button onclick="doLogout()">ออกจากระบบ</button></div></nav>
 <div class="home-greeting"><h2>สวัสดี, <span id="home-name"></span></h2><p id="home-sub"></p></div>
 <div class="home-grid" id="home-grid"></div>
 </div>
@@ -335,6 +335,7 @@ select{padding:7px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-family
 </div>
 </div>
 
+<script src="../pinlock.js"></script>
 <script>
 // ============================================================
 // FIREBASE CONFIG — วาง URL จาก Firebase Console ที่นี่
@@ -1851,6 +1852,7 @@ function doLogout(){
   currentUser=null;
   document.getElementById('user-chip').style.display='none';
   showAuthPage('page-auth');
+  if(window.PinLock){ PinLock.use("triage"); PinLock.mountGate(triageGateOpts()); }
 }
 
 // ============================================================
@@ -2877,8 +2879,62 @@ async function appInit(){
   setTimeout(()=>overlay.style.display='none',350);
   loadRemembered();
   showAuthPage('page-auth');
+  if(window.PinLock){ PinLock.use("triage"); PinLock.mountGate(triageGateOpts()); }
 }
 appInit();
+
+/* ===== PIN quick-unlock (triage) — ต่อยอดบัญชี user/pass เดิม ===== */
+function triageGateOpts(){
+  return {
+    logo:"🏥", brand:"TriageLearn", subtitle:"ใส่ PIN เพื่อเข้าใช้งาน",
+    signIn: async (c)=>{
+      const user=S.users().find(x=>x.username===c.username && x.password===c.password);
+      if(!user) throw new Error("bad");
+      currentUser=user; showHome();
+    }
+  };
+}
+function triageVerify(c){ return S.users().some(x=>x.username===c.username && x.password===c.password); }
+function openTriageMember(){
+  if(!currentUser) return;
+  const u=currentUser;
+  const safe=v=>String(v==null?"":v).replace(/</g,"&lt;");
+  const extra=`
+    <div style="background:#f8fafc;border:1px solid #eef2f6;border-radius:12px;padding:12px;margin-bottom:6px">
+      <div style="font-weight:700;font-size:15px">${safe(u.name)}</div>
+      <div style="color:#64748b;font-size:13px">@${safe(u.username)}${u.unit?(" · "+safe(u.unit)):""}${u.role==="admin"?" · Admin":""}</div>
+    </div>
+    <button class="_pl_btn g" id="_tg_pw">🔑 เปลี่ยนรหัสผ่านบัญชี</button>
+    <div id="_tg_pwarea"></div>
+    <button class="_pl_btn d" id="_tg_out" style="margin-top:8px">ออกจากระบบ</button>`;
+  PinLock.openManager({
+    username:u.username, verify:async(c)=>triageVerify(c), extraHTML:extra,
+    onExtraMount:(box,close)=>{
+      box.querySelector("#_tg_out").onclick=()=>{ close(); doLogout(); };
+      box.querySelector("#_tg_pw").onclick=()=>{
+        const a=box.querySelector("#_tg_pwarea");
+        a.innerHTML=`
+          <div class="_pl_field"><label>รหัสผ่านปัจจุบัน</label><input id="_tg_cur" type="password"></div>
+          <div class="_pl_field"><label>รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label><input id="_tg_new" type="password"></div>
+          <div class="_pl_err" id="_tg_err"></div>
+          <div style="display:flex;gap:8px"><button class="_pl_btn g" id="_tg_c" style="flex:1">ยกเลิก</button>
+          <button class="_pl_btn" id="_tg_s" style="flex:1">บันทึก</button></div>`;
+        a.querySelector("#_tg_c").onclick=()=>{ a.innerHTML=""; };
+        a.querySelector("#_tg_s").onclick=()=>{
+          const cur=a.querySelector("#_tg_cur").value, np=a.querySelector("#_tg_new").value, er=a.querySelector("#_tg_err");
+          if(!triageVerify({username:u.username,password:cur})){ er.textContent="รหัสผ่านปัจจุบันไม่ถูกต้อง"; return; }
+          if(np.length<6){ er.textContent="รหัสผ่านใหม่อย่างน้อย 6 ตัว"; return; }
+          const users=S.users(); const idx=users.findIndex(x=>x.username===u.username);
+          if(idx<0){ er.textContent="ไม่พบบัญชี"; return; }
+          users[idx].password=np; S.saveUsers(users); currentUser=users[idx];
+          a.innerHTML=""; PinLock.toast("เปลี่ยนรหัสผ่านแล้ว");
+        };
+      };
+    }
+  });
+}
+
+
 </script>
 </body>
 </html>
