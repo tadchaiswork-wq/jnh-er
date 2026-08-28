@@ -36,42 +36,47 @@
   .frameScale iframe{position:absolute;top:0;left:0;transform-origin:top left}
   .rightcol{display:grid;grid-template-rows:var(--emsH) 1fr;gap:var(--gap);min-height:0}
 
-  /* ---- checklist status panel ---- */
-  #status{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 12px 8px;display:flex;flex-direction:column;min-height:0}
+  /* ---- checklist status panel (พื้นขาว) ---- */
+  #status{background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:12px 12px 8px;display:flex;flex-direction:column;min-height:0;color:#0f172a}
   .st-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
-  .st-head h2{font-size:15px;font-weight:800;color:#cfe0f0}
-  .st-head .sh{font-size:12px;color:var(--muted);margin-left:auto;text-align:right;line-height:1.35}
-  .st-head .sh b{color:var(--brand)}
+  .st-head h2{font-size:15px;font-weight:800;color:#0f172a}
+  .st-head .sh{font-size:12px;color:#64748b;margin-left:auto;text-align:right;line-height:1.35}
+  .st-head .sh b{color:#0e7490}
   .st-list{display:flex;flex-direction:column;gap:8px;overflow:auto;flex:1;padding-right:2px}
-  .st{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
-  .st.done{border-color:rgba(34,197,94,.55);background:linear-gradient(180deg,rgba(34,197,94,.14),rgba(19,35,57,.6))}
+  .st{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px}
+  .st.done{border-color:#86efac;background:#f0fdf4}
   .st .top{display:flex;align-items:center;gap:10px}
   .st .ic{font-size:20px;width:26px;text-align:center}
-  .st .nm{font-weight:700;font-size:15px}
-  .st .pct{margin-left:auto;font-weight:800;font-size:20px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .st.done .pct{color:var(--ok)}
-  .st.part .pct{color:var(--warn)}
-  .st .bar{height:8px;border-radius:999px;background:#0b1626;overflow:hidden;margin-top:8px;border:1px solid rgba(255,255,255,.04)}
-  .st .bar>i{display:block;height:100%;width:0;background:var(--brand);transition:width .5s}
-  .st.done .bar>i{background:var(--ok)}
-  .st.part .bar>i{background:var(--warn)}
-  .st .sub{display:flex;justify-content:space-between;margin-top:5px;font-size:11.5px;color:var(--muted)}
-  .st .sub .who{color:#aab8c8}
-  .st .badge{font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:#0b1626;color:var(--muted)}
-  .st.done .badge{background:rgba(34,197,94,.2);color:#86efac}
-  .overall{display:flex;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
-  .overall b{color:#cfe0f0}
-  .overall .ring{margin-left:auto;font-weight:800;font-size:16px;color:var(--brand)}
+  .st .nm{font-weight:700;font-size:15px;color:#0f172a}
+  .st .pct{margin-left:auto;font-weight:800;font-size:20px;color:#94a3b8;font-variant-numeric:tabular-nums}
+  .st.done .pct{color:#16a34a}
+  .st.part .pct{color:#d97706}
+  .st .bar{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin-top:8px}
+  .st .bar>i{display:block;height:100%;width:0;background:#0ea5e9;transition:width .5s}
+  .st.done .bar>i{background:#16a34a}
+  .st.part .bar>i{background:#d97706}
+  .st .sub{display:flex;justify-content:space-between;margin-top:5px;font-size:11.5px;color:#64748b}
+  .st .sub .who{color:#475569}
+  .st .badge{font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:#eef2f6;color:#64748b}
+  .st.done .badge{background:#dcfce7;color:#16a34a}
+  .overall{display:flex;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:13px;color:#64748b}
+  .overall b{color:#0f172a}
+  .overall .ring{margin-left:auto;font-weight:800;font-size:16px;color:#0e7490}
   .cfgwarn{position:fixed;left:12px;bottom:10px;z-index:9;background:#7c2d12;color:#fed7aa;border:1px solid #9a3412;
     border-radius:10px;padding:6px 12px;font-size:12px;max-width:60vw}
   .clock{font-variant-numeric:tabular-nums}
+  /* fullscreen button */
+  #fsBtn{position:fixed;right:14px;bottom:12px;z-index:60;width:46px;height:46px;border-radius:12px;
+    border:1px solid var(--line);background:rgba(15,26,43,.82);color:#cfe0f0;font-size:20px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:.15s;opacity:.55}
+  #fsBtn:hover{opacity:1;background:#1e2f45}
+  :fullscreen #fsBtn{opacity:.25}
 </style>
 </head>
 <body>
 <div class="stage">
   <!-- LEFT 70% : ER Fast Track TV -->
   <div class="cell">
-    <div class="cap">🟧 ER FAST TRACK</div>
     <div class="frameScale" id="ftWrap"><iframe id="ftFrame" title="Fast Track"></iframe></div>
   </div>
 
@@ -79,7 +84,6 @@
   <div class="rightcol">
     <!-- EMS TV (top-right) -->
     <div class="cell">
-      <div class="cap">🚑 EMS MONITOR</div>
       <div class="frameScale" id="emsWrap"><iframe id="emsFrame" title="EMS Monitor"></iframe></div>
     </div>
 
@@ -94,6 +98,7 @@
     </div>
   </div>
 </div>
+<button id="fsBtn" title="เต็มจอ (ซ่อนแถบเบราว์เซอร์)">⛶</button>
 <div id="cfgWarn" class="cfgwarn" style="display:none">⚠️ ยังไม่ได้ตั้งค่า Firebase — สถานะเช็คของยังไม่แชร์ข้ามเครื่อง (แก้ firebase-config.js)</div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -117,6 +122,25 @@ document.documentElement.style.setProperty("--leftW", CONFIG.leftWidth);
 document.documentElement.style.setProperty("--emsH", CONFIG.emsHeight);
 document.getElementById("ftFrame").src = CONFIG.fastTrackURL;
 document.getElementById("emsFrame").src = CONFIG.emsURL;
+
+/* ---------- ซ่อนแถบบน (topbar สีฟ้า) ของ EMS ในจอรวม ---------- */
+function hideEmsChrome(){
+  try{
+    const fr=document.getElementById("emsFrame"); const d=fr.contentDocument; if(!d||!d.head) return;
+    let st=d.getElementById("_kioskcss");
+    if(!st){ st=d.createElement("style"); st.id="_kioskcss"; d.head.appendChild(st); }
+    st.textContent=".topbar{display:none!important}";
+  }catch(e){ /* ข้ามถ้า cross-origin */ }
+}
+document.getElementById("emsFrame").addEventListener("load", ()=>{ hideEmsChrome(); setTimeout(hideEmsChrome,600); });
+setInterval(hideEmsChrome, 3000);
+
+/* ---------- ปุ่มเต็มจอ (ซ่อนแท็บ/แถบเบราว์เซอร์) ---------- */
+document.getElementById("fsBtn").onclick=function(){
+  const el=document.documentElement;
+  if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  else{ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+};
 
 /* ---------- positions ---------- */
 const POSITIONS=[
