@@ -4,6 +4,10 @@
       ".read": true,
       ".write": true
     },
+    "gate": {
+      ".read": true,
+      ".write": true
+    },
     "portal": {
       ".read": true,
       ".write": true,

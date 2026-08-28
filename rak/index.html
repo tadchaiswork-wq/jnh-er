@@ -41,7 +41,23 @@
   <div id="toast" class="toast"></div>
 
   <script src="js/firebase-config.js"></script>
-  <script src="../pinlock.js"></script>
   <script src="js/app.js"></script>
+  <script src="../gate.js"></script>
+  <script>
+  (function(){
+    const WARD_PASS="JnhErWard2026";
+    async function ensureWard(){
+      try{ await auth.signInWithEmailAndPassword("ward@"+EMAIL_DOMAIN, WARD_PASS); }
+      catch(e){ const c=(e&&e.code||"")+"";
+        if(c.indexOf("user-not-found")>=0||c.indexOf("invalid-credential")>=0||c.indexOf("invalid-login")>=0){
+          const cred=await auth.createUserWithEmailAndPassword("ward@"+EMAIL_DOMAIN, WARD_PASS);
+          await db.collection("users").doc(cred.user.uid).set({username:"ward",fullName:"เวร ER (รวม)",role:"member",barcodeId:(typeof genBarcodeId==="function"?genBarcodeId():("W"+Date.now())),disabled:false,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+        } else { throw e; }
+      }
+    }
+    if(window.Gate) Gate.protect({brand:"รักและใส่ใจ ER JNH", logo:"💗", idleMinutes:20,
+      onUnlock: ensureWard, onLock: function(){ try{ auth.signOut(); }catch(e){} } });
+  })();
+  </script>
 </body>
 </html>

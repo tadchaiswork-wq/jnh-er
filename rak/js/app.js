@@ -8,7 +8,6 @@ const auth = firebase.auth();
 // บังคับให้ล็อกอินใหม่ทุกครั้งที่เปิดเว็บ (ไม่จำ session)
 try { auth.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch(e) { console.warn('persistence', e); }
 const db = firebase.firestore();
-if (window.PinLock) PinLock.use("rak");
 
 // secondary app -> ให้ admin สร้างผู้ใช้ได้โดยไม่ถูกเด้งออกจากระบบ
 let secondaryApp = null;
@@ -146,7 +145,7 @@ function assignShift(now = new Date()) {
 const app = el("app");
 
 function render() {
-  if (!State.user || !State.profile) { renderAuth(); if (window.PinLock) PinLock.mountGate(rakGateOpts()); return; }
+  if (!State.user || !State.profile) { renderAuth(); return; }
   if (State.profile.role === "station") { renderStationRedirect(); return; }
   renderShell();
 }
@@ -318,7 +317,6 @@ function renderShell() {
         <div class="user-chip">
           <span>${esc(p.fullName)}</span>
           <span class="role-tag">${roleLabel(p.role)}</span>
-          <span style="cursor:pointer" id="memberBtn" title="ข้อมูลสมาชิก">👤</span>
           <span style="cursor:pointer" id="logoutBtn" title="ออกจากระบบ">⎋</span>
         </div>
       </div>
@@ -330,7 +328,6 @@ function renderShell() {
       </div>
     </div>`;
   el("logoutBtn").onclick = logout;
-  { const _mb = el("memberBtn"); if (_mb) _mb.onclick = openRakMember; }
   el("tabbar").querySelectorAll("button").forEach((b) => {
     b.onclick = () => { State.activeTab = b.dataset.tab; renderShell(); };
   });
@@ -1455,62 +1452,4 @@ function printSatisfactionReport(month, sats, avg) {
     <table><thead><tr><th>วันที่</th><th>เวร</th><th>ชื่อ</th><th>คะแนน</th><th>ปัจจัยพอใจ</th><th>ปัจจัยไม่พอใจ</th><th>ข้อเสนอแนะ</th></tr></thead>
     <tbody>${rows.map((r) => `<tr><td>${esc(r.date)}</td><td>${SHIFT_SHORT[r.shift] || esc(r.shift || "")}</td><td>${esc(r.fullName)}</td><td>${r.rating}/10</td><td>${esc((r.goodFactors || []).join(", "))}</td><td>${esc((r.badFactors || []).join(", "))}</td><td>${esc(r.suggestion || "")}</td></tr>`).join("")}</tbody></table>`;
   openPrintWindow("รายงานความพึงพอใจ " + month, body);
-}
-
-
-/* ============================================================
-   PIN quick-unlock (rak-er) — ต่อยอดบัญชี user/pass เดิม
-   ============================================================ */
-function rakGateOpts(){
-  return {
-    logo:"💗", brand:"รักและใส่ใจ ER JNH", subtitle:"ใส่ PIN เพื่อเข้าใช้งาน",
-    signIn: async (c)=>{ await auth.signInWithEmailAndPassword(c.username+"@"+EMAIL_DOMAIN, c.password); },
-    onUsePassword: ()=>{ authMode="login"; renderAuthForm(); var u=el("li-user"); if(u) u.focus(); }
-  };
-}
-async function rakVerify(c){
-  try{ const sec=getSecondaryAuth(); await sec.signInWithEmailAndPassword(c.username+"@"+EMAIL_DOMAIN, c.password); await sec.signOut(); return true; }
-  catch(e){ return false; }
-}
-function openRakMember(){
-  const p=State.profile; if(!p) return;
-  const extra=`
-    <div style="background:#f8fafc;border:1px solid #eef2f6;border-radius:12px;padding:12px;margin-bottom:6px">
-      <div style="font-weight:700;font-size:15px">${esc(p.fullName)}</div>
-      <div style="color:#64748b;font-size:13px">@${esc(p.username)} · ${roleLabel(p.role)}</div>
-      ${p.barcodeId?`<div style="color:#94a3b8;font-size:12px;margin-top:3px">บาร์โค้ด: ${esc(p.barcodeId)}</div>`:""}
-    </div>
-    <button class="_pl_btn g" id="_rk_pw">🔑 เปลี่ยนรหัสผ่านบัญชี</button>
-    <div id="_rk_pwarea"></div>
-    <button class="_pl_btn d" id="_rk_out" style="margin-top:8px">ออกจากระบบ</button>`;
-  PinLock.openManager({
-    username: p.username,
-    verify: rakVerify,
-    extraHTML: extra,
-    onExtraMount: (box, close)=>{
-      box.querySelector("#_rk_out").onclick=()=>{ close(); logout(); };
-      box.querySelector("#_rk_pw").onclick=()=>{
-        const a=box.querySelector("#_rk_pwarea");
-        a.innerHTML=`
-          <div class="_pl_field"><label>รหัสผ่านปัจจุบัน</label><input id="_rk_cur" type="password"></div>
-          <div class="_pl_field"><label>รหัสผ่านใหม่ (อย่างน้อย 6 ตัว)</label><input id="_rk_new" type="password"></div>
-          <div class="_pl_err" id="_rk_err"></div>
-          <div style="display:flex;gap:8px"><button class="_pl_btn g" id="_rk_cancel" style="flex:1">ยกเลิก</button>
-          <button class="_pl_btn" id="_rk_save" style="flex:1">บันทึก</button></div>`;
-        a.querySelector("#_rk_cancel").onclick=()=>{ a.innerHTML=""; };
-        a.querySelector("#_rk_save").onclick=async()=>{
-          const cur=a.querySelector("#_rk_cur").value, np=a.querySelector("#_rk_new").value, er=a.querySelector("#_rk_err");
-          if(np.length<6){ er.textContent="รหัสผ่านใหม่อย่างน้อย 6 ตัว"; return; }
-          er.textContent="กำลังบันทึก…";
-          try{
-            const cred=firebase.auth.EmailAuthProvider.credential(p.username+"@"+EMAIL_DOMAIN, cur);
-            await auth.currentUser.reauthenticateWithCredential(cred);
-            await auth.currentUser.updatePassword(np);
-            if(window.PinLock && PinLock.hasUser(p.username)){ /* PIN cred เดิมยังใช้รหัสเก่า ผู้ใช้ตั้ง PIN ใหม่ได้ */ }
-            a.innerHTML=""; toast("เปลี่ยนรหัสผ่านแล้ว ครั้งต่อไปใช้รหัสใหม่", "ok");
-          }catch(e){ er.textContent="ไม่สำเร็จ: "+friendlyErr(e); }
-        };
-      };
-    }
-  });
 }

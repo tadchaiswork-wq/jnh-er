@@ -4,12 +4,19 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Checklist — ER & EMS JNH</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Checklist">
 <meta name="theme-color" content="#0e7490" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   :root{
-    --bg:#f1f5f9; --card:#ffffff; --ink:#0f172a; --muted:#64748b;
+    --bg:#ffffff; --card:#ffffff; --ink:#0f172a; --muted:#64748b;
     --line:#e2e8f0; --brand:#0e7490; --brand-d:#155e75; --brand-l:#e0f2fe;
     --ok:#16a34a; --ok-l:#dcfce7; --warn:#d97706; --danger:#dc2626; --danger-l:#fee2e2;
     --shadow:0 1px 3px rgba(15,23,42,.08),0 8px 24px rgba(15,23,42,.06);
@@ -18,21 +25,15 @@
   html,body{height:100%}
   body{font-family:'Sarabun',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     background:var(--bg);color:var(--ink);line-height:1.5;-webkit-text-size-adjust:100%}
-  .wrap{max-width:820px;margin:0 auto;padding:16px 16px 60px}
+  .wrap{max-width:960px;margin:0 auto;padding:14px 16px 60px}
   .hidden{display:none!important}
   button{font-family:inherit;cursor:pointer}
 
-  /* top bar */
-  .topbar{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,#155e75,#0e7490);
-    color:#fff;box-shadow:var(--shadow)}
-  .topbar .in{max-width:820px;margin:0 auto;display:flex;align-items:center;gap:10px;
-    padding:12px 16px}
-  .topbar .logo{font-weight:700;font-size:17px;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
-  .topbar .logo .dot{width:11px;height:11px;border-radius:50%;background:#38bdf8;box-shadow:0 0 0 4px rgba(56,189,248,.25)}
-  .topbar .sp{flex:1}
-  .adminbtn{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.25);
-    border-radius:10px;padding:7px 12px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
-  .adminbtn:hover{background:rgba(255,255,255,.24)}
+  /* floating admin gear (no top bar) */
+  .adminbtn{position:fixed;top:12px;right:12px;z-index:30;width:42px;height:42px;border-radius:50%;
+    background:#fff;color:var(--brand-d);border:1px solid var(--line);box-shadow:var(--shadow);
+    font-size:19px;display:flex;align-items:center;justify-content:center;padding:0}
+  .adminbtn:hover{background:#f1f5f9}
 
   /* shift banner */
   .shiftline{background:var(--brand-l);border:1px solid #bae6fd;border-radius:14px;
@@ -140,11 +141,7 @@
 </style>
 </head>
 <body>
-<div class="topbar"><div class="in">
-  <div class="logo"><span class="dot"></span> Checklist · ER &amp; EMS</div>
-  <div class="sp"></div>
-  <button class="adminbtn" id="adminBtn">⚙️ Admin</button>
-</div></div>
+<button class="adminbtn" id="adminBtn" title="Admin">⚙️</button>
 
 <div class="wrap">
   <div id="cfgBanner" class="banner hidden">
@@ -190,7 +187,6 @@
     <div class="prog-wrap">
       <div class="big" id="p3pct">0%</div>
       <div style="flex:1"><div class="bar"><i id="p3bar" style="width:0"></i></div></div>
-      <button class="btn ok sm" id="allBtn">✓ เช็คครบทั้งหมด</button>
     </div>
     <div id="p3body"></div>
   </section>
@@ -231,6 +227,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../firebase-config.js"></script>
+<script src="../gate.js"></script>
 <script src="templates-seed.js"></script>
 <script>
 /* ================================================================
@@ -534,15 +531,6 @@ $("startBtn").onclick=()=>{
 };
 $("back1").onclick=()=>show("page1");
 $("back2").onclick=()=>{ renderPositions(); show("page2"); };
-$("allBtn").onclick=()=>{
-  const items=templates[curPos]||[]; if(!items.length)return;
-  const updates={};
-  items.forEach(it=>{ const rc=curRec[it.id]||{}; curRec[it.id]={checked:true,note:rc.note||""}; updates[it.id]={checked:true,note:rc.note||""}; });
-  DB.update(`checklist/records/${S.recKey}/${curPos}`, {checker, updatedAt:Date.now()});
-  DB.set(`checklist/records/${S.recKey}/${curPos}/checks`, curRec);
-  renderChecklist(); toast("เช็คครบทั้งหมดแล้ว");
-};
-
 /* ---------- init ---------- */
 async function init(){
   if(!FB_OK) $("cfgBanner").classList.remove("hidden");
@@ -560,6 +548,8 @@ async function init(){
   subscribeShiftRecords();
 }
 init();
+// รหัสกลางเข้าใช้งาน + ออกจากระบบอัตโนมัติเมื่อไม่ใช้เกิน 20 นาที
+if(window.Gate) Gate.protect({brand:"Checklist · ER & EMS", logo:"✅", idleMinutes:20});
 // refresh shift banner each minute (handles shift rollover)
 setInterval(()=>{ const n=shiftInfo(); if(n.recKey!==S.recKey){ location.reload(); } else { S.time=n.time; paintShiftlines(); } },60000);
 </script>
