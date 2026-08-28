@@ -16,13 +16,18 @@
   function dbBase(){
     if(window.GATE_DB_URL) return window.GATE_DB_URL.replace(/\/+$/,"");
     if(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.databaseURL) return window.FIREBASE_CONFIG.databaseURL.replace(/\/+$/,"");
-    return "https://jnh-er-default-rtdb.asia-southeast1.firebasedatabase.app";
+    return "https://jnh-er-7f427-default-rtdb.asia-southeast1.firebasedatabase.app";
   }
   const LS_HASH="gate_codeHash_cache";
   async function fetchHash(){
-    try{ const r=await fetch(dbBase()+"/gate/codeHash.json",{cache:"no-store"}); const v=await r.json();
-      if(typeof v==="string"){ try{localStorage.setItem(LS_HASH,v);}catch(e){} } return v; }
-    catch(e){ return undefined; }
+    try{
+      const r=await fetch(dbBase()+"/gate/codeHash.json",{cache:"no-store"});
+      if(!r.ok) return undefined;                       // 404 / permission denied -> treat as unavailable
+      const v=await r.json();
+      if(typeof v==="string"){ try{localStorage.setItem(LS_HASH,v);}catch(e){} return v; }
+      if(v===null) return null;                          // DB empty -> seed default
+      return undefined;                                  // error object / unexpected -> unavailable
+    }catch(e){ return undefined; }
   }
   async function putHash(h){ try{ await fetch(dbBase()+"/gate/codeHash.json",{method:"PUT",body:JSON.stringify(h)}); try{localStorage.setItem(LS_HASH,h);}catch(e){} return true; }catch(e){ return false; } }
   async function currentHash(){
@@ -60,7 +65,7 @@
   }
 
   const Gate={
-    async verify(code){ const h=await currentHash(); if(!h) return false; return (await sha(String(code)))===h; },
+    async verify(code){ const h=await currentHash(); if(!h){ return (await sha(String(code)))===(await sha(DEFAULT_CODE)); } return (await sha(String(code)))===h; },
     async changeCode(cur,next){ if(!(await this.verify(cur))) return false; return putHash(await sha(String(next))); },
 
     protect(opts){
