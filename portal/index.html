@@ -32,7 +32,7 @@
     border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow);
     text-decoration:none;color:inherit;transition:.15s}
   .tile:hover{transform:translateY(-2px);border-color:var(--brand)}
-  .tile .ic{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;color:#fff}
+  .tile .ic{width:56px;height:56px;border-radius:14px;object-fit:cover;display:block;box-shadow:0 2px 8px rgba(15,23,42,.12)}
   .tile .nm{font-weight:700;font-size:16px}
   .tile .ds{font-size:13px;color:var(--muted)}
   .tile .go{margin-top:auto;font-size:13px;font-weight:700;color:var(--brand-d)}
@@ -53,19 +53,19 @@
 </div>
 <script>
 const APPS=[
-  {name:"ER Fast Track", ds:"หน้าจอเคสเร่งด่วน / Monitor", icon:"🟧", color:"#f97316", url:"../fasttrack/"},
-  {name:"EMS Record", ds:"บันทึก & สั่งการ EMS", icon:"🚑", color:"#0ea5e9", url:"../ems/"},
-  {name:"Monitor รวม", ds:"จอแสดงผลรวมใน ER", icon:"📺", color:"#334155", url:"../monitor/"},
-  {name:"CPR Timeline", ds:"ไทม์ไลน์ช่วยฟื้นคืนชีพ", icon:"❤️‍🩹", color:"#e11d48", url:"../cpr/"},
-  {name:"Checklist ของ", ds:"เช็คของ ER & EMS รายเวร", icon:"✅", color:"#0e7490", url:"../checklist/", lock:true},
-  {name:"Triage", ds:"คัดแยกผู้ป่วย ESI/MOPH", icon:"🧮", color:"#8b5cf6", url:"../triage/", lock:true},
-  {name:"รักและใส่ใจ ER", ds:"ลงเวร · รายงาน · ชื่นชม", icon:"💗", color:"#ec4899", url:"../rak/", lock:true},
+  {name:"ER Fast Track", ds:"หน้าจอเคสเร่งด่วน / Monitor", img:"../fasttrack/icon-192.png", url:"../fasttrack/"},
+  {name:"EMS Record", ds:"บันทึก & สั่งการ EMS", img:"../ems/icon-192.png", url:"../ems/"},
+  {name:"Monitor รวม", ds:"จอแสดงผลรวมใน ER", img:"../monitor/icon-192.png", url:"../monitor/"},
+  {name:"CPR Timeline", ds:"ไทม์ไลน์ช่วยฟื้นคืนชีพ", img:"../cpr/icon-192.png", url:"../cpr/"},
+  {name:"Checklist ของ", ds:"เช็คของ ER & EMS รายเวร", img:"../checklist/icon-192.png", url:"../checklist/", lock:true},
+  {name:"Triage", ds:"คัดแยกผู้ป่วย ESI/MOPH", img:"../triage/icon-192.png", url:"../triage/", lock:true},
+  {name:"รักและใส่ใจ ER", ds:"ลงเวร · รายงาน · ชื่นชม", img:"../rak/icons/icon-192.png", url:"../rak/", lock:true},
 ];
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 document.getElementById("tiles").innerHTML=APPS.map(a=>`
   <a class="tile" href="${a.url}">
     ${a.lock?'<span class="lock">🔒 รหัส</span>':''}
-    <div class="ic" style="background:${a.color}">${a.icon}</div>
+    <img class="ic" src="${a.img}" alt="">
     <div class="nm">${esc(a.name)}</div><div class="ds">${esc(a.ds)}</div>
     <div class="go">เปิด →</div>
   </a>`).join("");
