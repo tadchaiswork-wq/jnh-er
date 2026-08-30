@@ -49,7 +49,7 @@
     <p>ศูนย์รวมระบบงานห้องฉุกเฉิน — เลือกระบบที่ต้องการใช้งาน</p>
   </div>
   <div class="tiles" id="tiles"></div>
-  <div class="foot">🔒 = ต้องใส่รหัสก่อนเข้าใช้งาน · ระบบอื่นเปิดใช้ได้ทันที</div>
+  <div class="foot">เลือกระบบที่ต้องการใช้งานได้เลย</div>
 </div>
 <script>
 const APPS=[
@@ -57,9 +57,9 @@ const APPS=[
   {name:"EMS Record", ds:"บันทึก & สั่งการ EMS", img:"../ems/icon-192.png", url:"../ems/"},
   {name:"Monitor รวม", ds:"จอแสดงผลรวมใน ER", img:"../monitor/icon-192.png", url:"../monitor/"},
   {name:"CPR Timeline", ds:"ไทม์ไลน์ช่วยฟื้นคืนชีพ", img:"../cpr/icon-192.png", url:"../cpr/"},
-  {name:"Checklist ของ", ds:"เช็คของ ER & EMS รายเวร", img:"../checklist/icon-192.png", url:"../checklist/", lock:true},
-  {name:"Triage", ds:"คัดแยกผู้ป่วย ESI/MOPH", img:"../triage/icon-192.png", url:"../triage/", lock:true},
-  {name:"รักและใส่ใจ ER", ds:"ลงเวร · รายงาน · ชื่นชม", img:"../rak/icons/icon-192.png", url:"../rak/", lock:true},
+  {name:"Checklist ของ", ds:"เช็คของ ER & EMS รายเวร", img:"../checklist/icon-192.png", url:"../checklist/"},
+  {name:"Triage", ds:"คัดแยกผู้ป่วย ESI/MOPH", img:"../triage/icon-192.png", url:"../triage/"},
+  {name:"รักและใส่ใจ ER", ds:"ลงเวร · รายงาน · ชื่นชม", img:"../rak/icons/icon-192.png", url:"../rak/"},
 ];
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 document.getElementById("tiles").innerHTML=APPS.map(a=>`

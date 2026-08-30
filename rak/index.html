@@ -42,7 +42,6 @@
 
   <script src="js/firebase-config.js"></script>
   <script src="js/app.js"></script>
-  <script src="../gate.js"></script>
   <script>
   (function(){
     const WARD_PASS="JnhErWard2026";
@@ -55,8 +54,7 @@
         } else { throw e; }
       }
     }
-    if(window.Gate) Gate.protect({brand:"รักและใส่ใจ ER JNH", logo:"💗", idleMinutes:20,
-      onUnlock: ensureWard, onLock: function(){ try{ auth.signOut(); }catch(e){} } });
+    ensureWard();
   })();
   </script>
 </body>

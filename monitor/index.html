@@ -42,23 +42,21 @@
   .st-head h2{font-size:15px;font-weight:800;color:#0f172a}
   .st-head .sh{font-size:12px;color:#64748b;margin-left:auto;text-align:right;line-height:1.35}
   .st-head .sh b{color:#0e7490}
-  .st-list{display:flex;flex-direction:column;gap:8px;overflow:auto;flex:1;padding-right:2px}
-  .st{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px}
-  .st.done{border-color:#86efac;background:#f0fdf4}
-  .st .top{display:flex;align-items:center;gap:10px}
-  .st .ic{font-size:20px;width:26px;text-align:center}
-  .st .nm{font-weight:700;font-size:15px;color:#0f172a}
-  .st .pct{margin-left:auto;font-weight:800;font-size:20px;color:#94a3b8;font-variant-numeric:tabular-nums}
-  .st.done .pct{color:#16a34a}
-  .st.part .pct{color:#d97706}
-  .st .bar{height:8px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin-top:8px}
-  .st .bar>i{display:block;height:100%;width:0;background:#0ea5e9;transition:width .5s}
-  .st.done .bar>i{background:#16a34a}
-  .st.part .bar>i{background:#d97706}
-  .st .sub{display:flex;justify-content:space-between;margin-top:5px;font-size:11.5px;color:#64748b}
-  .st .sub .who{color:#475569}
-  .st .badge{font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:#eef2f6;color:#64748b}
-  .st.done .badge{background:#dcfce7;color:#16a34a}
+  /* 7 ช่องสี่เหลี่ยม สถานะ เทา/เหลือง/เขียว + การ์ตูน */
+  .st-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;overflow:auto;flex:1;align-content:start;padding-right:2px}
+  .sq{border-radius:16px;border:2px solid;padding:10px 8px 9px;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;position:relative;min-height:0;transition:.3s}
+  .sq.zero{background:#eef2f6;border-color:#dbe2ea}
+  .sq.part{background:#fef9c3;border-color:#fde047}
+  .sq.done{background:#dcfce7;border-color:#4ade80}
+  .sq .emo{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.75);display:flex;align-items:center;
+    justify-content:center;font-size:34px;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+  .sq.zero .emo{filter:grayscale(.55);opacity:.72}
+  .sq .nm{font-weight:700;font-size:13px;margin-top:7px;color:#0f172a;line-height:1.2}
+  .sq .pc{font-weight:800;font-size:20px;margin-top:2px;font-variant-numeric:tabular-nums}
+  .sq.zero .pc{color:#94a3b8} .sq.part .pc{color:#b45309} .sq.done .pc{color:#15803d}
+  .sq .who{font-size:10.5px;color:#64748b;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+  .sq .chk{position:absolute;top:6px;right:8px;font-size:15px}
   .overall{display:flex;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:13px;color:#64748b}
   .overall b{color:#0f172a}
   .overall .ring{margin-left:auto;font-weight:800;font-size:16px;color:#0e7490}
@@ -71,6 +69,12 @@
     display:flex;align-items:center;justify-content:center;transition:.15s;opacity:.55}
   #fsBtn:hover{opacity:1;background:#1e2f45}
   :fullscreen #fsBtn{opacity:.25}
+  /* sound-all button */
+  #soundAllBtn{position:fixed;right:70px;bottom:12px;z-index:60;height:46px;border-radius:12px;
+    border:1px solid #0e7490;background:#0ea5e9;color:#fff;font-size:14px;font-weight:700;cursor:pointer;
+    padding:0 16px;display:flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(2,132,199,.4);transition:.15s}
+  #soundAllBtn:hover{background:#0284c7}
+  #soundAllBtn.on{background:#16a34a;border-color:#16a34a}
 </style>
 </head>
 <body>
@@ -94,10 +98,11 @@
         <div class="sh" id="shiftText">—</div>
       </div>
       <div class="st-list" id="stList"></div>
-      <div class="overall">สรุปทั้งเวร <b id="ovText">0/5 ครบ</b><span class="ring" id="ovPct">0%</span></div>
+      <div class="overall">สรุปทั้งเวร <b id="ovText">0/7 ครบ</b><span class="ring" id="ovPct">0%</span></div>
     </div>
   </div>
 </div>
+<button id="soundAllBtn" title="เปิดเสียงเตือนทุกจอพร้อมกัน">🔔 เปิดเสียงทุกจอ</button>
 <button id="fsBtn" title="เต็มจอ (ซ่อนแถบเบราว์เซอร์)">⛶</button>
 <div id="cfgWarn" class="cfgwarn" style="display:none">⚠️ ยังไม่ได้ตั้งค่า Firebase — สถานะเช็คของยังไม่แชร์ข้ามเครื่อง (แก้ firebase-config.js)</div>
 
@@ -114,6 +119,8 @@ const CONFIG = {
   emsHeight: "42%",     // ความสูงของกล่อง EMS ในคอลัมน์ขวา
   fastTrackURL: "../fasttrack/tv.html",
   emsURL:       "../ems/index.html#tv",
+  // ฐานข้อมูล EMS (ใช้เล่นเสียงเตือนบนหน้า Monitor เมื่อมีเคส activate)
+  emsDbURL:     "https://ems-jnh-default-rtdb.asia-southeast1.firebasedatabase.app",
   // ถ้าอยากซูมเนื้อหาใน iframe (จอ TV ใหญ่) ปรับตัวคูณ; 1 = ปกติ
   fastTrackZoom: 1,
   emsZoom: 1,
@@ -142,13 +149,66 @@ document.getElementById("fsBtn").onclick=function(){
   else{ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
 };
 
+/* ================= เสียงเตือนบนหน้า Monitor ================= */
+let AC=null, audioReady=false;
+function unlockAudio(){
+  try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==="suspended") AC.resume(); audioReady=true; }catch(e){}
+}
+function beep(freq,start,dur,vol){
+  if(!AC) return;
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type="sine"; o.frequency.value=freq; o.connect(g); g.connect(AC.destination);
+  const t=AC.currentTime+start;
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.03);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.start(t); o.stop(t+dur+0.03);
+}
+function playChime(){ if(!audioReady||!AC) return; for(let i=0;i<3;i++){ const s=i*0.75; beep(988,s,0.35,0.5); beep(1319,s+0.34,0.42,0.5); } }
+
+/* เฝ้าฐานข้อมูล EMS — เคส activate (ALS/ILS สั่งการ ยังไม่กลับฐาน) → เล่นเสียง */
+let emsSeen={}, emsAlarmed={}, emsPrimed=false;
+async function pollEms(){
+  if(!CONFIG.emsDbURL) return;
+  try{
+    const r=await fetch(CONFIG.emsDbURL.replace(/\/+$/,"")+"/cases.json",{cache:"no-store"});
+    if(!r.ok) return;
+    const cases=(await r.json())||{}; const now=Date.now(); const activeNow={};
+    Object.entries(cases).forEach(([id,c])=>{
+      if(!c) return;
+      const active=(c.vehicle==="ALS"||c.vehicle==="ILS") && c.command && !c.toBase;
+      if(!active) return;
+      activeNow[id]=true;
+      if(!emsPrimed) return;                       // ครั้งแรก: ไม่เล่นเสียงกับเคสที่ค้างอยู่แล้ว
+      if(!emsSeen[id]){ playChime(); }             // เคส activate ใหม่ → เสียงทันที
+      const nt=c.notifyTime;                        // เตือนซ้ำเมื่อเกิน 2 นาทีแล้วยังไม่ออกฐาน
+      if(nt && !c.depart && now>=nt+120000 && !emsAlarmed[id]){ emsAlarmed[id]=true; playChime(); }
+    });
+    emsSeen=activeNow; emsPrimed=true;
+  }catch(e){}
+}
+setInterval(pollEms, 4000); pollEms();
+
+/* ---------- ปุ่มเปิดเสียงทุกจอ ---------- */
+document.getElementById("soundAllBtn").onclick=function(){
+  unlockAudio();
+  // เผื่อไว้: พยายามเปิดเสียงใน iframe ด้วย
+  try{ const w=document.getElementById("ftFrame").contentWindow, d=document.getElementById("ftFrame").contentDocument;
+    if(w&&w.ensureAudio)w.ensureAudio(); const b=d.getElementById("testBtn")||d.getElementById("soundBtn"); if(b)b.click(); }catch(e){}
+  try{ const b=document.getElementById("emsFrame").contentDocument.querySelector(".sound-btn"); if(b)b.click(); }catch(e){}
+  playChime(); // ทดสอบเสียง 1 ครั้ง
+  const btn=this; btn.classList.add("on"); btn.textContent="🔔 เสียงเปิดแล้ว";
+  setTimeout(()=>{ btn.textContent="🔔 เปิดเสียงทุกจอ"; btn.classList.remove("on"); }, 4000);
+};
+
 /* ---------- positions ---------- */
 const POSITIONS=[
-  {key:"incharge",name:"Incharge",icon:"🩺"},
-  {key:"nurse_aid",name:"Nurse aid",icon:"🧑‍⚕️"},
+  {key:"incharge",name:"Incharge",icon:"👨‍⚕️"},
+  {key:"nurse_aid",name:"Nurse aid",icon:"👩‍⚕️"},
   {key:"emt",name:"EMT",icon:"🚑"},
-  {key:"bag_ab",name:"กระเป๋า A/B",icon:"🎒"},
-  {key:"bag_cd",name:"กระเป๋า C/D",icon:"💊"},
+  {key:"bag_ab1",name:"กระเป๋า A/B ใบ 1",icon:"🎒"},
+  {key:"bag_ab2",name:"กระเป๋า A/B ใบ 2",icon:"🧳"},
+  {key:"bag_cd1",name:"กระเป๋า C/D ใบ 1",icon:"💊"},
+  {key:"bag_cd2",name:"กระเป๋า C/D ใบ 2",icon:"💉"},
 ];
 
 /* ---------- shift ---------- */
@@ -193,16 +253,13 @@ function render(){
     const pr=progress(p.key);
     const cls=pr.total===0?"":(pr.pct===100?"done":(pr.done>0?"part":""));
     if(pr.total>0){ counted++; if(pr.pct===100)full++; }
-    const el=document.createElement("div"); el.className="st "+cls;
-    el.innerHTML=`<div class="top">
-        <div class="ic">${p.icon}</div><div class="nm">${p.name}</div>
-        <div class="pct">${pr.total?pr.pct+"%":"—"}</div>
-      </div>
-      <div class="bar"><i style="width:${pr.pct}%"></i></div>
-      <div class="sub">
-        <span class="who">${pr.total?(pr.checker?("👤 "+escapeHtml(pr.checker)):"ยังไม่มีผู้เช็ค"):"ยังไม่มีรายการ"}</span>
-        <span class="badge">${pr.total? (pr.pct===100?"ครบ":pr.done+"/"+pr.total) : "—"}${pr.updatedAt?(" · "+timeAgo(pr.updatedAt)):""}</span>
-      </div>`;
+    const stat = pr.total===0 ? "zero" : (pr.pct===100 ? "done" : (pr.done>0 ? "part" : "zero"));
+    const el=document.createElement("div"); el.className="sq "+stat;
+    el.innerHTML=`${stat==="done"?'<span class="chk">✅</span>':''}
+      <div class="emo">${p.icon}</div>
+      <div class="nm">${p.name}</div>
+      <div class="pc">${pr.total?pr.pct+"%":"—"}</div>
+      <div class="who">${pr.total?(pr.checker?("👤 "+escapeHtml(pr.checker)):"ยังไม่มีผู้เช็ค"):"ยังไม่มีรายการ"}</div>`;
     list.appendChild(el);
   });
   const ovpct = counted?Math.round(full/counted*100):0;

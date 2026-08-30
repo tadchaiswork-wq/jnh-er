@@ -95,10 +95,11 @@
   .cel-item .q{display:inline-block;margin-left:6px;font-size:12px;color:#94a3b8}
   .cel-chk{width:52px;text-align:center}
   .cel-note{width:34%}
-  .chkbox{appearance:none;-webkit-appearance:none;width:26px;height:26px;border:2px solid #cbd5e1;
-    border-radius:7px;cursor:pointer;position:relative;transition:.12s;background:#fff;vertical-align:middle}
+  .chkbox{appearance:none;-webkit-appearance:none;width:32px;height:32px;border:2px solid #cbd5e1;
+    border-radius:8px;cursor:pointer;position:relative;transition:.12s;background:#e2e8f0;vertical-align:middle}
+  .chkbox:hover{border-color:#94a3b8}
   .chkbox:checked{background:var(--ok);border-color:var(--ok)}
-  .chkbox:checked:after{content:"";position:absolute;left:8px;top:3px;width:6px;height:12px;
+  .chkbox:checked:after{content:"";position:absolute;left:11px;top:5px;width:7px;height:14px;
     border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
   .noteinp{width:100%;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-family:inherit;
     font-size:13.5px;outline:none;background:#fff}
@@ -138,6 +139,30 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .banner{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:12px;padding:10px 14px;
     font-size:13px;margin:12px 0;display:flex;gap:8px;align-items:flex-start}
+
+  /* history */
+  .histbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 14px}
+  .hleg{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
+  .hleg i{width:14px;height:14px;border-radius:4px;display:inline-block}
+  .hleg .hg{background:var(--ok)} .hleg .hp{background:#f59e0b} .hleg .hz{background:#e2e8f0;border:1px solid #cbd5e1}
+  .htable{width:100%;border-collapse:collapse;font-size:13px;min-width:760px}
+  .htable th,.htable td{border:1px solid var(--line);padding:7px 9px;text-align:center;vertical-align:middle}
+  .htable th{background:#f1f5f9;color:#334155;font-weight:700;position:sticky;top:0;z-index:1}
+  .htable td.day{background:#f8fafc;font-weight:700;white-space:nowrap;text-align:left}
+  .htable td.shift{white-space:nowrap;color:#475569;font-weight:600}
+  .hcell{display:inline-flex;flex-direction:column;align-items:center;gap:2px;min-width:52px}
+  .hsq{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:800;color:#fff}
+  .hsq.g{background:var(--ok)} .hsq.p{background:#f59e0b} .hsq.z{background:#e2e8f0;color:#94a3b8;border:1px solid #cbd5e1}
+  .hcell .who{font-size:10px;color:var(--muted);max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hmiss{font-size:11px;color:var(--danger);text-align:left;max-width:220px}
+  .hmiss b{color:#b91c1c}
+  .hnote{font-size:11px;color:#92400e;text-align:left}
+  .hempty{padding:30px;text-align:center;color:var(--muted)}
+  .hrowsum{background:#fff}
+  details.hd{margin:0}
+  details.hd summary{cursor:pointer;color:var(--brand-d);font-size:11px;font-weight:600;list-style:none}
+  details.hd summary::-webkit-details-marker{display:none}
 </style>
 </head>
 <body>
@@ -161,6 +186,7 @@
       <div style="height:16px"></div>
       <button class="btn" id="startBtn" disabled>เริ่มตรวจเช็ค →</button>
     </div>
+    <button class="btn ghost" id="histBtn" style="margin-top:12px">📅 ดูประวัติย้อนหลัง (1 เดือน)</button>
   </section>
 
   <!-- ===================== PAGE 2 : POSITIONS ===================== -->
@@ -221,13 +247,28 @@
   </div>
 </div></div>
 
+<!-- ===================== HISTORY MODAL ===================== -->
+<div id="histModal" class="modal hidden"><div class="box" style="max-width:1100px">
+  <button class="close" data-closehist>×</button>
+  <h3>📅 ประวัติการตรวจเช็ค</h3>
+  <div class="histbar">
+    <button class="btn ghost sm" id="histPrev">‹ เดือนก่อน</button>
+    <b id="histMonth" style="min-width:130px;text-align:center"></b>
+    <button class="btn ghost sm" id="histNext">เดือนถัดไป ›</button>
+    <span style="flex:1"></span>
+    <span class="hleg"><i class="hg"></i> ครบ</span>
+    <span class="hleg"><i class="hp"></i> ไม่ครบ</span>
+    <span class="hleg"><i class="hz"></i> ไม่ได้เช็ค</span>
+  </div>
+  <div id="histBody" style="overflow:auto;max-height:70vh"></div>
+</div></div>
+
 <div id="toast" class="toast"></div>
 
 <!-- Firebase compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../firebase-config.js"></script>
-<script src="../gate.js"></script>
 <script src="templates-seed.js"></script>
 <script>
 /* ================================================================
@@ -237,10 +278,12 @@ const POSITIONS = [
   {key:"incharge", name:"Incharge",       icon:"🩺"},
   {key:"nurse_aid",name:"Nurse aid",      icon:"🧑‍⚕️"},
   {key:"emt",      name:"EMT (รถ EMS)",    icon:"🚑"},
-  {key:"bag_ab",   name:"กระเป๋า A/B",     icon:"🎒"},
-  {key:"bag_cd",   name:"กระเป๋า C/D",     icon:"💊"},
+  {key:"bag_ab1",  name:"กระเป๋า A/B — ใบที่ 1", icon:"🎒"},
+  {key:"bag_ab2",  name:"กระเป๋า A/B — ใบที่ 2", icon:"🎒"},
+  {key:"bag_cd1",  name:"กระเป๋า C/D — ใบที่ 1", icon:"💊"},
+  {key:"bag_cd2",  name:"กระเป๋า C/D — ใบที่ 2", icon:"💊"},
 ];
-const SEED_MAP = {emt:"emt", bag_ab:"bag_ab", bag_cd:"bag_cd"};
+const SEED_MAP = {emt:"emt", bag_ab1:"bag_ab_single", bag_ab2:"bag_ab_single", bag_cd1:"bag_cd_single", bag_cd2:"bag_cd_single"};
 
 /* ---------- shift / date helpers (Asia/Bangkok) ---------- */
 function bkkNow(){
@@ -313,10 +356,15 @@ function buildSeed(){
   return out;
 }
 async function ensureSeed(){
-  const existing = await DB.once("checklist/templates");
-  if(existing && Object.keys(existing).length){ return; }
+  const existing = (await DB.once("checklist/templates")) || {};
   const seed=buildSeed();
-  await DB.set("checklist/templates", seed);
+  const merged=Object.assign({}, existing); let changed=false;
+  POSITIONS.forEach(p=>{
+    if((!existing[p.key] || !existing[p.key].length) && seed[p.key] && seed[p.key].length){
+      merged[p.key]=seed[p.key]; changed=true;
+    }
+  });
+  if(changed || !Object.keys(existing).length) await DB.set("checklist/templates", merged);
   const code=await DB.once("checklist/adminCode");
   if(!code) await DB.set("checklist/adminCode","1234");
 }
@@ -531,6 +579,59 @@ $("startBtn").onclick=()=>{
 };
 $("back1").onclick=()=>show("page1");
 $("back2").onclick=()=>{ renderPositions(); show("page2"); };
+
+/* ---------- HISTORY (ย้อนหลัง 1 เดือน) ---------- */
+let histRef = bkkNow();
+function monthKeyOf(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; }
+const SHIFT_TH={morning:"เช้า",afternoon:"บ่าย",night:"ดึก"};
+const SHIFT_ORD={morning:0,afternoon:1,night:2};
+function openHistory(){ $("histModal").classList.remove("hidden"); histRef=bkkNow(); renderHistory(); }
+function closeHistory(){ $("histModal").classList.add("hidden"); }
+async function renderHistory(){
+  $("histMonth").textContent = histRef.toLocaleDateString("th-TH",{month:"long",year:"numeric"});
+  const mk = monthKeyOf(histRef);
+  const all = (await DB.once("checklist/records")) || {};
+  const keys = Object.keys(all).filter(rk=>{ const m=rk.match(/^(\d{4}-\d{2})-\d{2}_/); return m && m[1]===mk; });
+  if(!keys.length){ $("histBody").innerHTML=`<div class="hempty">— ไม่มีข้อมูลในเดือนนี้ —</div>`; return; }
+  keys.sort((a,b)=>{ const da=a.slice(0,10),db=b.slice(0,10); if(da!==db)return db.localeCompare(da); return (SHIFT_ORD[a.split("_")[1]]||0)-(SHIFT_ORD[b.split("_")[1]]||0); });
+  let html=`<table class="htable"><thead><tr><th>วันที่</th><th>เวร</th>${POSITIONS.map(p=>`<th>${esc(p.name)}</th>`).join("")}</tr></thead><tbody>`;
+  let lastDate="";
+  keys.forEach(rk=>{
+    const date=rk.slice(0,10), shiftKey=rk.split("_")[1];
+    const [y,mo,dd]=date.split("-");
+    const dayTH=(date!==lastDate)?`${dd}/${mo}`:""; lastDate=date;
+    html+=`<tr><td class="day">${dayTH}</td><td class="shift">${SHIFT_TH[shiftKey]||shiftKey}</td>`;
+    POSITIONS.forEach(p=>{
+      const rec=(all[rk]||{})[p.key]; const items=templates[p.key]||[];
+      if(!rec || !items.length){ html+=`<td><div class="hsq z">—</div></td>`; return; }
+      const checks=rec.checks||{}; let done=0; const missing=[]; const notes=[];
+      items.forEach(it=>{ const c=checks[it.id]; if(c&&c.checked)done++; else missing.push(it.item); if(c&&c.note)notes.push(it.item+": "+c.note); });
+      const total=items.length, pct=Math.round(done/total*100);
+      const cls=pct===100?"g":(done>0?"p":"z");
+      const tip=`ผู้เช็ค: ${rec.checker||"-"} | ครบ ${done}/${total} (${pct}%)`+(missing.length?` | ขาด: ${missing.join(", ")}`:"")+(notes.length?` | หมายเหตุ: ${notes.join("; ")}`:"");
+      html+=`<td><div class="hcell"><div class="hsq ${cls}" title="${esc(tip)}" data-rk="${esc(rk)}" data-pos="${p.key}">${pct}%</div><div class="who">${esc(rec.checker||"")}</div></div></td>`;
+    });
+    html+=`</tr>`;
+  });
+  html+=`</tbody></table><div id="histDetail" style="margin-top:14px"></div>`;
+  $("histBody").innerHTML=html;
+  $("histBody").querySelectorAll(".hsq[data-rk]").forEach(el=>el.onclick=()=>showHistDetail(all, el.dataset.rk, el.dataset.pos));
+}
+function showHistDetail(all, rk, posKey){
+  const rec=(all[rk]||{})[posKey]||{}; const items=templates[posKey]||[]; const checks=rec.checks||{};
+  const p=POSITIONS.find(x=>x.key===posKey)||{name:posKey};
+  const date=rk.slice(0,10).split("-").reverse().join("/"); const shiftKey=rk.split("_")[1];
+  const rows=items.map(it=>{ const c=checks[it.id]||{}; return `<tr class="${c.checked?"checked":""}"><td class="cel-no">${esc(it.seq)}</td><td>${esc(it.item)}${it.qty?` <span style="color:#94a3b8;font-size:12px">(${esc(it.qty)})</span>`:""}</td><td style="text-align:center">${c.checked?'<span style="color:#16a34a;font-weight:800">✓ ครบ</span>':'<span style="color:#dc2626;font-weight:800">✗ ขาด</span>'}</td><td>${esc(c.note||"")}</td></tr>`; }).join("");
+  $("histDetail").innerHTML=`<h4 style="color:var(--brand-d);margin:6px 0">${esc(p.name)} — ${date} เวร${SHIFT_TH[shiftKey]||shiftKey} · ผู้เช็ค: ${esc(rec.checker||"-")}</h4>
+    <table class="chk"><thead><tr><th class="cel-no">#</th><th>รายการ</th><th style="text-align:center">สถานะ</th><th>หมายเหตุ</th></tr></thead><tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:#94a3b8">— ไม่มีรายการ —</td></tr>'}</tbody></table>`;
+  $("histDetail").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+$("histBtn").onclick=openHistory;
+$("histPrev").onclick=()=>{ histRef.setMonth(histRef.getMonth()-1); renderHistory(); };
+$("histNext").onclick=()=>{ histRef.setMonth(histRef.getMonth()+1); renderHistory(); };
+document.querySelectorAll("[data-closehist]").forEach(b=>b.onclick=closeHistory);
+$("histModal").addEventListener("click",e=>{ if(e.target===$("histModal"))closeHistory(); });
+
 /* ---------- init ---------- */
 async function init(){
   if(!FB_OK) $("cfgBanner").classList.remove("hidden");
@@ -549,7 +650,6 @@ async function init(){
 }
 init();
 // รหัสกลางเข้าใช้งาน + ออกจากระบบอัตโนมัติเมื่อไม่ใช้เกิน 20 นาที
-if(window.Gate) Gate.protect({brand:"Checklist · ER & EMS", logo:"✅", idleMinutes:20});
 // refresh shift banner each minute (handles shift rollover)
 setInterval(()=>{ const n=shiftInfo(); if(n.recKey!==S.recKey){ location.reload(); } else { S.time=n.time; paintShiftlines(); } },60000);
 </script>
