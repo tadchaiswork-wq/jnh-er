@@ -42,20 +42,5 @@
 
   <script src="js/firebase-config.js"></script>
   <script src="js/app.js"></script>
-  <script>
-  (function(){
-    const WARD_PASS="JnhErWard2026";
-    async function ensureWard(){
-      try{ await auth.signInWithEmailAndPassword("ward@"+EMAIL_DOMAIN, WARD_PASS); }
-      catch(e){ const c=(e&&e.code||"")+"";
-        if(c.indexOf("user-not-found")>=0||c.indexOf("invalid-credential")>=0||c.indexOf("invalid-login")>=0){
-          const cred=await auth.createUserWithEmailAndPassword("ward@"+EMAIL_DOMAIN, WARD_PASS);
-          await db.collection("users").doc(cred.user.uid).set({username:"ward",fullName:"เวร ER (รวม)",role:"member",barcodeId:(typeof genBarcodeId==="function"?genBarcodeId():("W"+Date.now())),disabled:false,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-        } else { throw e; }
-      }
-    }
-    ensureWard();
-  })();
-  </script>
 </body>
 </html>

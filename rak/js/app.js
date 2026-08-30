@@ -236,10 +236,10 @@ async function doRegister() {
     const role = u === SUPERADMIN_USERNAME ? "superadmin" : "member";
     await db.collection("users").doc(cred.user.uid).set({
       username: u, fullName: name, role,
-      barcodeId: genBarcodeId(), disabled: false,
+      barcodeId: genBarcodeId(), disabled: (u === SUPERADMIN_USERNAME ? false : true),
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    toast("สมัครสำเร็จ! ยินดีต้อนรับ 💗", "ok");
+    toast(u === SUPERADMIN_USERNAME ? "สร้างแอดมินใหญ่สำเร็จ เข้าสู่ระบบได้เลย" : "สมัครสำเร็จ! รอแอดมินอนุมัติก่อนเข้าใช้งาน", "ok");
   } catch (e) {
     el("rg-btn").disabled = false;
     toast("สมัครไม่สำเร็จ: " + friendlyErr(e), "err");
@@ -262,7 +262,7 @@ auth.onAuthStateChanged(async (user) => {
     const snap = await db.collection("users").doc(user.uid).get();
     if (!snap.exists) { await auth.signOut(); toast("ไม่พบข้อมูลผู้ใช้", "err"); return; }
     const profile = { id: user.uid, ...snap.data() };
-    if (profile.disabled) { await auth.signOut(); toast("บัญชีนี้ถูกระงับการใช้งาน", "err"); return; }
+    if (profile.disabled) { await auth.signOut(); toast("บัญชีนี้ยังไม่เปิดใช้งาน (รอแอดมินอนุมัติ หรือถูกระงับ)", "err"); return; }
     State.user = user; State.profile = profile;
     render();
     writePresence();
@@ -317,6 +317,7 @@ function renderShell() {
         <div class="user-chip">
           <span>${esc(p.fullName)}</span>
           <span class="role-tag">${roleLabel(p.role)}</span>
+          <span style="cursor:pointer" id="pwBtn" title="เปลี่ยนรหัสผ่าน">🔑</span>
           <span style="cursor:pointer" id="logoutBtn" title="ออกจากระบบ">⎋</span>
         </div>
       </div>
@@ -328,6 +329,7 @@ function renderShell() {
       </div>
     </div>`;
   el("logoutBtn").onclick = logout;
+  { const _pb=el("pwBtn"); if(_pb) _pb.onclick=openChangePw; }
   el("tabbar").querySelectorAll("button").forEach((b) => {
     b.onclick = () => { State.activeTab = b.dataset.tab; renderShell(); };
   });
@@ -1452,4 +1454,20 @@ function printSatisfactionReport(month, sats, avg) {
     <table><thead><tr><th>วันที่</th><th>เวร</th><th>ชื่อ</th><th>คะแนน</th><th>ปัจจัยพอใจ</th><th>ปัจจัยไม่พอใจ</th><th>ข้อเสนอแนะ</th></tr></thead>
     <tbody>${rows.map((r) => `<tr><td>${esc(r.date)}</td><td>${SHIFT_SHORT[r.shift] || esc(r.shift || "")}</td><td>${esc(r.fullName)}</td><td>${r.rating}/10</td><td>${esc((r.goodFactors || []).join(", "))}</td><td>${esc((r.badFactors || []).join(", "))}</td><td>${esc(r.suggestion || "")}</td></tr>`).join("")}</tbody></table>`;
   openPrintWindow("รายงานความพึงพอใจ " + month, body);
+}
+
+
+/* ---------- เปลี่ยนรหัสผ่านตนเอง (Firebase Auth) ---------- */
+async function openChangePw(){
+  if(!State.profile) return;
+  const cur=prompt("ยืนยันรหัสผ่านปัจจุบัน"); if(cur===null) return;
+  const np=prompt("รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)"); if(np===null) return;
+  if((np||"").length<6){ toast("รหัสผ่านใหม่อย่างน้อย 6 ตัวอักษร","err"); return; }
+  try{
+    const email=State.profile.username+"@"+EMAIL_DOMAIN;
+    const cred=firebase.auth.EmailAuthProvider.credential(email,cur);
+    await auth.currentUser.reauthenticateWithCredential(cred);
+    await auth.currentUser.updatePassword(np);
+    toast("เปลี่ยนรหัสผ่านเรียบร้อย","ok");
+  }catch(e){ toast("ไม่สำเร็จ: "+friendlyErr(e),"err"); }
 }

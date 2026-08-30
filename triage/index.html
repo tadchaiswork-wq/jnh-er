@@ -1835,6 +1835,8 @@ function doLogin(){
   const user=S.users().find(x=>x.username===u&&x.password===p);
   const err=document.getElementById('login-err');
   if(!user){err.textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';err.style.display='block';return;}
+  if(user.status==='pending'){err.textContent='บัญชีนี้รอแอดมินอนุมัติก่อนเข้าใช้งาน';err.style.display='block';return;}
+  if(user.status==='suspended'){err.textContent='บัญชีนี้ถูกระงับการใช้งาน';err.style.display='block';return;}
   err.style.display='none';
   if(remember) localStorage.setItem('triage_remember',JSON.stringify({u,p}));
   else localStorage.removeItem('triage_remember');
@@ -1850,9 +1852,12 @@ function doRegister(){
   if(pass.length<6){err.textContent='รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';err.style.display='block';return;}
   const users=S.users();
   if(users.find(x=>x.username===username)){err.textContent='ชื่อผู้ใช้นี้ถูกใช้แล้ว';err.style.display='block';return;}
-  const newUser={id:'u'+Date.now(),username,password:pass,name,unit,role:'user'};
+  const newUser={id:'u'+Date.now(),username,password:pass,name,unit,role:'user',status:'pending'};
   users.push(newUser);S.saveUsers(users);
-  err.style.display='none';currentUser=newUser;showHome();
+  err.style.display='none';
+  ['reg-name','reg-user','reg-unit','reg-pass'].forEach(id=>document.getElementById(id).value='');
+  alert('สมัครสำเร็จ! กรุณารอแอดมินอนุมัติก่อนเข้าใช้งาน');
+  showAuthPage('page-auth');
 }
 function doLogout(){
   currentUser=null;
@@ -2709,6 +2714,9 @@ function showUsers(){
   users.forEach(u=>{
     const isMe=u.id===currentUser.id;
     const isAdmin=u.role==='admin';
+    let statusBtns='';
+    if(u.status==='pending'){ statusBtns='<button class="btn btn-sm" style="background:#16a34a;color:#fff" onclick="setUserStatus(\''+u.id+'\',\'approved\')">\u2713 \u0e2d\u0e19\u0e38\u0e21\u0e31\u0e15\u0e34</button>'; }
+    else if(!isMe){ statusBtns = (u.status==='suspended') ? '<button class="btn btn-sm" style="background:#16a34a;color:#fff" onclick="setUserStatus(\''+u.id+'\',\'approved\')">\u0e40\u0e1b\u0e34\u0e14\u0e43\u0e0a\u0e49</button>' : '<button class="btn btn-sm" style="background:#f59e0b;color:#fff" onclick="setUserStatus(\''+u.id+'\',\'suspended\')">\u0e23\u0e30\u0e07\u0e31\u0e1a</button>'; }
     const pc=u.passwordChangedAt
       ? `<span style="font-size:.75rem;color:#64748b">${new Date(u.passwordChangedAt).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'})}<br>โดย ${u.passwordChangedBy||'-'}</span>`
       : '<span style="font-size:.75rem;color:#cbd5e1">—</span>';
@@ -2716,10 +2724,11 @@ function showUsers(){
       <td><b>${u.name}</b>${isMe?' <span style="font-size:.72rem;color:#94a3b8">(คุณ)</span>':''}</td>
       <td><span class="chg">${u.username}</span></td>
       <td>${u.unit||'-'}</td>
-      <td><span class="badge ${isAdmin?'badge-admin':'badge-N'}">${isAdmin?'Admin':'User'}</span></td>
+      <td><span class="badge ${isAdmin?'badge-admin':'badge-N'}">${isAdmin?'Admin':'User'}</span>${u.status==='pending'?' <span class="badge" style="background:#fef3c7;color:#92400e">รออนุมัติ</span>':u.status==='suspended'?' <span class="badge" style="background:#fee2e2;color:#991b1b">ระงับ</span>':''}</td>
       <td>${pc}</td>
       <td>
         <div style="display:flex;gap:5px;flex-wrap:wrap">
+          ${statusBtns}
           <button class="btn btn-secondary btn-sm" onclick="openChangePass('${u.id}')">🔑 ตั้งรหัสใหม่</button>
           ${!isMe?`<button class="btn btn-sm" style="background:${isAdmin?'#e2e8f0':'#cffafe'};color:${isAdmin?'#1e293b':'#155e75'}" onclick="toggleAdmin('${u.id}')">${isAdmin?'↓ User':'↑ Admin'}</button>`:''}
           ${!isMe?`<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">🗑</button>`:''}
@@ -2731,6 +2740,7 @@ function showUsers(){
   showPage('page-users');
 }
 
+function setUserStatus(id,status){const users=S.users();const u=users.find(x=>x.id===id);if(!u)return;u.status=status;S.saveUsers(users);showUsers();}
 function toggleAdmin(id){
   const users=S.users();
   const u=users.find(x=>x.id===id);
@@ -2882,12 +2892,11 @@ async function appInit(){
   initData();
   overlay.classList.add('hidden');
   setTimeout(()=>overlay.style.display='none',350);
-  ensureGuestBoot();
+  loadRemembered();
+  showAuthPage('page-auth');
 }
 appInit();
 
-/* ===== Gate: รหัสกลาง + auto-logout 20นาที ===== */
-function ensureGuestBoot(){try{currentUser={id:'ward',username:'ward',name:'เวร ER',unit:'ER',role:'user'};showHome();}catch(e){console.warn(e);}}
 </script>
 </body>
 </html>
