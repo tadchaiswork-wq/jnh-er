@@ -220,10 +220,10 @@ setTimeout(startFastTrack, 1500);
 let audioEnabled=false;
 function enableAllAudio(){
   if(audioEnabled) return; audioEnabled=true;
-  unlockAudio();
-  try{ const w=document.getElementById("ftFrame").contentWindow, d=document.getElementById("ftFrame").contentDocument;
-    if(w&&w.ensureAudio)w.ensureAudio(); const t=d.getElementById("testBtn")||d.getElementById("soundBtn"); if(t)t.click(); }catch(e){}
-  try{ const b=document.getElementById("emsFrame").contentDocument.querySelector(".sound-btn"); if(b)b.click(); }catch(e){}
+  unlockAudio();  // ปลดล็อกเสียงหน้า Monitor (สำหรับเสียงเตือน EMS) — เงียบ ไม่มีเสียงทดสอบ
+  // Fast Track: แค่ resume audio context (startBtn ตั้ง soundOn=true ให้แล้วตอนเริ่มอัตโนมัติ) — เงียบ
+  try{ const w=document.getElementById("ftFrame").contentWindow; if(w&&w.ensureAudio) w.ensureAudio(); }catch(e){}
+  // EMS: ไม่ต้องเปิดเสียงใน iframe — หน้า Monitor เล่นเสียงเตือนเองอยู่แล้ว (กันเสียงทดสอบ/เสียงซ้ำ)
 }
 ["pointerdown","keydown","touchstart"].forEach(ev=>document.addEventListener(ev, enableAllAudio, {once:true}));
 
