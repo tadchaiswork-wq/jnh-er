@@ -64,9 +64,9 @@
     border-radius:10px;padding:6px 12px;font-size:12px;max-width:60vw}
   .clock{font-variant-numeric:tabular-nums}
   /* fullscreen button */
-  #fsBtn{position:fixed;right:14px;bottom:12px;z-index:60;width:46px;height:46px;border-radius:12px;
-    border:1px solid var(--line);background:rgba(15,26,43,.82);color:#cfe0f0;font-size:20px;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;transition:.15s;opacity:.55}
+  #fsBtn{position:fixed;right:14px;bottom:12px;z-index:60;height:46px;padding:0 16px;border-radius:12px;
+    border:1px solid var(--line);background:rgba(15,26,43,.82);color:#cfe0f0;font-size:16px;font-weight:700;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;opacity:.6}
   #fsBtn:hover{opacity:1;background:#1e2f45}
   :fullscreen #fsBtn{opacity:.25}
   /* sound-all button */
@@ -75,6 +75,11 @@
     padding:0 16px;display:flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(2,132,199,.4);transition:.15s}
   #soundAllBtn:hover{background:#0284c7}
   #soundAllBtn.on{background:#16a34a;border-color:#16a34a}
+  /* แบนเนอร์กระพริบเขียว: กำลังนำส่งโรงพยาบาล */
+  #transportBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:70;justify-content:center;align-items:center;
+    gap:10px;padding:12px 16px;font-size:22px;font-weight:800;color:#fff;background:#16a34a;letter-spacing:.5px;
+    box-shadow:0 3px 14px rgba(22,163,74,.5);animation:tpblink 1s steps(1,end) infinite}
+  @keyframes tpblink{0%,49%{background:#16a34a;opacity:1}50%,100%{background:#065f46;opacity:.55}}
 </style>
 </head>
 <body>
@@ -102,8 +107,8 @@
     </div>
   </div>
 </div>
-<button id="soundAllBtn" title="เปิดเสียงเตือนทุกจอพร้อมกัน">🔔 เปิดเสียงทุกจอ</button>
-<button id="fsBtn" title="เต็มจอ (ซ่อนแถบเบราว์เซอร์)">⛶</button>
+<div id="transportBanner">🟢 กำลังนำส่งโรงพยาบาล</div>
+<button id="fsBtn" title="เต็มจอ (ซ่อนแถบเบราว์เซอร์)">⛶ เต็มจอ</button>
 <div id="cfgWarn" class="cfgwarn" style="display:none">⚠️ ยังไม่ได้ตั้งค่า Firebase — สถานะเช็คของยังไม่แชร์ข้ามเครื่อง (แก้ firebase-config.js)</div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -144,6 +149,7 @@ setInterval(hideEmsChrome, 3000);
 
 /* ---------- ปุ่มเต็มจอ (ซ่อนแท็บ/แถบเบราว์เซอร์) ---------- */
 document.getElementById("fsBtn").onclick=function(){
+  try{ enableAllAudio(); }catch(e){}   // กดปุ่มนี้ = เปิดเสียงด้วย (การกดครั้งเดียว)
   const el=document.documentElement;
   if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
   else{ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
@@ -154,51 +160,72 @@ let AC=null, audioReady=false;
 function unlockAudio(){
   try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==="suspended") AC.resume(); audioReady=true; }catch(e){}
 }
-function beep(freq,start,dur,vol){
-  if(!AC) return;
-  const o=AC.createOscillator(), g=AC.createGain();
-  o.type="sine"; o.frequency.value=freq; o.connect(g); g.connect(AC.destination);
-  const t=AC.currentTime+start;
-  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.03);
-  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
-  o.start(t); o.stop(t+dur+0.03);
+/* เสียงเตือนแบบเดียวกับ EMS (train chime ~10 วินาที) */
+function playTrainChime(){
+  if(!audioReady||!AC) return;
+  const notes=[880,988,1319,1175];
+  const master=AC.createGain(); master.gain.value=0.9; master.connect(AC.destination);
+  let t=AC.currentTime; const step=0.42, total=10;
+  const reps=Math.ceil(total/(notes.length*step));
+  for(let rep=0;rep<reps;rep++){ notes.forEach(f=>{
+    const o=AC.createOscillator(), g=AC.createGain(); o.type="triangle"; o.frequency.value=f;
+    o.connect(g); g.connect(master);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.9,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+step-0.02);
+    o.start(t); o.stop(t+step); t+=step;
+  }); }
 }
-function playChime(){ if(!audioReady||!AC) return; for(let i=0;i<3;i++){ const s=i*0.75; beep(988,s,0.35,0.5); beep(1319,s+0.34,0.42,0.5); } }
+function playConfirm(){ if(!audioReady||!AC) return; const o=AC.createOscillator(),g=AC.createGain(); o.type="sine"; o.frequency.value=1175; o.connect(g); g.connect(AC.destination); const t=AC.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.5,t+0.03); g.gain.exponentialRampToValueAtTime(0.0001,t+0.5); o.start(t); o.stop(t+0.55); }
 
-/* เฝ้าฐานข้อมูล EMS — เคส activate (ALS/ILS สั่งการ ยังไม่กลับฐาน) → เล่นเสียง */
+/* เฝ้าฐานข้อมูล EMS: activate → เสียง 10 วิ · กำลังนำส่ง รพ. → กระพริบเขียว */
 let emsSeen={}, emsAlarmed={}, emsPrimed=false;
 async function pollEms(){
   if(!CONFIG.emsDbURL) return;
   try{
     const r=await fetch(CONFIG.emsDbURL.replace(/\/+$/,"")+"/cases.json",{cache:"no-store"});
     if(!r.ok) return;
-    const cases=(await r.json())||{}; const now=Date.now(); const activeNow={};
+    const cases=(await r.json())||{}; const now=Date.now(); const activeNow={}; let transporting=false;
     Object.entries(cases).forEach(([id,c])=>{
       if(!c) return;
-      const active=(c.vehicle==="ALS"||c.vehicle==="ILS") && c.command && !c.toBase;
+      const als=(c.vehicle==="ALS"||c.vehicle==="ILS");
+      if(als && c.command && c.leave && !c.hosp && !c.toBase) transporting=true; // ออกจากเหตุ→ยังไม่ถึง รพ.
+      const active=als && c.command && !c.toBase;
       if(!active) return;
       activeNow[id]=true;
-      if(!emsPrimed) return;                       // ครั้งแรก: ไม่เล่นเสียงกับเคสที่ค้างอยู่แล้ว
-      if(!emsSeen[id]){ playChime(); }             // เคส activate ใหม่ → เสียงทันที
-      const nt=c.notifyTime;                        // เตือนซ้ำเมื่อเกิน 2 นาทีแล้วยังไม่ออกฐาน
-      if(nt && !c.depart && now>=nt+120000 && !emsAlarmed[id]){ emsAlarmed[id]=true; playChime(); }
+      if(!emsPrimed) return;
+      if(!emsSeen[id]){ playTrainChime(); }                     // เคส activate ใหม่ → เสียง 10 วิ
+      const nt=c.notifyTime;
+      if(nt && !c.depart && now>=nt+120000 && !emsAlarmed[id]){ emsAlarmed[id]=true; playTrainChime(); }
     });
     emsSeen=activeNow; emsPrimed=true;
+    const tb=document.getElementById("transportBanner"); if(tb) tb.style.display = transporting ? "flex" : "none";
   }catch(e){}
 }
 setInterval(pollEms, 4000); pollEms();
 
-/* ---------- ปุ่มเปิดเสียงทุกจอ ---------- */
-document.getElementById("soundAllBtn").onclick=function(){
+/* ---------- เริ่ม Fast Track อัตโนมัติ (ไม่ต้องกดปุ่ม "เริ่มแสดงผล") ---------- */
+function startFastTrack(){
+  try{
+    const w=document.getElementById("ftFrame").contentWindow, d=document.getElementById("ftFrame").contentDocument;
+    if(!d) return;
+    const noop=function(){return Promise.resolve();};   // กัน Fast Track ขอเต็มจอตัวเอง
+    try{ if(d.documentElement) d.documentElement.requestFullscreen=noop; }catch(e){}
+    try{ if(w&&w.Element) w.Element.prototype.requestFullscreen=noop; }catch(e){}
+    const sb=d.getElementById("startBtn"); if(sb && d.getElementById("startPrompt") && d.getElementById("startPrompt").style.display!=="none"){ sb.click(); }
+  }catch(e){}
+}
+document.getElementById("ftFrame").addEventListener("load", ()=>{ startFastTrack(); setTimeout(startFastTrack,800); });
+setTimeout(startFastTrack, 1500);
+
+/* ---------- เปิดเสียงอัตโนมัติเมื่อผู้ใช้แตะจอครั้งแรก (รวมถึงกดปุ่มเต็มจอ) ---------- */
+let audioEnabled=false;
+function enableAllAudio(){
+  if(audioEnabled) return; audioEnabled=true;
   unlockAudio();
-  // เผื่อไว้: พยายามเปิดเสียงใน iframe ด้วย
   try{ const w=document.getElementById("ftFrame").contentWindow, d=document.getElementById("ftFrame").contentDocument;
-    if(w&&w.ensureAudio)w.ensureAudio(); const b=d.getElementById("testBtn")||d.getElementById("soundBtn"); if(b)b.click(); }catch(e){}
+    if(w&&w.ensureAudio)w.ensureAudio(); const t=d.getElementById("testBtn")||d.getElementById("soundBtn"); if(t)t.click(); }catch(e){}
   try{ const b=document.getElementById("emsFrame").contentDocument.querySelector(".sound-btn"); if(b)b.click(); }catch(e){}
-  playChime(); // ทดสอบเสียง 1 ครั้ง
-  const btn=this; btn.classList.add("on"); btn.textContent="🔔 เสียงเปิดแล้ว";
-  setTimeout(()=>{ btn.textContent="🔔 เปิดเสียงทุกจอ"; btn.classList.remove("on"); }, 4000);
-};
+}
+["pointerdown","keydown","touchstart"].forEach(ev=>document.addEventListener(ev, enableAllAudio, {once:true}));
 
 /* ---------- positions ---------- */
 const POSITIONS=[
