@@ -3,29 +3,325 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>JNH ER</title>
-<meta http-equiv="refresh" content="0; url=portal/" />
-<link rel="canonical" href="portal/" />
+<title>ER Whole Monitor — JNH</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Monitor">
+<meta name="theme-color" content="#0b1220" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
-  html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Sarabun',sans-serif;
-    background:radial-gradient(1000px 500px at 50% -10%,#cffafe,#f1f5f9);color:#155e75}
-  .c{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
-  .m{width:70px;height:70px;border-radius:20px;background:linear-gradient(135deg,#0e7490,#155e75);
-    display:flex;align-items:center;justify-content:center;color:#fff;font-size:34px;box-shadow:0 10px 24px rgba(14,116,144,.35)}
-  h1{margin:0;font-size:26px;letter-spacing:.5px}
-  p{margin:0;color:#64748b;font-size:15px}
-  a{color:#0e7490;font-weight:700;text-decoration:none}
-  .sp{width:26px;height:26px;border:3px solid #bae6fd;border-top-color:#0e7490;border-radius:50%;animation:s .8s linear infinite}
-  @keyframes s{to{transform:rotate(360deg)}}
+  :root{
+    --gap:10px;
+    --ink:#e5edf5; --muted:#8ea3b8; --panel:#0f1a2b; --panel2:#132339;
+    --line:#213349; --ok:#22c55e; --ok-d:#16a34a; --warn:#f59e0b; --bad:#ef4444; --brand:#38bdf8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{font-family:'Sarabun',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:#0b1220;color:var(--ink)}
+  /* ---- overall grid: left (fasttrack) + right column ---- */
+  .stage{display:grid;grid-template-columns:var(--leftW) 1fr;gap:var(--gap);height:100vh;padding:var(--gap)}
+  .cell{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;position:relative;
+    display:flex;flex-direction:column}
+  .cell > .cap{position:absolute;top:0;left:0;right:0;z-index:3;display:flex;align-items:center;gap:8px;
+    padding:6px 12px;font-size:13px;font-weight:700;letter-spacing:.3px;color:#cfe0f0;
+    background:linear-gradient(180deg,rgba(9,15,26,.92),rgba(9,15,26,0));pointer-events:none;text-shadow:0 1px 2px #000}
+  .cell iframe{border:0;width:100%;height:100%;background:#fff;flex:1}
+  .frameScale{flex:1;position:relative;overflow:hidden}
+  .frameScale iframe{position:absolute;top:0;left:0;transform-origin:top left}
+  .rightcol{display:grid;grid-template-rows:var(--emsH) 1fr;gap:var(--gap);min-height:0}
+
+  /* ---- checklist status panel (พื้นขาว) ---- */
+  #status{background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:12px 12px 8px;display:flex;flex-direction:column;min-height:0;color:#0f172a}
+  .st-head{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .st-head h2{font-size:15px;font-weight:800;color:#0f172a}
+  .st-head .sh{font-size:12px;color:#64748b;margin-left:auto;text-align:right;line-height:1.35}
+  .st-head .sh b{color:#0e7490}
+  /* 7 ช่องสี่เหลี่ยม สถานะ เทา/เหลือง/เขียว + การ์ตูน */
+  .st-list{display:grid;grid-template-columns:1fr 1fr;gap:10px;overflow:auto;flex:1;align-content:start;padding-right:2px}
+  .sq{border-radius:16px;border:2px solid;padding:10px 8px 9px;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;position:relative;min-height:0;transition:.3s}
+  .sq.zero{background:#eef2f6;border-color:#dbe2ea}
+  .sq.part{background:#fef9c3;border-color:#fde047}
+  .sq.done{background:#dcfce7;border-color:#4ade80}
+  .sq .emo{width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,.75);display:flex;align-items:center;
+    justify-content:center;font-size:34px;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+  .sq.zero .emo{filter:grayscale(.55);opacity:.72}
+  .sq .nm{font-weight:700;font-size:13px;margin-top:7px;color:#0f172a;line-height:1.2}
+  .sq .pc{font-weight:800;font-size:20px;margin-top:2px;font-variant-numeric:tabular-nums}
+  .sq.zero .pc{color:#94a3b8} .sq.part .pc{color:#b45309} .sq.done .pc{color:#15803d}
+  .sq .who{font-size:10.5px;color:#64748b;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+  .sq .chk{position:absolute;top:6px;right:8px;font-size:15px}
+  .overall{display:flex;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:13px;color:#64748b}
+  .overall b{color:#0f172a}
+  .overall .ring{margin-left:auto;font-weight:800;font-size:16px;color:#0e7490}
+  .cfgwarn{position:fixed;left:12px;bottom:10px;z-index:9;background:#7c2d12;color:#fed7aa;border:1px solid #9a3412;
+    border-radius:10px;padding:6px 12px;font-size:12px;max-width:60vw}
+  .clock{font-variant-numeric:tabular-nums}
+  /* fullscreen button */
+  #fsBtn{position:fixed;right:14px;bottom:12px;z-index:60;width:46px;height:46px;border-radius:12px;
+    border:1px solid var(--line);background:rgba(15,26,43,.82);color:#cfe0f0;font-size:20px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:.15s;opacity:.55}
+  #fsBtn:hover{opacity:1;background:#1e2f45}
+  :fullscreen #fsBtn{opacity:.25}
+  /* sound-all button */
+  #soundAllBtn{position:fixed;right:70px;bottom:12px;z-index:60;height:46px;border-radius:12px;
+    border:1px solid #0e7490;background:#0ea5e9;color:#fff;font-size:14px;font-weight:700;cursor:pointer;
+    padding:0 16px;display:flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(2,132,199,.4);transition:.15s}
+  #soundAllBtn:hover{background:#0284c7}
+  #soundAllBtn.on{background:#16a34a;border-color:#16a34a}
+  /* แบนเนอร์กระพริบเขียว: กำลังนำส่งโรงพยาบาล */
+  #transportBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:70;justify-content:center;align-items:center;
+    gap:10px;padding:12px 16px;font-size:22px;font-weight:800;color:#fff;background:#16a34a;letter-spacing:.5px;
+    box-shadow:0 3px 14px rgba(22,163,74,.5);animation:tpblink 1s steps(1,end) infinite}
+  @keyframes tpblink{0%,49%{background:#16a34a;opacity:1}50%,100%{background:#065f46;opacity:.55}}
 </style>
 </head>
 <body>
-  <div class="c">
-    <div class="m">✚</div>
-    <h1>JNH ER</h1>
-    <div class="sp"></div>
-    <p>กำลังเข้าสู่ระบบ… ถ้าไม่เด้งอัตโนมัติ <a href="portal/">คลิกที่นี่</a></p>
+<div class="stage">
+  <!-- LEFT 70% : ER Fast Track TV -->
+  <div class="cell">
+    <div class="frameScale" id="ftWrap"><iframe id="ftFrame" title="Fast Track"></iframe></div>
   </div>
-  <script>location.replace("portal/");</script>
+
+  <!-- RIGHT column -->
+  <div class="rightcol">
+    <!-- EMS TV (top-right) -->
+    <div class="cell">
+      <div class="frameScale" id="emsWrap"><iframe id="emsFrame" title="EMS Monitor"></iframe></div>
+    </div>
+
+    <!-- Checklist status -->
+    <div id="status">
+      <div class="st-head">
+        <h2>✅ ตรวจเช็คของ (รายเวร)</h2>
+        <div class="sh" id="shiftText">—</div>
+      </div>
+      <div class="st-list" id="stList"></div>
+      <div class="overall">สรุปทั้งเวร <b id="ovText">0/7 ครบ</b><span class="ring" id="ovPct">0%</span></div>
+    </div>
+  </div>
+</div>
+<div id="transportBanner">🟢 กำลังนำส่งโรงพยาบาล</div>
+<button id="soundAllBtn" title="เริ่มจอ + เปิดเสียง + เต็มจอ (กดครั้งเดียว)">▶️ เริ่มจอ + เสียง</button>
+<button id="fsBtn" title="เต็มจอ (ซ่อนแถบเบราว์เซอร์)">⛶</button>
+<div id="cfgWarn" class="cfgwarn" style="display:none">⚠️ ยังไม่ได้ตั้งค่า Firebase — สถานะเช็คของยังไม่แชร์ข้ามเครื่อง (แก้ firebase-config.js)</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="../firebase-config.js"></script>
+<script>
+/* =======================================================================
+   ตั้งค่าได้ตรงนี้ — สัดส่วนหน้าจอ และที่อยู่ (URL) ของแต่ละเว็บที่จะฝัง
+   ถ้า deploy แยกคนละที่ ให้ใส่เป็น URL เต็ม เช่น https://.../tv.html
+   ======================================================================= */
+const CONFIG = {
+  leftWidth: "70%",     // ความกว้างฝั่ง Fast Track
+  emsHeight: "42%",     // ความสูงของกล่อง EMS ในคอลัมน์ขวา
+  fastTrackURL: "../fasttrack/tv.html",
+  emsURL:       "../ems/index.html#tv",
+  // ฐานข้อมูล EMS (ใช้เล่นเสียงเตือนบนหน้า Monitor เมื่อมีเคส activate)
+  emsDbURL:     "https://ems-jnh-default-rtdb.asia-southeast1.firebasedatabase.app",
+  // ถ้าอยากซูมเนื้อหาใน iframe (จอ TV ใหญ่) ปรับตัวคูณ; 1 = ปกติ
+  fastTrackZoom: 1,
+  emsZoom: 1,
+};
+document.documentElement.style.setProperty("--leftW", CONFIG.leftWidth);
+document.documentElement.style.setProperty("--emsH", CONFIG.emsHeight);
+document.getElementById("ftFrame").src = CONFIG.fastTrackURL;
+document.getElementById("emsFrame").src = CONFIG.emsURL;
+
+/* ---------- ซ่อนแถบบน (topbar สีฟ้า) ของ EMS ในจอรวม ---------- */
+function hideEmsChrome(){
+  try{
+    const fr=document.getElementById("emsFrame"); const d=fr.contentDocument; if(!d||!d.head) return;
+    let st=d.getElementById("_kioskcss");
+    if(!st){ st=d.createElement("style"); st.id="_kioskcss"; d.head.appendChild(st); }
+    st.textContent=".topbar{display:none!important}";
+  }catch(e){ /* ข้ามถ้า cross-origin */ }
+}
+document.getElementById("emsFrame").addEventListener("load", ()=>{ hideEmsChrome(); setTimeout(hideEmsChrome,600); });
+setInterval(hideEmsChrome, 3000);
+
+/* ---------- ปุ่มเต็มจอ (ซ่อนแท็บ/แถบเบราว์เซอร์) ---------- */
+document.getElementById("fsBtn").onclick=function(){
+  const el=document.documentElement;
+  if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  else{ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+};
+
+/* ================= เสียงเตือนบนหน้า Monitor ================= */
+let AC=null, audioReady=false;
+function unlockAudio(){
+  try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==="suspended") AC.resume(); audioReady=true; }catch(e){}
+}
+/* เสียงเตือนแบบเดียวกับ EMS (train chime ~10 วินาที) */
+function playTrainChime(){
+  if(!audioReady||!AC) return;
+  const notes=[880,988,1319,1175];
+  const master=AC.createGain(); master.gain.value=0.9; master.connect(AC.destination);
+  let t=AC.currentTime; const step=0.42, total=10;
+  const reps=Math.ceil(total/(notes.length*step));
+  for(let rep=0;rep<reps;rep++){ notes.forEach(f=>{
+    const o=AC.createOscillator(), g=AC.createGain(); o.type="triangle"; o.frequency.value=f;
+    o.connect(g); g.connect(master);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.9,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+step-0.02);
+    o.start(t); o.stop(t+step); t+=step;
+  }); }
+}
+function playConfirm(){ if(!audioReady||!AC) return; const o=AC.createOscillator(),g=AC.createGain(); o.type="sine"; o.frequency.value=1175; o.connect(g); g.connect(AC.destination); const t=AC.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.5,t+0.03); g.gain.exponentialRampToValueAtTime(0.0001,t+0.5); o.start(t); o.stop(t+0.55); }
+
+/* เฝ้าฐานข้อมูล EMS: activate → เสียง 10 วิ · กำลังนำส่ง รพ. → กระพริบเขียว */
+let emsSeen={}, emsAlarmed={}, emsPrimed=false;
+async function pollEms(){
+  if(!CONFIG.emsDbURL) return;
+  try{
+    const r=await fetch(CONFIG.emsDbURL.replace(/\/+$/,"")+"/cases.json",{cache:"no-store"});
+    if(!r.ok) return;
+    const cases=(await r.json())||{}; const now=Date.now(); const activeNow={}; let transporting=false;
+    Object.entries(cases).forEach(([id,c])=>{
+      if(!c) return;
+      const als=(c.vehicle==="ALS"||c.vehicle==="ILS");
+      if(als && c.command && c.leave && !c.hosp && !c.toBase) transporting=true; // ออกจากเหตุ→ยังไม่ถึง รพ.
+      const active=als && c.command && !c.toBase;
+      if(!active) return;
+      activeNow[id]=true;
+      if(!emsPrimed) return;
+      if(!emsSeen[id]){ playTrainChime(); }                     // เคส activate ใหม่ → เสียง 10 วิ
+      const nt=c.notifyTime;
+      if(nt && !c.depart && now>=nt+120000 && !emsAlarmed[id]){ emsAlarmed[id]=true; playTrainChime(); }
+    });
+    emsSeen=activeNow; emsPrimed=true;
+    const tb=document.getElementById("transportBanner"); if(tb) tb.style.display = transporting ? "flex" : "none";
+  }catch(e){}
+}
+setInterval(pollEms, 4000); pollEms();
+
+/* ---------- ปุ่มเริ่ม: เปิดเสียง + เริ่ม Fast Track + เต็มจอ (ครั้งเดียว) ---------- */
+document.getElementById("soundAllBtn").onclick=function(){
+  unlockAudio();
+  // เริ่ม Fast Track โดยไม่ให้มันขอเต็มจอตัวเอง (กันจอเด้ง)
+  try{
+    const w=document.getElementById("ftFrame").contentWindow, d=document.getElementById("ftFrame").contentDocument;
+    if(w){ const noop=function(){return Promise.resolve();};
+      try{ if(d.documentElement) d.documentElement.requestFullscreen=noop; }catch(e){}
+      try{ if(w.Element) w.Element.prototype.requestFullscreen=noop; }catch(e){}
+      try{ if(w.ensureAudio) w.ensureAudio(); }catch(e){} }
+    const sb=d.getElementById("startBtn"); if(sb) sb.click();
+    const tt=d.getElementById("testBtn")||d.getElementById("soundBtn"); if(tt) tt.click();
+  }catch(e){}
+  try{ const b=document.getElementById("emsFrame").contentDocument.querySelector(".sound-btn"); if(b)b.click(); }catch(e){}
+  // เต็มจอที่หน้า Monitor
+  try{ const el=document.documentElement; if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); } }catch(e){}
+  playConfirm();
+  const btn=this; btn.classList.add("on"); btn.textContent="✅ เริ่มแล้ว";
+  setTimeout(()=>{ btn.textContent="▶️ เริ่มจอ + เสียง"; btn.classList.remove("on"); }, 4000);
+};
+
+/* ---------- positions ---------- */
+const POSITIONS=[
+  {key:"incharge",name:"Incharge",icon:"👨‍⚕️"},
+  {key:"nurse_aid",name:"Nurse aid",icon:"👩‍⚕️"},
+  {key:"emt",name:"EMT",icon:"🚑"},
+  {key:"bag_ab1",name:"กระเป๋า A/B ใบ 1",icon:"🎒"},
+  {key:"bag_ab2",name:"กระเป๋า A/B ใบ 2",icon:"🧳"},
+  {key:"bag_cd1",name:"กระเป๋า C/D ใบ 1",icon:"💊"},
+  {key:"bag_cd2",name:"กระเป๋า C/D ใบ 2",icon:"💉"},
+];
+
+/* ---------- shift ---------- */
+function bkkNow(){ return new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Bangkok"})); }
+function shiftInfo(){
+  const d=bkkNow(),h=d.getHours(); let key,label;
+  if(h>=8&&h<16){key="morning";label="เช้า 08–16";}
+  else if(h>=16){key="afternoon";label="บ่าย 16–24";}
+  else{key="night";label="ดึก 00–08";}
+  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");
+  return {key,label,dateKey:`${y}-${m}-${day}`,dateTH:`${day}/${m}/${y}`,recKey:`${y}-${m}-${day}_${key}`};
+}
+let S=shiftInfo();
+
+/* ---------- data ---------- */
+const cfg=window.FIREBASE_CONFIG||{};
+const FB_OK=cfg.apiKey&&cfg.apiKey!=="PASTE_API_KEY"&&cfg.databaseURL&&!/PASTE/.test(cfg.databaseURL);
+let db=null;
+if(FB_OK){try{firebase.initializeApp(cfg);db=firebase.database();}catch(e){console.error(e);}}
+else document.getElementById("cfgWarn").style.display="block";
+
+function lsGet(k,d){try{const v=localStorage.getItem("jnher_"+k);return v?JSON.parse(v):d;}catch(e){return d;}}
+const DBread={
+  onValue(path,cb){ if(db){db.ref(path).on("value",s=>cb(s.val()));} else {cb(lsGet(path,null));} }
+};
+
+let templates={}, records={};
+function progress(posKey){
+  const items=templates[posKey]||[]; const total=items.length;
+  const rec=(records[posKey]||{}); const checks=rec.checks||{};
+  let done=0; items.forEach(it=>{ if(checks[it.id]&&checks[it.id].checked)done++; });
+  return {done,total,pct:total?Math.round(done/total*100):0,checker:rec.checker||"",updatedAt:rec.updatedAt||0};
+}
+function timeAgo(ts){ if(!ts)return""; const s=Math.floor((Date.now()-ts)/1000);
+  if(s<60)return"เมื่อครู่"; if(s<3600)return Math.floor(s/60)+" นาทีก่อน"; if(s<86400)return Math.floor(s/3600)+" ชม.ก่อน"; return Math.floor(s/86400)+" วันก่อน";}
+
+function render(){
+  document.getElementById("shiftText").innerHTML=`เวร <b>${S.label}</b><br>${S.dateTH}`;
+  const list=document.getElementById("stList"); list.innerHTML="";
+  let full=0, counted=0;
+  POSITIONS.forEach(p=>{
+    const pr=progress(p.key);
+    const cls=pr.total===0?"":(pr.pct===100?"done":(pr.done>0?"part":""));
+    if(pr.total>0){ counted++; if(pr.pct===100)full++; }
+    const stat = pr.total===0 ? "zero" : (pr.pct===100 ? "done" : (pr.done>0 ? "part" : "zero"));
+    const el=document.createElement("div"); el.className="sq "+stat;
+    el.innerHTML=`${stat==="done"?'<span class="chk">✅</span>':''}
+      <div class="emo">${p.icon}</div>
+      <div class="nm">${p.name}</div>
+      <div class="pc">${pr.total?pr.pct+"%":"—"}</div>
+      <div class="who">${pr.total?(pr.checker?("👤 "+escapeHtml(pr.checker)):"ยังไม่มีผู้เช็ค"):"ยังไม่มีรายการ"}</div>`;
+    list.appendChild(el);
+  });
+  const ovpct = counted?Math.round(full/counted*100):0;
+  document.getElementById("ovText").textContent=`${full}/${POSITIONS.length} ครบ`;
+  const ov=document.getElementById("ovPct"); ov.textContent=ovpct+"%"; ov.style.color=ovpct===100?"#22c55e":"#38bdf8";
+}
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* subscribe */
+function subscribe(){
+  DBread.onValue("checklist/templates",t=>{templates=t||{};render();});
+  POSITIONS.forEach(p=>{
+    DBread.onValue(`checklist/records/${S.recKey}/${p.key}`,rec=>{records[p.key]=rec||{};render();});
+  });
+}
+subscribe();
+render();
+
+/* handle shift rollover + local-mode polling */
+setInterval(()=>{
+  const n=shiftInfo();
+  if(n.recKey!==S.recKey){ location.reload(); return; }
+  if(!db){ // local mode: re-read
+    templates=lsGet("checklist/templates",{})||{};
+    POSITIONS.forEach(p=>records[p.key]=lsGet(`checklist/records/${S.recKey}/${p.key}`,{})||{});
+    render();
+  } else render();
+},15000);
+
+/* optional zoom of embedded frames */
+function applyZoom(wrapId,frameId,zoom){
+  if(zoom===1)return;
+  const wrap=document.getElementById(wrapId),f=document.getElementById(frameId);
+  function fit(){ const w=wrap.clientWidth,h=wrap.clientHeight;
+    f.style.width=(w/zoom)+"px";f.style.height=(h/zoom)+"px";f.style.transform=`scale(${zoom})`; }
+  fit(); new ResizeObserver(fit).observe(wrap);
+}
+applyZoom("ftWrap","ftFrame",CONFIG.fastTrackZoom);
+applyZoom("emsWrap","emsFrame",CONFIG.emsZoom);
+</script>
 </body>
 </html>
