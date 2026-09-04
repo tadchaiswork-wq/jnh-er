@@ -396,7 +396,7 @@ function newCase(){
   const ref=casesRef.push();
   const obj={ createdAt:now, notifyTime:null,
     sexAge:"", symptom:"", phone:"", other:"",
-    vehicle:"", vehicleUnit:"", triage:"",
+    vehicle:"", vehicleUnit:"", triage:"", inCity:false,
     command:null, depart:null, arrive:null, leave:null, hosp:null, toBase:null,
     mileDepart:"", mileArrive:"", mileHosp:"", mileBase:"", departCrew:"",
     vsRecords:[], caseRecords:[],
@@ -636,7 +636,7 @@ function renderEntry(app){
        <table class="cases">
          <thead><tr>
            <th class="col-notify">1. รับเคส / แจ้งเหตุ</th>
-           <th class="col-veh">2. รถ + Triage</th>
+           <th class="col-veh">2. รถ · Triage · เขตเมือง</th>
            <th class="col-btn">3. สั่งการ</th>
            <th class="col-btn">4. ออกฐาน</th>
            <th class="col-btn">5. ถึงเหตุ</th>
@@ -684,6 +684,8 @@ function renderCaseRow(id,c,seq){
         ${unitOptions(c.vehicleUnit)}
       </select>
       <div class="triage">${sw}</div>
+      <label class="chk"><input type="checkbox" ${c.inCity?'checked':''}
+        onchange="setField('${id}','inCity',this.checked)"> เขตเมืองชัยนาท</label>
     </td>
     ${stageCell(id,c,'command')}
     ${stageCell(id,c,'depart')}
@@ -769,12 +771,14 @@ function drawTV(){
   const grid=document.getElementById("tvGrid");
   if(!grid){stopTV();return;}
   const now=Date.now();
+  // จอรวม (whole monitor) ส่ง ?cityonly=1 มา → แสดงเฉพาะเคสในเขตเมือง
+  const cityOnly = new URLSearchParams(location.search).get("cityonly")==="1";
   // เฉพาะ ALS/ILS, เริ่มเมื่อกดสั่งการ, ยังไม่จบ (ยังไม่ถึงฐาน)
   const list=Object.entries(CASES).filter(([id,c])=>
-    (c.vehicle==="ALS"||c.vehicle==="ILS") && c.command && !c.toBase)
+    (c.vehicle==="ALS"||c.vehicle==="ILS") && c.command && !c.toBase && (!cityOnly || c.inCity))
     .sort((a,b)=> a[1].command.time - b[1].command.time);
 
-  if(!list.length){ grid.innerHTML=`<div class="tv-empty">— ไม่มีเคส ALS/ILS ที่กำลังดำเนินการ —</div>`; return; }
+  if(!list.length){ grid.innerHTML=`<div class="tv-empty">— ไม่มีเคส ALS/ILS${cityOnly?" ในเขตเมือง":""} ที่กำลังดำเนินการ —</div>`; return; }
 
   grid.innerHTML=list.map(([id,c])=>{
     const isALS=c.vehicle==="ALS";
@@ -826,6 +830,19 @@ function renderDashboard(app){
          </select></div>
        <div class="fg"><label>ปี (ค.ศ.)</label>
          <input id="fYear" type="number" value="${new Date().getFullYear()}" onchange="drawDash()" style="width:100px"></div>
+       <div class="fg"><label>เขต</label>
+         <select id="fArea" onchange="drawDash()">
+           <option value="all">ทั้งหมด</option>
+           <option value="city">เฉพาะเขตเมือง</option>
+           <option value="outside">นอกเขตเมือง</option>
+         </select></div>
+       <div class="fg"><label>ประเภทรถ</label>
+         <select id="fVeh" onchange="drawDash()">
+           <option value="all">ทั้งหมด</option>
+           <option value="ALS">ALS</option>
+           <option value="ILS">ILS</option>
+           <option value="BLS">BLS</option>
+         </select></div>
        <div class="fg"><label>แสดงกลุ่ม</label>
          <select id="fGroup" onchange="drawDash()">
            <option value="all">ทั้งหมด</option>
@@ -863,7 +880,16 @@ function getDashData(){
   const period=document.getElementById("fPeriod").value;
   const year=+document.getElementById("fYear").value;
   const exclFar=document.getElementById("fExclFar").checked;
+  const areaEl=document.getElementById("fArea"), vehEl=document.getElementById("fVeh");
+  const area=areaEl?areaEl.value:"all";
+  const vtype=vehEl?vehEl.value:"all";
   let list=Object.values(CASES).filter(c=>c.createdAt && new Date(c.createdAt).getFullYear()===year);
+  list=list.filter(c=>{
+    if(area==="city" && !c.inCity) return false;
+    if(area==="outside" && c.inCity) return false;
+    if(vtype!=="all" && c.vehicle!==vtype) return false;
+    return true;
+  });
 
   const buckets={};
   list.forEach(c=>{
@@ -931,9 +957,15 @@ function drawDash(){
 }
 
 function exportExcel(){
-  const rows=Object.values(CASES).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0)).map(c=>({
+  // ถ้าอยู่หน้า Dashboard ให้ยึดตามตัวกรองปัจจุบัน (ปี · เขต · ประเภทรถ)
+  let all=Object.values(CASES);
+  const yEl=document.getElementById("fYear"), aEl=document.getElementById("fArea"), vEl=document.getElementById("fVeh");
+  if(yEl){ const year=+yEl.value; all=all.filter(c=>c.createdAt && new Date(c.createdAt).getFullYear()===year); }
+  if(aEl){ const area=aEl.value; all=all.filter(c=> area==="city"? !!c.inCity : area==="outside"? !c.inCity : true); }
+  if(vEl){ const v=vEl.value; all=all.filter(c=> v==="all"? true : c.vehicle===v); }
+  const rows=all.sort((a,b)=>(a.createdAt||0)-(b.createdAt||0)).map(c=>({
     "วันเวลาแจ้งเหตุ":fmtDateTime(c.notifyTime||c.createdAt),
-    "รถ":c.vehicle||"","รถที่ออก":c.vehicleUnit||"","Triage":c.triage||"",
+    "รถ":c.vehicle||"","รถที่ออก":c.vehicleUnit||"","Triage":c.triage||"","เขตเมือง":c.inCity?"ในเขต":"นอกเขต",
     "เพศ/อายุ":c.sexAge||"","อาการ":c.symptom||"","เบอร์โทร":c.phone||"","อื่นๆ":c.other||"",
     "สั่งการ":c.command?fmtTime(c.command.time):"","สั่งการช้า":isLate(c,'command')?"ช้า":"",
     "ออกฐาน":c.depart?fmtTime(c.depart.time):"","ออกฐานช้า":isLate(c,'depart')?"ช้า":"",
@@ -1008,11 +1040,11 @@ function renderAdmin(app){
       </div>
       <div style="overflow-x:auto">
       <table class="admin-tbl">
-        <tr><th>วันเวลา</th><th>รถ</th><th>รถที่ออก</th><th>Triage</th><th>แจ้งเหตุ</th>
+        <tr><th>วันเวลา</th><th>รถ</th><th>รถที่ออก</th><th>Triage</th><th>เขต</th><th>แจ้งเหตุ</th>
             <th>สั่งการ</th><th>ออกฐาน</th><th>ถึงเหตุ</th><th>ออกจากเหตุ</th>
             <th>ถึงรพ.</th><th>ถึงฐาน</th><th>เกิน10</th>
             <th>หมายเลขออกเหตุ</th><th>รหัสเคส</th><th></th></tr>
-        ${entries.map(([id,c])=>adminRow(id,c)).join("")||`<tr><td colspan="15" style="text-align:center;color:var(--muted);padding:20px">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>`}
+        ${entries.map(([id,c])=>adminRow(id,c)).join("")||`<tr><td colspan="16" style="text-align:center;color:var(--muted);padding:20px">ไม่มีข้อมูลในช่วงที่เลือก</td></tr>`}
       </table></div>
     </div>`;
 }
@@ -1021,6 +1053,7 @@ function adminRow(id,c){
   return `<tr>
     <td style="white-space:nowrap;cursor:pointer" onclick="editNotifyTime('${id}')">${fmtDateTime(c.notifyTime||c.createdAt)}</td>
     <td>${c.vehicle||""}</td><td>${escapeHtml(c.vehicleUnit||"")}</td><td>${c.triage||""}</td>
+    <td style="text-align:center">${c.inCity?"เมือง":""}</td>
     <td style="max-width:200px">${escapeHtml(caseSummaryText(c).slice(0,80))}</td>
     <td>${st('command')}</td><td>${st('depart')}</td><td>${st('arrive')}</td>
     <td>${st('leave')}</td><td>${st('hosp')}</td><td>${st('toBase')}</td>

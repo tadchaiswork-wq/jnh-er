@@ -69,12 +69,6 @@
     display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;opacity:.6}
   #fsBtn:hover{opacity:1;background:#1e2f45}
   :fullscreen #fsBtn{opacity:.25}
-  /* sound-all button */
-  #soundAllBtn{position:fixed;right:70px;bottom:12px;z-index:60;height:46px;border-radius:12px;
-    border:1px solid #0e7490;background:#0ea5e9;color:#fff;font-size:14px;font-weight:700;cursor:pointer;
-    padding:0 16px;display:flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(2,132,199,.4);transition:.15s}
-  #soundAllBtn:hover{background:#0284c7}
-  #soundAllBtn.on{background:#16a34a;border-color:#16a34a}
   /* แบนเนอร์กระพริบเขียว: กำลังนำส่งโรงพยาบาล — สไตล์เดียวกับ EMS แจ้งเหตุ (1s steps) แต่สีเขียว */
   #transportBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:70;justify-content:center;align-items:center;
     gap:10px;padding:14px 16px;font-size:24px;font-weight:800;color:#fff;background:#065f46;letter-spacing:.5px;
@@ -108,7 +102,6 @@
   </div>
 </div>
 <div id="transportBanner">🟢 กำลังนำส่งโรงพยาบาล</div>
-<button id="soundAllBtn" class="on" title="เปิด/ปิดเสียงเตือน EMS">🔊 เสียงเปิด</button>
 <button id="fsBtn" title="เต็มจอ (ซ่อนแถบเบราว์เซอร์)">⛶ เต็มจอ</button>
 <div id="cfgWarn" class="cfgwarn" style="display:none">⚠️ ยังไม่ได้ตั้งค่า Firebase — สถานะเช็คของยังไม่แชร์ข้ามเครื่อง (แก้ firebase-config.js)</div>
 
@@ -124,7 +117,7 @@ const CONFIG = {
   leftWidth: "70%",     // ความกว้างฝั่ง Fast Track
   emsHeight: "42%",     // ความสูงของกล่อง EMS ในคอลัมน์ขวา
   fastTrackURL: "../fasttrack/tv.html",
-  emsURL:       "../ems/index.html#tv",
+  emsURL:       "../ems/index.html?cityonly=1#tv",   // จอรวม: แสดงเฉพาะ ALS/ILS ในเขตเมือง
   // ฐานข้อมูล EMS (ใช้เล่นเสียงเตือนบนหน้า Monitor เมื่อมีเคส activate)
   emsDbURL:     "https://ems-jnh-default-rtdb.asia-southeast1.firebasedatabase.app",
   // ถ้าอยากซูมเนื้อหาใน iframe (จอ TV ใหญ่) ปรับตัวคูณ; 1 = ปกติ
@@ -142,7 +135,7 @@ function hideEmsChrome(){
     const fr=document.getElementById("emsFrame"); const d=fr.contentDocument; if(!d||!d.head) return;
     let st=d.getElementById("_kioskcss");
     if(!st){ st=d.createElement("style"); st.id="_kioskcss"; d.head.appendChild(st); }
-    st.textContent=".topbar,.sound-btn,#soundBtn,[data-sound-btn]{display:none!important}";
+    st.textContent=".topbar{display:none!important}";
   }catch(e){ /* ข้ามถ้า cross-origin */ }
 }
 document.getElementById("emsFrame").addEventListener("load", ()=>{ hideEmsChrome(); setTimeout(hideEmsChrome,600); });
@@ -157,29 +150,13 @@ document.getElementById("fsBtn").onclick=function(){
 };
 
 /* ================= เสียงเตือนบนหน้า Monitor ================= */
-let AC=null, audioReady=false, soundMuted=false;
-
-/* ---------- ปุ่มเปิด/ปิดเสียงเตือน EMS (กดสลับ) ---------- */
-(function(){
-  const b=document.getElementById("soundAllBtn"); if(!b) return;
-  function refresh(){
-    if(soundMuted){ b.textContent="🔇 ปิดเสียง"; b.classList.remove("on"); }
-    else{ b.textContent="🔊 เสียงเปิด"; b.classList.add("on"); }
-  }
-  b.onclick=function(){
-    try{ enableAllAudio(); }catch(e){}   // ปลดล็อกเสียงด้วยการกด (ครั้งเดียว)
-    soundMuted=!soundMuted;
-    refresh();
-    if(!soundMuted){ try{ playConfirm(); }catch(e){} }  // ยืนยันสั้นๆ ว่าเสียงพร้อมใช้งาน
-  };
-  refresh();
-})();
+let AC=null, audioReady=false;
 function unlockAudio(){
   try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==="suspended") AC.resume(); audioReady=true; }catch(e){}
 }
 /* เสียงเตือนแบบเดียวกับ EMS (train chime ~10 วินาที) */
 function playTrainChime(){
-  if(!audioReady||!AC||soundMuted) return;
+  if(!audioReady||!AC) return;
   const notes=[880,988,1319,1175];
   const master=AC.createGain(); master.gain.value=0.9; master.connect(AC.destination);
   let t=AC.currentTime; const step=0.42, total=10;
@@ -203,7 +180,7 @@ async function pollEms(){
     const cases=(await r.json())||{}; const now=Date.now(); const activeNow={}; let transporting=false;
     Object.entries(cases).forEach(([id,c])=>{
       if(!c) return;
-      const als=(c.vehicle==="ALS"||c.vehicle==="ILS");
+      const als=(c.vehicle==="ALS"||c.vehicle==="ILS") && c.inCity; // เฉพาะ ALS/ILS ในเขตเมือง
       if(als && c.command && c.leave && !c.hosp && !c.toBase) transporting=true; // ออกจากเหตุ→ยังไม่ถึง รพ.
       const active=als && c.command && !c.toBase;
       if(!active) return;
