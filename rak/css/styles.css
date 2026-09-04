@@ -19,6 +19,8 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
+body { overflow-x: hidden; }
+.container, .card { max-width: 100%; }
 body {
   font-family: 'Sarabun', system-ui, sans-serif;
   background: var(--bg);
@@ -121,6 +123,10 @@ body {
   font-family: inherit; font-size: 0.95rem; background: #fff; color: var(--ink);
 }
 .field textarea { min-height: 84px; resize: vertical; }
+/* radio/checkbox ต้องไม่ยืดเต็มความกว้าง (กันข้อความหลุดจอ) */
+.field input[type="radio"], .field input[type="checkbox"] {
+  width: auto; flex: 0 0 auto; padding: 0; margin: 0; box-shadow: none;
+}
 .field input:focus, .field select:focus, .field textarea:focus {
   outline: none; border-color: var(--pink); box-shadow: 0 0 0 3px var(--pink-soft);
 }

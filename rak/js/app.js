@@ -545,11 +545,11 @@ async function viewCheckin(v) {
   const done = ciOpts.filter((o) => exist[o.key]);
   const canContinue = !!(prev && exist[prev.key] && cur && !exist[cur.key]);
 
-  const optStyle = "display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer";
+  const optStyle = "display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;cursor:pointer";
   const optRadios = notDone.map((o, i) => `
     <label style="${optStyle}">
-      <input type="radio" name="ci-opt" value="${o.key}" ${i === 0 ? "checked" : ""}/>
-      <span>เวร${SHIFT_SHORT[o.shift]} <span class="s">${o.kind === "next" ? "(เวรถัดไป • มาก่อนเวลา)" : (o.late ? `(สาย ${o.lateMinutes} น. • ต้องใส่เหตุผล)` : "(เวรปัจจุบัน)")}</span></span>
+      <input type="radio" name="ci-opt" value="${o.key}" ${i === 0 ? "checked" : ""} style="width:20px;height:20px;flex:0 0 auto;margin:0;padding:0;accent-color:var(--pink)"/>
+      <span style="flex:1;min-width:0">เวร${SHIFT_SHORT[o.shift]} <span class="s">${o.kind === "next" ? "(เวรถัดไป • มาก่อนเวลา)" : (o.late ? `(สาย ${o.lateMinutes} น. • ต้องใส่เหตุผล)` : "(เวรปัจจุบัน)")}</span></span>
     </label>`).join("");
 
   const doneHTML = done.map((o) => {
