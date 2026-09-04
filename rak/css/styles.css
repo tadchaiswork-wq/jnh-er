@@ -257,8 +257,27 @@ tr:last-child td { border-bottom: none; }
 .chip-bad.on { background: #fde0e3; color: var(--danger); border-color: var(--danger); }
 .chip:hover { border-color: var(--pink); }
 
+/* smooth touch scrolling for horizontally-scrolling areas */
+.tabbar, .table-wrap { -webkit-overflow-scrolling: touch; }
+.tabbar { scrollbar-width: none; }
+.tabbar::-webkit-scrollbar { height: 0; }
+
 @media (max-width: 560px) {
   .topbar .brand span.full { display: none; }
+  .topbar { padding: 12px 14px; }
+  .topbar .user-chip { font-size: 0.8rem; padding: 5px 10px; gap: 6px; }
   .container { padding: 12px; }
+  .card { padding: 14px; margin-bottom: 12px; }
+  .section-title { font-size: 1.02rem; }
   .rate-btn { width: 34px; height: 34px; font-size: 0.85rem; }
+  /* ปุ่มเรียงเต็มความกว้างในจอแนวตั้ง กดง่ายด้วยนิ้ว */
+  .btn-row .btn { flex: 1 1 auto; }
+  .btn { padding: 12px 16px; }
+  /* กันหน้าซูมเองตอนแตะช่องกรอกบน iOS (ต้อง ≥16px) */
+  .field input, .field select, .field textarea { font-size: 16px; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .stat .num { font-size: 1.5rem; }
+  .barcode-grid { grid-template-columns: 1fr; }
+  table { font-size: 0.85rem; }
+  th, td { padding: 8px 9px; }
 }

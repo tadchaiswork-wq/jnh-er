@@ -25,6 +25,9 @@ const State = {
 
 const SHIFT_LABEL = { morning: "เช้า (08:00–16:00)", afternoon: "บ่าย (16:00–00:00)", night: "ดึก (00:00–08:00)" };
 const SHIFT_SHORT = { morning: "เช้า", afternoon: "บ่าย", night: "ดึก" };
+const TH_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+function thMonth(ymStr) { const p = String(ymStr || "").split("-"); const m = +p[1]; return (TH_MONTHS[m - 1] || "") + " " + ((+p[0]) + 543); }
+let statMode = "month", statValue = null;
 const FLAG_THRESHOLD = 5;
 const APPRECIATE_MAX = 2;
 const EDIT_REPORT_MS = 7 * 24 * 3600 * 1000;   // แก้ไข/ลบรายงานตนเองได้ภายใน 7 วัน
@@ -355,10 +358,11 @@ function tabsForRole(role) {
   const base = [
     { id: "home", label: "หน้าหลัก" },
     { id: "checkin", label: "📷 เข้าเวร" },
+    { id: "satisfaction", label: "ความพึงพอใจ" },
+    { id: "praise", label: "ชื่นชม" },
     { id: "report", label: "รายงาน" },
     { id: "myreports", label: "การรายงานของฉัน" },
-    { id: "praise", label: "ชื่นชม" },
-    { id: "satisfaction", label: "พึงพอใจเวร" },
+    { id: "stats", label: "สถิติ" },
   ];
   if (role === "member") return base;
   // admin & superadmin
@@ -413,6 +417,7 @@ function renderView() {
     case "myreports": return viewMyReports(v);
     case "praise": return viewPraise(v);
     case "satisfaction": return viewSatisfaction(v);
+    case "stats": return viewStats(v);
     case "dashboard": return viewDashboard(v);
     case "users": return viewUsers(v);
     case "reports": return viewPersonReports(v);
@@ -1457,6 +1462,79 @@ async function loadPersonReport(uid, name, month) {
       <button class="btn btn-ghost" id="pr-pdf">📄 ออกรายงาน PDF</button>
     </div>`;
   el("pr-pdf").onclick = () => printPersonReport(name, month, rs, as, true);
+}
+
+/* ============================================================
+   STATS — สถิติการเข้าเวรของฉัน (มาสายกี่ครั้ง / เฉลี่ยกี่นาที) รายเดือน–รายปี
+   ============================================================ */
+async function viewStats(v) {
+  v.innerHTML = `<div class="empty">กำลังโหลดสถิติ…</div>`;
+  const uid = State.user.uid;
+  let all = [];
+  try { const snap = await db.collection("checkins").where("uid", "==", uid).get(); all = snap.docs.map((d) => d.data()); }
+  catch (e) { v.innerHTML = `<div class="card"><div class="empty">โหลดสถิติไม่ได้: ${esc(friendlyErr(e))}</div></div>`; return; }
+
+  const now = new Date();
+  const curYm = ym(now), curY = String(now.getFullYear());
+  const months = [...new Set(all.map((c) => c.ym || (c.date || "").slice(0, 7)).filter(Boolean))];
+  if (!months.includes(curYm)) months.push(curYm);
+  months.sort().reverse();
+  const years = [...new Set(all.map((c) => (c.date || c.ym || "").slice(0, 4)).filter(Boolean))];
+  if (!years.includes(curY)) years.push(curY);
+  years.sort().reverse();
+
+  if (statMode === "month" && !months.includes(statValue)) statValue = curYm;
+  if (statMode === "year" && !years.includes(statValue)) statValue = curY;
+  if (!statValue) statValue = statMode === "month" ? curYm : curY;
+
+  const listOpts = (statMode === "month" ? months : years)
+    .map((x) => `<option value="${x}" ${statValue === x ? "selected" : ""}>${statMode === "month" ? thMonth(x) : ("ปี " + ((+x) + 543))}</option>`).join("");
+
+  v.innerHTML = `
+    <div class="card">
+      <div class="section-title">📊 สถิติการเข้าเวรของฉัน</div>
+      <div class="btn-row" style="margin-bottom:12px">
+        <div class="field" style="margin:0;flex:1;min-width:120px"><label>ช่วง</label>
+          <select id="st-mode">
+            <option value="month" ${statMode === "month" ? "selected" : ""}>รายเดือน</option>
+            <option value="year" ${statMode === "year" ? "selected" : ""}>รายปี</option>
+          </select></div>
+        <div class="field" style="margin:0;flex:1;min-width:140px"><label>เลือก${statMode === "month" ? "เดือน" : "ปี"}</label>
+          <select id="st-value">${listOpts}</select></div>
+      </div>
+      <div id="st-body"></div>
+    </div>`;
+  el("st-mode").onchange = (e) => { statMode = e.target.value; statValue = null; viewStats(el("view")); };
+  el("st-value").onchange = (e) => { statValue = e.target.value; renderStatBody(all); };
+  renderStatBody(all);
+}
+
+function renderStatBody(all) {
+  const list = all.filter((c) => {
+    const ymStr = c.ym || (c.date || "").slice(0, 7);
+    if (statMode === "month") return ymStr === statValue;
+    return (c.date || ymStr || "").slice(0, 4) === statValue;
+  });
+  const lates = list.filter((c) => c.late);
+  const shifts = list.length, lateCount = lates.length;
+  const totalMin = lates.reduce((s, c) => s + (c.lateMinutes || 0), 0);
+  const avg = lateCount ? Math.round(totalMin / lateCount) : 0;
+  const onTime = shifts - lateCount;
+  const box = el("st-body"); if (!box) return;
+  const lateList = lates.slice().sort((a, b) => (a.date || "").localeCompare(b.date || "")).map((c) => `
+    <div class="person-row"><div class="meta">
+      <div class="n">${esc(c.date || "")} • เวร${SHIFT_SHORT[c.shift] || c.shift}</div>
+      <div class="s">สาย ${c.lateMinutes || 0} นาที${c.lateReason ? " • " + esc(c.lateReason) : ""}</div>
+    </div><span class="badge badge-flag">สาย</span></div>`).join("");
+  box.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat"><div class="num">${shifts}</div><div class="lbl">เวรที่เข้า</div></div>
+      <div class="stat"><div class="num" style="color:var(--danger)">${lateCount}</div><div class="lbl">มาสาย (ครั้ง)</div></div>
+      <div class="stat"><div class="num" style="color:var(--amber)">${avg}</div><div class="lbl">เฉลี่ยนาที/ครั้งที่สาย</div></div>
+      <div class="stat"><div class="num" style="color:var(--teal)">${onTime}</div><div class="lbl">ตรงเวลา</div></div>
+    </div>
+    <div class="sub" style="margin-top:12px">รวมนาทีสายทั้งหมด: <b>${totalMin}</b> นาที ${statMode === "month" ? "• " + thMonth(statValue) : "• ปี " + ((+statValue) + 543)}</div>
+    ${lateCount ? `<div class="section-title" style="margin-top:16px;font-size:1rem">รายการที่มาสาย</div>${lateList}` : `<div class="empty" style="margin-top:12px">ช่วงนี้ไม่มีการมาสาย 🎉</div>`}`;
 }
 
 /* ============================================================
