@@ -140,6 +140,68 @@ function assignShift(now = new Date()) {
 }
 
 /* ============================================================
+   QR + GPS check-in  (สแกน QR ที่ ER + ตรวจตำแหน่งในรัศมี 50 ม.)
+   ============================================================ */
+const EARLY_CHOICE_MS = 30 * 60 * 1000;   // มาก่อนเวรไม่เกิน 30 นาที -> เลือกเวรได้ (ปัจจุบัน/ถัดไป)
+// พิกัด ER เริ่มต้น — แอดมินตั้งค่าใหม่ได้จากแท็บ "จัดการผู้ใช้" (เก็บที่ config/er)
+const ER_GEO_DEFAULT = { lat: 15.191347, lng: 100.127522, radius: 50 };
+let _erGeoCache = null;
+async function getErGeo(force) {
+  if (_erGeoCache && !force) return _erGeoCache;
+  try {
+    const s = await db.collection("config").doc("er").get();
+    if (s.exists) {
+      const d = s.data();
+      if (typeof d.lat === "number" && typeof d.lng === "number") {
+        _erGeoCache = { lat: d.lat, lng: d.lng, radius: d.radius || 50, source: "config" };
+        return _erGeoCache;
+      }
+    }
+  } catch (e) {}
+  _erGeoCache = { ...ER_GEO_DEFAULT, source: "default" };
+  return _erGeoCache;
+}
+function getPosition() {
+  return new Promise((res, rej) => {
+    if (!navigator.geolocation) return rej(new Error("อุปกรณ์นี้ไม่รองรับ GPS"));
+    navigator.geolocation.getCurrentPosition(
+      (p) => res(p.coords), (e) => rej(e),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
+}
+function distMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000, toRad = (x) => (x * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+/* ตัวเลือกเวรที่เข้าได้ตอนนี้: เวรปัจจุบันเสมอ + เวรถัดไปถ้ามาก่อนไม่เกิน 30 นาที */
+function checkinOptions(now = new Date()) {
+  const evs = shiftEvents(now);
+  const out = [];
+  const cur = evs.find((e) => now >= e.start && now < e.end);
+  const next = evs.find((e) => e.start > now);
+  if (cur) {
+    const lm = Math.max(0, Math.floor((now - cur.start) / 60000));
+    out.push({ ...cur, lateMinutes: lm, late: lm > LATE_MIN, early: false, kind: "current" });
+  }
+  if (next && next.start - now <= EARLY_CHOICE_MS) {
+    out.push({ ...next, lateMinutes: 0, late: false, early: true, kind: "next" });
+  }
+  return out;
+}
+/* เวรก่อนหน้าเวรปัจจุบัน (ใช้ตรวจสอบการ "ต่อเวร") */
+function prevShiftOf(now = new Date()) {
+  const evs = shiftEvents(now);
+  const cur = evs.find((e) => now >= e.start && now < e.end);
+  if (!cur) return null;
+  const idx = evs.indexOf(cur);
+  return idx > 0 ? evs[idx - 1] : null;
+}
+
+/* ============================================================
    Rendering root
    ============================================================ */
 const app = el("app");
@@ -292,6 +354,7 @@ async function logout() { await auth.signOut(); toast("ออกจากระ�
 function tabsForRole(role) {
   const base = [
     { id: "home", label: "หน้าหลัก" },
+    { id: "checkin", label: "📷 เข้าเวร" },
     { id: "report", label: "รายงาน" },
     { id: "myreports", label: "การรายงานของฉัน" },
     { id: "praise", label: "ชื่นชม" },
@@ -381,16 +444,37 @@ function drawMyBarcode() {
    ============================================================ */
 async function viewHome(v) {
   const cur = currentShift();
-  v.innerHTML = myBarcodeHTML() + `
+  v.innerHTML = `
+    <div class="card">
+      <div class="section-title">🕒 สถานะการเข้าเวร</div>
+      <div class="sub">ขณะนี้ • เวร${SHIFT_SHORT[cur.shift]} • ${esc(cur.date)}</div>
+      <div id="home-ci-status" class="scan-status">กำลังตรวจสอบ…</div>
+      <div class="btn-row"><button class="btn btn-teal" id="home-go-checkin">📷 ไปหน้าเข้าเวร</button></div>
+    </div>
     <div class="card">
       <div class="section-title">👥 เพื่อนร่วมเวรปัจจุบัน</div>
       <div class="sub">เวร${SHIFT_SHORT[cur.shift]} • ${esc(cur.date)}</div>
       <div id="coworkers" class="person-list"><div class="empty">กำลังโหลด…</div></div>
     </div>`;
-  drawMyBarcode();
+  el("home-go-checkin").onclick = () => { State.activeTab = "checkin"; renderShell(); };
+  try {
+    const mine = await db.collection("checkins").doc(`${State.user.uid}_${cur.key}`).get();
+    const s = el("home-ci-status");
+    if (s) {
+      if (mine.exists) {
+        const c = mine.data();
+        s.className = "scan-status ok";
+        s.innerHTML = c.late ? `✓ เข้าเวรแล้ว • มาสาย ${c.lateMinutes} นาที` : "✓ เข้าเวรแล้ว";
+      } else {
+        s.className = "scan-status";
+        s.textContent = "ยังไม่ได้เข้าเวร — กดปุ่มด้านล่างเพื่อสแกน QR ที่ ER";
+      }
+    }
+  } catch (e) {}
   const members = await getShiftMembers(cur.key);
   const box = el("coworkers");
-  if (!members.length) { box.innerHTML = `<div class="empty">ยังไม่มีสมาชิกในเวรนี้<br/>สแกนบาร์โค้ดของคุณที่เครื่องสแกนหน้างาน ER เพื่อลงเวร</div>`; return; }
+  if (!box) return;
+  if (!members.length) { box.innerHTML = `<div class="empty">ยังไม่มีสมาชิกในเวรนี้</div>`; return; }
   box.innerHTML = members.map(personRowHTML).join("");
 }
 
@@ -429,54 +513,128 @@ async function getCoworkers(shiftKey) {
 }
 
 /* ============================================================
-   CHECK-IN — barcode scan / manual
+   CHECK-IN — สแกน QR ที่ ER + ตรวจตำแหน่ง (บาร์โค้ด = สำรอง)
    ============================================================ */
 let html5Scanner = null;
-function viewCheckin(v) {
-  const cur = currentShift();
-  v.innerHTML = myBarcodeHTML() + `
+let ciOpts = [];
+
+async function viewCheckin(v) {
+  v.innerHTML = `<div class="empty">กำลังตรวจสอบสถานะเวร…</div>`;
+  const uid = State.user.uid;
+  const now = new Date();
+  ciOpts = checkinOptions(now);
+  const geo = await getErGeo();
+
+  const prev = prevShiftOf(now);
+  const cur = ciOpts.find((o) => o.kind === "current") || null;
+
+  const keys = new Set(ciOpts.map((o) => o.key));
+  if (prev) keys.add(prev.key);
+  const exist = {};
+  await Promise.all([...keys].map(async (k) => {
+    try { const d = await db.collection("checkins").doc(`${uid}_${k}`).get(); exist[k] = d.exists ? d.data() : null; }
+    catch (e) { exist[k] = null; }
+  }));
+
+  const notDone = ciOpts.filter((o) => !exist[o.key]);
+  const done = ciOpts.filter((o) => exist[o.key]);
+  const canContinue = !!(prev && exist[prev.key] && cur && !exist[cur.key]);
+
+  const optStyle = "display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer";
+  const optRadios = notDone.map((o, i) => `
+    <label style="${optStyle}">
+      <input type="radio" name="ci-opt" value="${o.key}" ${i === 0 ? "checked" : ""}/>
+      <span>เวร${SHIFT_SHORT[o.shift]} <span class="s">${o.kind === "next" ? "(เวรถัดไป • มาก่อนเวลา)" : (o.late ? `(สาย ${o.lateMinutes} น. • ต้องใส่เหตุผล)` : "(เวรปัจจุบัน)")}</span></span>
+    </label>`).join("");
+
+  const doneHTML = done.map((o) => {
+    const c = exist[o.key];
+    const t = c && c.ts && c.ts.toDate ? c.ts.toDate().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "";
+    return `<div class="person-row" style="align-items:center">
+      <div class="meta"><div class="n">✓ เข้าเวร${SHIFT_SHORT[o.shift]}แล้ว</div>
+        <div class="s">${t ? "เวลา " + t : ""}${c && c.late ? " • สาย " + c.lateMinutes + " น." : ""}${c && c.method === "continue" ? " • ต่อเวร" : ""}</div></div>
+      <button class="btn btn-sm btn-danger" data-cancel="${o.key}">ยกเลิก</button>
+    </div>`;
+  }).join("");
+
+  v.innerHTML = `
     <div class="card">
-      <div class="section-title">📷 สแกนเข้าเวร</div>
-      <div class="sub">ระบบจะบันทึกเวรตามเวลาปัจจุบัน — ขณะนี้คือ <b>เวร${SHIFT_SHORT[cur.shift]}</b> (${SHIFT_LABEL[cur.shift]})</div>
+      <div class="section-title">📷 เข้าเวร (สแกน QR ที่ ER)</div>
+      <div class="sub">ต้องสแกน QR ที่ ER และอยู่ในรัศมี <b>${geo.radius} เมตร</b> จาก ER จึงจะเข้าเวรได้</div>
+
+      ${canContinue ? `
+      <div class="card" style="background:var(--teal-soft,#e6f7f5);margin:12px 0">
+        <div class="n">อยู่ต่อเวร?</div>
+        <div class="s" style="margin-bottom:8px">คุณอยู่เวร${SHIFT_SHORT[prev.shift]}ก่อนหน้านี้ — ถ้าอยู่ต่อเวร${SHIFT_SHORT[cur.shift]} กดปุ่มนี้ได้เลย (ไม่ต้องสแกนใหม่)</div>
+        <button class="btn btn-teal btn-block" id="ci-continue">➡️ ต่อเวร${SHIFT_SHORT[cur.shift]}</button>
+      </div>` : ""}
+
+      ${notDone.length ? `
+      <div class="field" style="margin-top:12px"><label>เลือกเวรที่จะเข้า</label>
+        <div>${optRadios}</div></div>
       <div id="scan-status" class="scan-status">พร้อมสแกน</div>
       <div id="scanner-region"></div>
       <div class="btn-row">
-        <button class="btn btn-teal" id="startScan">เปิดกล้องสแกน</button>
+        <button class="btn btn-teal" id="startScan">📷 สแกน QR เข้าเวร</button>
         <button class="btn btn-outline" id="stopScan" style="display:none">ปิดกล้อง</button>
-      </div>
-      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0"/>
-      <div class="field"><label>หรือกรอกรหัสบาร์โค้ดด้วยมือ</label>
-        <input id="manualCode" placeholder="เช่น ${esc(State.profile.barcodeId)}" /></div>
-      <button class="btn btn-primary btn-block" id="manualBtn">ยืนยันเข้าเวร</button>
+      </div>` : `<div class="empty" style="margin-top:12px">เข้าเวรครบแล้ว ✓</div>
+      <div id="scan-status" class="scan-status" style="display:none"></div>
+      <div id="scanner-region" style="display:none"></div>`}
+
+      ${doneHTML ? `<hr style="border:none;border-top:1px solid var(--line);margin:16px 0"/>
+        <div class="sub">เวรที่เข้าแล้ว (กดยกเลิกได้)</div>${doneHTML}` : ""}
+
+      <details style="margin-top:16px">
+        <summary style="cursor:pointer;color:var(--muted)">สำรอง: เข้าเวรด้วยบาร์โค้ดของตนเอง</summary>
+        <div style="margin-top:10px">
+          <div class="field"><label>กรอกรหัสบาร์โค้ดของคุณ</label>
+            <input id="manualCode" placeholder="เช่น ${esc(State.profile.barcodeId || "")}" /></div>
+          <button class="btn btn-outline btn-block" id="manualBtn">ยืนยันเข้าเวร (สำรอง)</button>
+        </div>
+      </details>
     </div>`;
-  drawMyBarcode();
-  el("startScan").onclick = startScan;
-  el("stopScan").onclick = stopScan;
-  el("manualBtn").onclick = () => doCheckin(el("manualCode").value.trim().toUpperCase());
+
+  const sc = el("startScan"); if (sc) sc.onclick = () => startQrScan();
+  const stp = el("stopScan"); if (stp) stp.onclick = stopScan;
+  const cont = el("ci-continue"); if (cont) cont.onclick = () => continueShift(cur);
+  const mb = el("manualBtn"); if (mb) mb.onclick = () => backupBarcodeCheckin((el("manualCode").value || "").trim().toUpperCase());
+  v.querySelectorAll("button[data-cancel]").forEach((b) => { b.onclick = () => cancelCheckin(b.dataset.cancel); });
 }
 
-function startScan() {
+function selectedCiOpt() {
+  const r = document.querySelector('input[name=ci-opt]:checked');
+  const key = r ? r.value : (ciOpts[0] && ciOpts[0].key);
+  return ciOpts.find((o) => o.key === key) || ciOpts[0] || null;
+}
+
+function startQrScan() {
   const region = el("scanner-region");
+  if (!region) return;
   region.innerHTML = "";
   html5Scanner = new Html5Qrcode("scanner-region");
   const config = {
-    fps: 10, qrbox: { width: 260, height: 120 },
+    fps: 10, qrbox: { width: 260, height: 220 },
     formatsToSupport: [
+      Html5QrcodeSupportedFormats.QR_CODE,
       Html5QrcodeSupportedFormats.CODE_128,
       Html5QrcodeSupportedFormats.CODE_39,
       Html5QrcodeSupportedFormats.EAN_13,
-      Html5QrcodeSupportedFormats.QR_CODE,
     ],
   };
   html5Scanner.start({ facingMode: "environment" }, config,
-    (decoded) => { stopScan(); doCheckin(decoded.trim().toUpperCase()); },
+    () => {
+      stopScan();
+      const opt = selectedCiOpt();
+      if (!opt) return toast("ไม่มีเวรให้เข้า", "err");
+      setStatus("สแกน QR สำเร็จ — กำลังตรวจตำแหน่ง…");
+      finalizeCheckin(opt, "qr-geo");
+    },
     () => {}
   ).then(() => {
-    el("startScan").style.display = "none";
-    el("stopScan").style.display = "inline-flex";
-  }).catch((e) => {
-    setStatus("เปิดกล้องไม่ได้: " + (e.message || e), "err");
-  });
+    const a = el("startScan"), b = el("stopScan");
+    if (a) a.style.display = "none";
+    if (b) b.style.display = "inline-flex";
+  }).catch((e) => setStatus("เปิดกล้องไม่ได้: " + (e.message || e), "err"));
 }
 function stopScan() {
   if (html5Scanner) {
@@ -489,29 +647,91 @@ function stopScan() {
 }
 function setStatus(msg, type = "") {
   const s = el("scan-status");
-  if (s) { s.textContent = msg; s.className = "scan-status " + type; }
+  if (s) { s.style.display = ""; s.textContent = msg; s.className = "scan-status " + type; }
 }
 
-async function doCheckin(code) {
-  if (!code) return toast("กรุณากรอกรหัสบาร์โค้ด", "err");
-  if (code !== State.profile.barcodeId) {
-    setStatus("บาร์โค้ดนี้ไม่ใช่ของคุณ — ต้องสแกนบาร์โค้ดของตนเองเท่านั้น", "err");
-    return toast("ต้องสแกนบาร์โค้ดของตนเองเท่านั้น", "err");
+/* สแกน QR สำเร็จ -> ตรวจตำแหน่ง GPS (รัศมี 50 ม.) -> ถ้าสายขอเหตุผล -> บันทึก */
+async function finalizeCheckin(opt, method) {
+  const geo = await getErGeo();
+  setStatus("กำลังตรวจสอบตำแหน่ง GPS…");
+  let coords;
+  try { coords = await getPosition(); }
+  catch (e) {
+    setStatus("อ่านตำแหน่ง GPS ไม่ได้ — โปรดอนุญาตการเข้าถึงตำแหน่ง แล้วลองใหม่", "err");
+    toast("อ่านตำแหน่งไม่ได้", "err"); return;
   }
-  const now = new Date();
-  const cur = currentShift(now);
-  const docId = `${State.user.uid}_${cur.key}`;
+  const dist = distMeters(coords.latitude, coords.longitude, geo.lat, geo.lng);
+  if (dist > (geo.radius || 50)) {
+    setStatus(`อยู่นอกพื้นที่ ER (~${Math.round(dist)} ม. • เกิน ${geo.radius} ม.) — เข้าเวรไม่ได้`, "err");
+    toast("อยู่นอกพื้นที่ ER — เข้าเวรไม่ได้", "err"); return;
+  }
+  let lateReason = "";
+  if (opt.late) {
+    lateReason = window.prompt(`มาสาย ${opt.lateMinutes} นาที\nกรุณาใส่เหตุผลการมาสาย (ต้องใส่ทุกครั้ง):`, "");
+    if (lateReason === null) { setStatus("ยกเลิกการเข้าเวร"); return; }
+    lateReason = lateReason.trim();
+    if (!lateReason) { toast("ต้องใส่เหตุผลการมาสาย", "err"); setStatus("ต้องใส่เหตุผลการมาสาย", "err"); return; }
+  }
+  await writeCheckin(opt, { method: method || "qr-geo", lat: coords.latitude, lng: coords.longitude, distance: Math.round(dist), lateReason });
+}
+
+/* ต่อเวร: อยู่ต่อจากเวรก่อนหน้า -> เข้าเวรปัจจุบันแบบตรงเวลา (ไม่ต้องสแกน/GPS) */
+async function continueShift(cur) {
+  if (!cur) return;
+  const opt = { ...cur, lateMinutes: 0, late: false, early: false };
+  await writeCheckin(opt, { method: "continue" });
+}
+
+async function writeCheckin(opt, extra) {
+  const uid = State.user.uid;
+  extra = extra || {};
   try {
-    await db.collection("checkins").doc(docId).set({
-      uid: State.user.uid, fullName: State.profile.fullName, barcodeId: State.profile.barcodeId,
-      shiftKey: cur.key, date: cur.date, shift: cur.shift,
+    await db.collection("checkins").doc(`${uid}_${opt.key}`).set({
+      uid, fullName: State.profile.fullName, barcodeId: State.profile.barcodeId || "",
+      shiftKey: opt.key, date: opt.date, shift: opt.shift, ym: opt.date.slice(0, 7),
+      shiftStart: (opt.start instanceof Date ? opt.start : new Date(opt.start)).toISOString(),
+      lateMinutes: opt.lateMinutes || 0, late: !!opt.late, early: !!opt.early,
+      lateReason: extra.lateReason || "",
+      method: extra.method || "qr-geo",
+      lat: extra.lat != null ? extra.lat : null,
+      lng: extra.lng != null ? extra.lng : null,
+      distance: extra.distance != null ? extra.distance : null,
       ts: firebase.firestore.FieldValue.serverTimestamp(),
     });
-    setStatus(`เข้าเวร${SHIFT_SHORT[cur.shift]}สำเร็จ ✓`, "ok");
-    toast(`บันทึกเข้าเวร${SHIFT_SHORT[cur.shift]}แล้ว 💗`, "ok");
+    setStatus(`เข้าเวร${SHIFT_SHORT[opt.shift]}สำเร็จ ✓${opt.late ? ` (สาย ${opt.lateMinutes} น.)` : opt.early ? " (มาก่อนเวลา)" : extra.method === "continue" ? " (ต่อเวร)" : ""}`, "ok");
+    toast(`บันทึกเข้าเวร${SHIFT_SHORT[opt.shift]}แล้ว 💗`, "ok");
+    writePresence();
+    viewCheckin(el("view"));
   } catch (e) {
     setStatus("บันทึกไม่สำเร็จ: " + friendlyErr(e), "err");
   }
+}
+
+async function cancelCheckin(key) {
+  if (!confirm("ยกเลิกการเข้าเวรนี้?")) return;
+  try {
+    await db.collection("checkins").doc(`${State.user.uid}_${key}`).delete();
+    toast("ยกเลิกการเข้าเวรแล้ว");
+    viewCheckin(el("view"));
+  } catch (e) { toast("ยกเลิกไม่สำเร็จ: " + friendlyErr(e), "err"); }
+}
+
+/* สำรอง: เข้าเวรด้วยบาร์โค้ดของตนเอง (ไม่มี GPS) */
+async function backupBarcodeCheckin(code) {
+  if (!code) return toast("กรุณากรอกรหัสบาร์โค้ด", "err");
+  if (!State.profile.barcodeId || code !== State.profile.barcodeId) {
+    return toast("ต้องกรอกบาร์โค้ดของตนเองเท่านั้น", "err");
+  }
+  const opt = selectedCiOpt() || checkinOptions()[0];
+  if (!opt) return toast("ไม่มีเวรให้เข้า", "err");
+  let lateReason = "";
+  if (opt.late) {
+    lateReason = window.prompt(`มาสาย ${opt.lateMinutes} นาที\nกรุณาใส่เหตุผลการมาสาย:`, "");
+    if (lateReason === null) return;
+    lateReason = lateReason.trim();
+    if (!lateReason) return toast("ต้องใส่เหตุผลการมาสาย", "err");
+  }
+  await writeCheckin(opt, { method: "barcode", lateReason });
 }
 
 /* ============================================================
@@ -1016,6 +1236,7 @@ function showLateDetailModal(name, month, agg, showEval) {
         <div class="n">${esc(c.date)} • เวร${SHIFT_SHORT[c.shift] || c.shift}</div>
         <div class="s">เข้าเวรจริง ${checkinTimeStr(c)}</div>
         <div class="s" style="color:var(--amber)">มาสาย ${c.lateMinutes} นาที</div>
+        <div class="s">เหตุผล: ${esc(c.lateReason || "-")}</div>
       </div>${showEval ? `<div class="acts">
         <button class="btn btn-sm btn-outline" data-lateedit="${esc(c.id)}">แก้เวลา</button>
         <button class="btn btn-sm btn-danger" data-latedel="${esc(c.id)}">ลบ</button></div>` : ""}
@@ -1251,6 +1472,17 @@ async function getAllUsers() {
 async function viewUsers(v) {
   const isSuper = State.profile.role === "superadmin";
   v.innerHTML = `
+    <div class="card" id="er-geo-card">
+      <div class="section-title">📍 ตำแหน่ง ER (สำหรับเช็คอิน QR + GPS)</div>
+      <div class="sub" id="er-geo-info">กำลังโหลด…</div>
+      <div class="field" style="max-width:160px"><label>รัศมีที่อนุญาต (เมตร)</label>
+        <input id="er-radius" type="number" min="10" step="5" value="50" /></div>
+      <div class="btn-row no-print">
+        <button class="btn btn-teal" id="er-set-here">📍 ตั้งตำแหน่งเป็น "ที่นี่" (ใช้ GPS)</button>
+        <button class="btn btn-outline" id="er-save-radius">บันทึกรัศมี</button>
+      </div>
+      <div class="sub" style="margin-top:6px;color:var(--muted)">ยืนที่ ER แล้วกด "ตั้งตำแหน่งเป็นที่นี่" เพื่ออัปเดตพิกัดให้แม่นยำ</div>
+    </div>
     <div class="card">
       <div class="section-title">⚙️ จัดการผู้ใช้งาน</div>
       <div class="sub">เพิ่ม/แก้ไข/ปรับสิทธิ์/ระงับผู้ใช้</div>
@@ -1258,7 +1490,39 @@ async function viewUsers(v) {
       <div id="user-list" style="margin-top:14px"><div class="empty">กำลังโหลด…</div></div>
     </div>`;
   el("add-user").onclick = () => openUserModal(null, isSuper);
+  loadErGeoCard();
   loadUsers(isSuper);
+}
+
+async function loadErGeoCard() {
+  const geo = await getErGeo(true);
+  const info = el("er-geo-info");
+  if (info) info.innerHTML = `พิกัดปัจจุบัน: <b>${geo.lat.toFixed(6)}, ${geo.lng.toFixed(6)}</b> • รัศมี ${geo.radius} ม. <span class="s">(${geo.source === "config" ? "ตั้งค่าโดยแอดมิน" : "ค่าเริ่มต้น"})</span>`;
+  const rad = el("er-radius"); if (rad) rad.value = geo.radius || 50;
+  const setBtn = el("er-set-here");
+  if (setBtn) setBtn.onclick = async () => {
+    setBtn.disabled = true; setBtn.textContent = "กำลังอ่านตำแหน่ง…";
+    try {
+      const c = await getPosition();
+      const radius = Math.max(10, parseInt(el("er-radius").value, 10) || 50);
+      if (!confirm(`ตั้งตำแหน่ง ER เป็น\n${c.latitude.toFixed(6)}, ${c.longitude.toFixed(6)}\nรัศมี ${radius} ม. ?`)) { setBtn.disabled = false; setBtn.textContent = '📍 ตั้งตำแหน่งเป็น "ที่นี่" (ใช้ GPS)'; return; }
+      await db.collection("config").doc("er").set({
+        lat: c.latitude, lng: c.longitude, radius,
+        updatedBy: State.profile.fullName, ts: firebase.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      toast("บันทึกตำแหน่ง ER แล้ว", "ok");
+      loadErGeoCard();
+    } catch (e) { toast("อ่านตำแหน่งไม่ได้: " + friendlyErr(e), "err"); }
+    setBtn.disabled = false; setBtn.textContent = '📍 ตั้งตำแหน่งเป็น "ที่นี่" (ใช้ GPS)';
+  };
+  const radBtn = el("er-save-radius");
+  if (radBtn) radBtn.onclick = async () => {
+    const radius = Math.max(10, parseInt(el("er-radius").value, 10) || 50);
+    try {
+      await db.collection("config").doc("er").set({ radius }, { merge: true });
+      toast("บันทึกรัศมีแล้ว", "ok"); loadErGeoCard();
+    } catch (e) { toast("บันทึกไม่สำเร็จ: " + friendlyErr(e), "err"); }
+  };
 }
 
 async function loadUsers(isSuper) {

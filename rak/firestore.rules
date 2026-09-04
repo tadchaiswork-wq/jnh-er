@@ -32,12 +32,20 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
-    // ---- การเข้าเวร (สแกน barcode) ----
+    // ---- การเข้าเวร (สแกน QR ที่ ER + GPS / บาร์โค้ดสำรอง) ----
     match /checkins/{id} {
       allow read: if isSignedIn();
-      // เช็คอินตัวเอง (จากแอป) หรือ เครื่อง station / admin เช็คอินแทนได้ (สแกนที่ ER)
+      // เช็คอินตัวเอง (จากแอป) หรือ เครื่อง station / admin เช็คอินแทนได้
       allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isStation() || isAdmin());
-      allow update, delete: if isStation() || isAdmin();
+      // เจ้าของยกเลิก/แก้ไขเช็คอินของตนเองได้ หรือ station / admin
+      allow update, delete: if isStation() || isAdmin()
+        || (isSignedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // ---- ค่าตั้งค่าระบบ (เช่น พิกัด ER สำหรับ geofence) ----
+    match /config/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // ---- รายงานเพื่อนร่วมงาน ----
