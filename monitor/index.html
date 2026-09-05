@@ -71,11 +71,6 @@
     display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;opacity:.6}
   #fsBtn:hover{opacity:1;background:#1e2f45}
   :fullscreen #fsBtn{opacity:.25}
-  /* แบนเนอร์กระพริบเขียว: กำลังนำส่งโรงพยาบาล — สไตล์เดียวกับ EMS แจ้งเหตุ (1s steps) แต่สีเขียว */
-  #transportBanner{display:none;position:fixed;top:0;left:0;right:0;z-index:70;justify-content:center;align-items:center;
-    gap:10px;padding:14px 16px;font-size:24px;font-weight:800;color:#fff;background:#065f46;letter-spacing:.5px;
-    border-bottom:4px solid #065f46;animation:flashGreen 1s steps(1) infinite}
-  @keyframes flashGreen{50%{background:#22c55e;color:#052e16;border-bottom-color:#fff}}
 </style>
 </head>
 <body>
@@ -103,7 +98,6 @@
     </div>
   </div>
 </div>
-<div id="transportBanner">🟢 กำลังนำส่งโรงพยาบาล</div>
 <button id="fsBtn" title="เต็มจอ (ซ่อนแถบเบราว์เซอร์)">⛶ เต็มจอ</button>
 <div id="cfgWarn" class="cfgwarn" style="display:none">⚠️ ยังไม่ได้ตั้งค่า Firebase — สถานะเช็คของยังไม่แชร์ข้ามเครื่อง (แก้ firebase-config.js)</div>
 
@@ -172,31 +166,8 @@ function playTrainChime(){
 }
 function playConfirm(){ if(!audioReady||!AC) return; const o=AC.createOscillator(),g=AC.createGain(); o.type="sine"; o.frequency.value=1175; o.connect(g); g.connect(AC.destination); const t=AC.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.5,t+0.03); g.gain.exponentialRampToValueAtTime(0.0001,t+0.5); o.start(t); o.stop(t+0.55); }
 
-/* เฝ้าฐานข้อมูล EMS: activate → เสียง 10 วิ · กำลังนำส่ง รพ. → กระพริบเขียว */
-let emsSeen={}, emsAlarmed={}, emsPrimed=false;
-async function pollEms(){
-  if(!CONFIG.emsDbURL) return;
-  try{
-    const r=await fetch(CONFIG.emsDbURL.replace(/\/+$/,"")+"/cases.json",{cache:"no-store"});
-    if(!r.ok) return;
-    const cases=(await r.json())||{}; const now=Date.now(); const activeNow={}; let transporting=false;
-    Object.entries(cases).forEach(([id,c])=>{
-      if(!c) return;
-      const als=(c.vehicle==="ALS"||c.vehicle==="ILS") && c.inCity; // เฉพาะ ALS/ILS ในเขตเมือง
-      if(als && c.command && c.leave && !c.hosp && !c.toBase) transporting=true; // ออกจากเหตุ→ยังไม่ถึง รพ.
-      const active=als && c.command && !c.toBase;
-      if(!active) return;
-      activeNow[id]=true;
-      if(!emsPrimed) return;
-      if(!emsSeen[id]){ playTrainChime(); }                     // เคส activate ใหม่ → เสียง 10 วิ
-      const nt=c.notifyTime;
-      if(nt && !c.depart && now>=nt+120000 && !emsAlarmed[id]){ emsAlarmed[id]=true; playTrainChime(); }
-    });
-    emsSeen=activeNow; emsPrimed=true;
-    const tb=document.getElementById("transportBanner"); if(tb) tb.style.display = transporting ? "flex" : "none";
-  }catch(e){}
-}
-setInterval(pollEms, 4000); pollEms();
+/* เสียงเตือน EMS + ไฟกระพริบ ย้ายไปจัดการในหน้า EMS Live Monitor (ems) โดยตรงแล้ว
+   (ปุ่มเปิด/ปิดเสียง + beep + ประกาศ ALS/ILS + กระพริบเขียวตอนกลับฐาน อยู่ในกล่อง EMS) */
 
 /* ---------- เริ่ม Fast Track อัตโนมัติ (ไม่ต้องกดปุ่ม "เริ่มแสดงผล") ---------- */
 function startFastTrack(){

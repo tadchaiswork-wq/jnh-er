@@ -28,6 +28,7 @@ const SHIFT_SHORT = { morning: "เช้า", afternoon: "บ่าย", night:
 const TH_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 function thMonth(ymStr) { const p = String(ymStr || "").split("-"); const m = +p[1]; return (TH_MONTHS[m - 1] || "") + " " + ((+p[0]) + 543); }
 let statMode = "month", statValue = null;
+let statCheckins = [], statPraises = [];
 const FLAG_THRESHOLD = 5;
 const APPRECIATE_MAX = 2;
 const EDIT_REPORT_MS = 7 * 24 * 3600 * 1000;   // แก้ไข/ลบรายงานตนเองได้ภายใน 7 วัน
@@ -1470,16 +1471,23 @@ async function loadPersonReport(uid, name, month) {
 async function viewStats(v) {
   v.innerHTML = `<div class="empty">กำลังโหลดสถิติ…</div>`;
   const uid = State.user.uid;
-  let all = [];
-  try { const snap = await db.collection("checkins").where("uid", "==", uid).get(); all = snap.docs.map((d) => d.data()); }
-  catch (e) { v.innerHTML = `<div class="card"><div class="empty">โหลดสถิติไม่ได้: ${esc(friendlyErr(e))}</div></div>`; return; }
+  try {
+    const [cSnap, pSnap] = await Promise.all([
+      db.collection("checkins").where("uid", "==", uid).get(),
+      db.collection("appreciations").where("toUid", "==", uid).get(),
+    ]);
+    statCheckins = cSnap.docs.map((d) => d.data());
+    statPraises = pSnap.docs.map((d) => d.data());
+  } catch (e) { v.innerHTML = `<div class="card"><div class="empty">โหลดสถิติไม่ได้: ${esc(friendlyErr(e))}</div></div>`; return; }
 
   const now = new Date();
   const curYm = ym(now), curY = String(now.getFullYear());
-  const months = [...new Set(all.map((c) => c.ym || (c.date || "").slice(0, 7)).filter(Boolean))];
+  const ymOf = (r) => r.ym || (r.date || r.shiftKey || "").slice(0, 7);
+  const allRecs = statCheckins.concat(statPraises);
+  const months = [...new Set(allRecs.map(ymOf).filter(Boolean))];
   if (!months.includes(curYm)) months.push(curYm);
   months.sort().reverse();
-  const years = [...new Set(all.map((c) => (c.date || c.ym || "").slice(0, 4)).filter(Boolean))];
+  const years = [...new Set(allRecs.map((r) => ymOf(r).slice(0, 4)).filter(Boolean))];
   if (!years.includes(curY)) years.push(curY);
   years.sort().reverse();
 
@@ -1492,7 +1500,7 @@ async function viewStats(v) {
 
   v.innerHTML = `
     <div class="card">
-      <div class="section-title">📊 สถิติการเข้าเวรของฉัน</div>
+      <div class="section-title">📊 สถิติของฉัน</div>
       <div class="btn-row" style="margin-bottom:12px">
         <div class="field" style="margin:0;flex:1;min-width:120px"><label>ช่วง</label>
           <select id="st-mode">
@@ -1505,21 +1513,25 @@ async function viewStats(v) {
       <div id="st-body"></div>
     </div>`;
   el("st-mode").onchange = (e) => { statMode = e.target.value; statValue = null; viewStats(el("view")); };
-  el("st-value").onchange = (e) => { statValue = e.target.value; renderStatBody(all); };
-  renderStatBody(all);
+  el("st-value").onchange = (e) => { statValue = e.target.value; renderStatBody(); };
+  renderStatBody();
 }
 
-function renderStatBody(all) {
-  const list = all.filter((c) => {
-    const ymStr = c.ym || (c.date || "").slice(0, 7);
-    if (statMode === "month") return ymStr === statValue;
-    return (c.date || ymStr || "").slice(0, 4) === statValue;
-  });
+function statInPeriod(r) {
+  const ymStr = r.ym || (r.date || r.shiftKey || "").slice(0, 7);
+  if (statMode === "month") return ymStr === statValue;
+  return ymStr.slice(0, 4) === statValue;
+}
+
+function renderStatBody() {
+  const list = statCheckins.filter(statInPeriod);
+  const praises = statPraises.filter(statInPeriod);
   const lates = list.filter((c) => c.late);
   const shifts = list.length, lateCount = lates.length;
   const totalMin = lates.reduce((s, c) => s + (c.lateMinutes || 0), 0);
   const avg = lateCount ? Math.round(totalMin / lateCount) : 0;
   const onTime = shifts - lateCount;
+  const praiseCount = praises.length;
   const box = el("st-body"); if (!box) return;
   const lateList = lates.slice().sort((a, b) => (a.date || "").localeCompare(b.date || "")).map((c) => `
     <div class="person-row"><div class="meta">
@@ -1533,8 +1545,35 @@ function renderStatBody(all) {
       <div class="stat"><div class="num" style="color:var(--amber)">${avg}</div><div class="lbl">เฉลี่ยนาที/ครั้งที่สาย</div></div>
       <div class="stat"><div class="num" style="color:var(--teal)">${onTime}</div><div class="lbl">ตรงเวลา</div></div>
     </div>
+    <div class="person-row" style="margin-top:14px;background:var(--amber-soft);border-color:var(--amber)">
+      <div class="avatar" style="background:var(--amber)">🌟</div>
+      <div class="meta"><div class="n">คำชื่นชมที่ได้รับ</div>
+        <div class="s">${praiseCount} ครั้ง ${statMode === "month" ? "ในเดือนนี้" : "ในปีนี้"}</div></div>
+      <button class="btn btn-sm btn-amber" id="st-praise" ${praiseCount ? "" : "disabled"}>อ่านรายละเอียด</button>
+    </div>
     <div class="sub" style="margin-top:12px">รวมนาทีสายทั้งหมด: <b>${totalMin}</b> นาที ${statMode === "month" ? "• " + thMonth(statValue) : "• ปี " + ((+statValue) + 543)}</div>
     ${lateCount ? `<div class="section-title" style="margin-top:16px;font-size:1rem">รายการที่มาสาย</div>${lateList}` : `<div class="empty" style="margin-top:12px">ช่วงนี้ไม่มีการมาสาย 🎉</div>`}`;
+  const pb = el("st-praise");
+  if (pb) pb.onclick = () => showPraiseDetail(praises);
+}
+
+/* หน้าต่างอ่านคำชื่นชมที่ได้รับ (ไม่เปิดเผยชื่อผู้ชื่นชม) */
+function showPraiseDetail(list) {
+  const rows = list.slice().sort((a, b) => (b.shiftKey || "").localeCompare(a.shiftKey || "")).map((r) => {
+    const date = (r.shiftKey || "").slice(0, 10) || (r.date || "");
+    const sh = SHIFT_SHORT[(r.shiftKey || "").split("_")[1]] || "";
+    return `<div class="person-row" style="align-items:flex-start">
+      <div class="avatar" style="background:var(--amber)">🌟</div>
+      <div class="meta"><div class="n">${esc(date)}${sh ? " • เวร" + sh : ""}</div>
+        <div class="s" style="white-space:pre-wrap;color:var(--ink)">${r.reason ? esc(r.reason) : "(ได้รับคำชื่นชม โดยไม่ได้ระบุข้อความ)"}</div></div>
+    </div>`;
+  }).join("");
+  showModal(`
+    <h3>🌟 คำชื่นชมที่ได้รับ (${list.length})</h3>
+    <div class="sub">กำลังใจจากเพื่อนร่วมงาน</div>
+    <div class="person-list" style="margin-top:6px">${rows || '<div class="empty">ยังไม่มี</div>'}</div>
+    <div class="btn-row" style="margin-top:14px"><button class="btn btn-outline" id="pd-close">ปิด</button></div>`);
+  el("pd-close").onclick = closeModal;
 }
 
 /* ============================================================
