@@ -152,6 +152,7 @@
   .tv-card{border-radius:16px;padding:18px;border:4px solid var(--line);background:var(--panel)}
   .tv-card.als{border-color:var(--red)}
   .tv-card.ils{border-color:var(--yellow)}
+  .tv-card.bls{border-color:var(--gray)}
   .tv-card.flash-als{animation:flashRed 1s steps(1) infinite}
   .tv-card.flash-ils{animation:flashYellow 1s steps(1) infinite}
   .tv-card.flash-return{border-color:var(--green);animation:flashGreen 1s steps(1) infinite}
@@ -166,8 +167,9 @@
   .tv-status{font-size:18px;font-weight:600;text-align:center;padding:8px;
     background:var(--panel2);border-radius:10px;margin-top:8px}
   .tv-empty{color:var(--muted);font-size:20px;text-align:center;padding:60px}
-  .sound-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px}
+  .sound-btn{background:var(--accent);color:#fff;border:1px solid transparent;border-radius:8px;padding:8px 14px;font-weight:600}
   .sound-btn.on{background:var(--green)}
+  .sound-btn.muted{background:#fff;color:#111827;border:1px solid #cbd5e1}
 
   /* ---------- Dashboard ---------- */
   .dash{padding:18px}
@@ -717,24 +719,24 @@ function renderCaseRow(id,c,seq){
 /* ============================================================
    TV MONITOR
    ============================================================ */
-let tvTimer=null, audioCtx=null, alarmedIds={}, soundOn=false, tvSeen={}, tvPrimed=false;
+let tvTimer=null, audioCtx=null, alarmedIds={}, soundOn=true, tvSeen={}, tvPrimed=false;
 function stopTV(){ if(tvTimer){clearInterval(tvTimer);tvTimer=null;} }
 
 function ensureAudio(){
   if(!audioCtx){ try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} }
   if(audioCtx && audioCtx.state==="suspended") audioCtx.resume();
 }
-/* ปุ่มเปิด/ปิดเสียงเตือน (กดสลับ) + เสียง beep ยืนยันทุกครั้ง */
+/* เสียงเปิดอยู่เป็นค่าเริ่มต้น (ทำงานทันทีเหมือน Fast Track) — กดปุ่ม = ปิดเสียง, กดอีกครั้ง = เปิด */
 function toggleSound(){
   ensureAudio();
   soundOn=!soundOn;
   updateSoundBtn();
-  playBeep(soundOn?900:440, 0.12, 0.25);   // beep เบาๆ ให้รู้ว่าเปิด/ปิดแล้ว
+  if(soundOn) playBeep(900, 0.14, 0.3);   // beep เฉพาะตอนเปิดเสียง (ปิดไม่มี beep)
 }
 function updateSoundBtn(){
   const b=document.getElementById("soundBtn"); if(!b) return;
-  b.textContent = soundOn ? "🔕 ปิดเสียงเตือน" : "🔔 เปิดเสียงเตือน";
-  b.classList.toggle("on", soundOn);
+  if(soundOn){ b.textContent="🔔 เสียงเปิด"; b.classList.add("on"); b.classList.remove("muted"); }
+  else{ b.textContent="🔇 ปิดเสียง"; b.classList.remove("on"); b.classList.add("muted"); }
 }
 /* beep สั้นๆ */
 function playBeep(freq,dur,vol){
@@ -751,32 +753,37 @@ function playBeep(freq,dur,vol){
 function speakVehicle(v){
   try{
     if(!window.speechSynthesis || !v) return;
-    const say = v==="ALS"?"A L S" : v==="ILS"?"I L S" : v==="BLS"?"B L S" : v;
+    const say = v==="ALS"?"Advance" : v==="ILS"?"I. L. S." : v==="BLS"?"B. L. S." : v;
     const u=new SpeechSynthesisUtterance(say);
-    u.lang="en-US"; u.rate=0.85; u.volume=1; u.pitch=1;
+    u.lang="en-US"; u.rate=0.55; u.volume=1; u.pitch=1;   // พูดช้าลง
     window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
   }catch(e){}
 }
-/* แจ้งเตือนจริง: beep เล็ก → ประกาศ ALS/ILS/BLS → เสียงเตือนยาว 10 วินาที (เคารพปุ่มเปิด/ปิด) */
+/* แจ้งเตือนจริง: beep เล็ก → ประกาศประเภทรถ → เสียงเตือนยาว 10 วิ → ประกาศประเภทรถอีกครั้ง
+   (ประกาศทั้งก่อนและหลังเสียงเตือน · เคารพปุ่มเปิด/ปิด · ไม่ใช้กับ BLS) */
 function playAlarm(vehicle){
   if(!soundOn) return;
   ensureAudio();
   if(audioCtx) playBeep(1000, 0.18, 0.4);   // beep เล็กๆ ตอนเริ่ม (ถ้าเปิดเสียงได้)
-  speakVehicle(vehicle);                      // ประกาศประเภทรถเสมอ (ไม่ขึ้นกับ Web Audio)
+  speakVehicle(vehicle);                      // ประกาศก่อน
+  setTimeout(()=>{ if(soundOn) speakVehicle(vehicle); }, 11000);   // ประกาศอีกครั้งหลังเสียงเตือน 10 วิ
   if(!audioCtx) return;
-  const notes=[880,988,1319,1175];
+  // เสียงเตือน 10 วิ คนละแบบระหว่าง Advance(ALS) กับ ILS ให้แยกออกด้วยหู
+  const pat = vehicle==="ALS"
+    ? { notes:[1047,1319,1568,1319], type:"square",   step:0.30 }   // Advance: สูง–เร็ว–เร่งด่วน
+    : { notes:[622,740],             type:"triangle", step:0.55 };  // ILS: ต่ำ–ช้า–นุ่มกว่า
   const master=audioCtx.createGain(); master.gain.value=0.9; master.connect(audioCtx.destination);
   let t=audioCtx.currentTime+0.35;    // เริ่มเสียงยาวหลัง beep เล็กน้อย
-  const step=0.42, total=10;
-  const reps=Math.ceil(total/(notes.length*step));
+  const total=10;
+  const reps=Math.ceil(total/(pat.notes.length*pat.step));
   for(let rep=0; rep<reps; rep++){
-    notes.forEach(f=>{
+    pat.notes.forEach(f=>{
       const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-      o.type="triangle"; o.frequency.value=f; o.connect(g); g.connect(master);
+      o.type=pat.type; o.frequency.value=f; o.connect(g); g.connect(master);
       g.gain.setValueAtTime(0.0001,t);
       g.gain.exponentialRampToValueAtTime(0.9,t+0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001,t+step-0.02);
-      o.start(t); o.stop(t+step); t+=step;
+      g.gain.exponentialRampToValueAtTime(0.0001,t+pat.step-0.02);
+      o.start(t); o.stop(t+pat.step); t+=pat.step;
     });
   }
 }
@@ -797,7 +804,7 @@ function renderTV(app){
    <div class="tv">
      <div class="tv-head">
        <h2>📺 EMS Live Monitor — ห้องฉุกเฉิน</h2>
-       <button class="sound-btn" id="soundBtn" onclick="toggleSound()">🔔 เปิดเสียงเตือน</button>
+       <button class="sound-btn on" id="soundBtn" onclick="toggleSound()">🔔 เสียงเปิด</button>
      </div>
      <div class="tv-grid" id="tvGrid"></div>
    </div>`;
@@ -812,23 +819,23 @@ function drawTV(){
   const now=Date.now();
   // จอรวม (whole monitor) ส่ง ?cityonly=1 มา → แสดงเฉพาะเคสในเขตเมือง
   const cityOnly = new URLSearchParams(location.search).get("cityonly")==="1";
-  // เฉพาะ ALS/ILS, เริ่มเมื่อกดสั่งการ, ยังไม่จบ (ยังไม่ถึงฐาน)
+  // ALS/ILS/BLS, เริ่มเมื่อกดสั่งการ, ยังไม่จบ (ยังไม่ถึงฐาน) — BLS แสดงภาพอย่างเดียว ไม่มีเสียง
   const list=Object.entries(CASES).filter(([id,c])=>
-    (c.vehicle==="ALS"||c.vehicle==="ILS") && c.command && !c.toBase && (!cityOnly || c.inCity))
+    (c.vehicle==="ALS"||c.vehicle==="ILS"||c.vehicle==="BLS") && c.command && !c.toBase && (!cityOnly || c.inCity))
     .sort((a,b)=> a[1].command.time - b[1].command.time);
 
-  // แจ้งเตือนเมื่อมีเคส ALS/ILS ใหม่โผล่ (activate) → beep + ประกาศ + เสียงยาว 10 วิ
+  // แจ้งเตือนเสียงเฉพาะ ALS/ILS ที่โผล่ใหม่ (BLS ไม่มีเสียง)
   const activeIds={};
-  list.forEach(([id,c])=>{ activeIds[id]=true; if(tvPrimed && !tvSeen[id]){ playAlarm(c.vehicle); } });
+  list.forEach(([id,c])=>{ activeIds[id]=true; if(tvPrimed && !tvSeen[id] && c.vehicle!=="BLS"){ playAlarm(c.vehicle); } });
   tvSeen=activeIds; tvPrimed=true;
 
-  if(!list.length){ grid.innerHTML=`<div class="tv-empty">— ไม่มีเคส ALS/ILS${cityOnly?" ในเขตเมือง":""} ที่กำลังดำเนินการ —</div>`; return; }
+  if(!list.length){ grid.innerHTML=`<div class="tv-empty">— ไม่มีเคส ALS/ILS/BLS${cityOnly?" ในเขตเมือง":""} ที่กำลังดำเนินการ —</div>`; return; }
 
   grid.innerHTML=list.map(([id,c])=>{
-    const isALS=c.vehicle==="ALS";
-    const flashing = !c.depart;                 // กระพริบแดง/เหลืองจนกดออกฐาน (ตอนสั่งการ)
-    const returning = c.leave && !c.toBase;     // ออกจากเหตุแล้ว → กำลังนำส่ง/กลับฐาน = กระพริบเขียว
-    let cls="tv-card "+(isALS?"als":"ils");
+    const isALS=c.vehicle==="ALS", isBLS=c.vehicle==="BLS";
+    const flashing = !isBLS && !c.depart;                 // กระพริบแดง/เหลืองจนกดออกฐาน (เฉพาะ ALS/ILS)
+    const returning = !isBLS && c.leave && !c.toBase;     // กระพริบเขียวตอนกลับฐาน (เฉพาะ ALS/ILS)
+    let cls="tv-card "+(isBLS?"bls":(isALS?"als":"ils"));
     if(flashing) cls+= isALS?" flash-als":" flash-ils";
     else if(returning) cls+=" flash-return";
 
@@ -842,7 +849,7 @@ function drawTV(){
       }else{
         countHtml=`<div class="tv-count warn">00:00</div>
                    <div style="text-align:center;color:var(--red)">เกินเวลาออกฐาน!</div>`;
-        if(!alarmedIds[id]){ alarmedIds[id]=true; playAlarm(c.vehicle); }
+        if(!alarmedIds[id] && !isBLS){ alarmedIds[id]=true; playAlarm(c.vehicle); }
       }
     }
     const triClr={red:'var(--red)',yellow:'var(--yellow)',green:'var(--green)',white:'var(--white)',black:'#000'}[c.triage]||'transparent';
@@ -1145,6 +1152,8 @@ function delUnit(uid){
 /* ---------- boot ---------- */
 refreshAdminChip();
 render();
+// ปลดล็อกเสียงอัตโนมัติเมื่อผู้ใช้แตะจอครั้งแรก (เช่น กดปุ่มเต็มจอของจอรวม) — เสียงพร้อมใช้เลยเหมือน Fast Track
+["pointerdown","keydown","touchstart"].forEach(ev=>document.addEventListener(ev, ensureAudio, {once:true}));
 // นาฬิกาเดินจริงทุกวินาที (อัปเดตเฉพาะ element ไม่ re-render ทั้งหน้า)
 setInterval(()=>{ const el=document.getElementById("liveClock");
   if(el) el.textContent=fmtClock(); },1000);

@@ -145,29 +145,13 @@ document.getElementById("fsBtn").onclick=function(){
   else{ (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
 };
 
-/* ================= เสียงเตือนบนหน้า Monitor ================= */
+/* ================= ปลดล็อกเสียง (สำหรับ Fast Track + EMS iframe) ================= */
 let AC=null, audioReady=false;
 function unlockAudio(){
   try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==="suspended") AC.resume(); audioReady=true; }catch(e){}
 }
-/* เสียงเตือนแบบเดียวกับ EMS (train chime ~10 วินาที) */
-function playTrainChime(){
-  if(!audioReady||!AC) return;
-  const notes=[880,988,1319,1175];
-  const master=AC.createGain(); master.gain.value=0.9; master.connect(AC.destination);
-  let t=AC.currentTime; const step=0.42, total=10;
-  const reps=Math.ceil(total/(notes.length*step));
-  for(let rep=0;rep<reps;rep++){ notes.forEach(f=>{
-    const o=AC.createOscillator(), g=AC.createGain(); o.type="triangle"; o.frequency.value=f;
-    o.connect(g); g.connect(master);
-    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.9,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+step-0.02);
-    o.start(t); o.stop(t+step); t+=step;
-  }); }
-}
-function playConfirm(){ if(!audioReady||!AC) return; const o=AC.createOscillator(),g=AC.createGain(); o.type="sine"; o.frequency.value=1175; o.connect(g); g.connect(AC.destination); const t=AC.currentTime; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.5,t+0.03); g.gain.exponentialRampToValueAtTime(0.0001,t+0.5); o.start(t); o.stop(t+0.55); }
-
-/* เสียงเตือน EMS + ไฟกระพริบ ย้ายไปจัดการในหน้า EMS Live Monitor (ems) โดยตรงแล้ว
-   (ปุ่มเปิด/ปิดเสียง + beep + ประกาศ ALS/ILS + กระพริบเขียวตอนกลับฐาน อยู่ในกล่อง EMS) */
+/* เสียงเตือน EMS + ประกาศ Advance/ILS + ไฟกระพริบ ทั้งหมดจัดการในหน้า EMS Live Monitor (ems)
+   โดยจอรวมฝัง ../ems/index.html?cityonly=1#tv ไว้ → แก้ที่ไฟล์ ems ที่เดียว มีผลทั้งสองจอ */
 
 /* ---------- เริ่ม Fast Track อัตโนมัติ (ไม่ต้องกดปุ่ม "เริ่มแสดงผล") ---------- */
 function startFastTrack(){
@@ -190,7 +174,8 @@ function enableAllAudio(){
   unlockAudio();  // ปลดล็อกเสียงหน้า Monitor (สำหรับเสียงเตือน EMS) — เงียบ ไม่มีเสียงทดสอบ
   // Fast Track: แค่ resume audio context (startBtn ตั้ง soundOn=true ให้แล้วตอนเริ่มอัตโนมัติ) — เงียบ
   try{ const w=document.getElementById("ftFrame").contentWindow; if(w&&w.ensureAudio) w.ensureAudio(); }catch(e){}
-  // EMS: ไม่ต้องเปิดเสียงใน iframe — หน้า Monitor เล่นเสียงเตือนเองอยู่แล้ว (กันเสียงทดสอบ/เสียงซ้ำ)
+  // EMS: ปลดล็อกเสียงในกล่อง EMS ด้วย (เสียงเตือน/ประกาศ ALS/ILS ทำงานทันทีเหมือน Fast Track)
+  try{ const ew=document.getElementById("emsFrame").contentWindow; if(ew&&ew.ensureAudio) ew.ensureAudio(); }catch(e){}
 }
 ["pointerdown","keydown","touchstart"].forEach(ev=>document.addEventListener(ev, enableAllAudio, {once:true}));
 
