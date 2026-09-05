@@ -122,8 +122,13 @@ const CONFIG = {
 };
 document.documentElement.style.setProperty("--leftW", CONFIG.leftWidth);
 document.documentElement.style.setProperty("--emsH", CONFIG.emsHeight);
-document.getElementById("ftFrame").src = CONFIG.fastTrackURL;
-document.getElementById("emsFrame").src = CONFIG.emsURL;
+/* กัน cache: ให้ iframe โหลดไฟล์ล่าสุดเสมอเมื่อเปิดจอรวม (คนละ URL กับหน้า EMS/Fast Track ปกติ) */
+function bustUrl(url){
+  const h = url.indexOf("#"); const hash = h>=0 ? url.slice(h) : ""; const base = h>=0 ? url.slice(0,h) : url;
+  return base + (base.indexOf("?")>=0 ? "&" : "?") + "_=" + Date.now() + hash;
+}
+document.getElementById("ftFrame").src = bustUrl(CONFIG.fastTrackURL);
+document.getElementById("emsFrame").src = bustUrl(CONFIG.emsURL);
 
 /* ---------- ซ่อนแถบบน (topbar สีฟ้า) ของ EMS ในจอรวม ---------- */
 function hideEmsChrome(){
