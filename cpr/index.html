@@ -991,6 +991,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
     <!-- Edit fields -->
     <div style="display:grid;gap:9px;margin-bottom:12px">
       <div>
+        <div class="form-label">No. (เลขใบบันทึกประจำเดือน)</div>
+        <input class="modal-inp" id="cd-no" type="number" min="1" placeholder="เลขที่">
+      </div>
+      <div>
         <div class="form-label">ชื่อผู้ป่วย</div>
         <input class="modal-inp" id="cd-name" type="text" placeholder="ชื่อ-สกุล">
       </div>
@@ -1209,6 +1213,8 @@ function soundShockable(){ beep(800,.08); setTimeout(()=>beep(1200,.08),120); se
 function autoSave(){
   if(!S.startTime||S.stopTime) return;
   try{ localStorage.setItem('cpr_active',JSON.stringify(S)); }catch(e){}
+  // บันทึกลงชุดข้อมูลถาวรแบบต่อเนื่อง (realtime) — ไม่ต้องรอกดบันทึกตอนจบ กันข้อมูลหาย
+  commitActive();
   // sync เคสที่กำลังบันทึกไป Firebase ให้เครื่องอื่นเห็นและถามบันทึกต่อได้
   if(fbRef){
     try{
@@ -1526,6 +1532,31 @@ function saveSession(session){
   saveDB();
 }
 
+// ── เลข No. ใบบันทึก: ตัดเป็นรายเดือน หมดเดือนเริ่ม 1 ใหม่ ──
+function monthKeyOf(dateLike){
+  const d=new Date(dateLike||Date.now());
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+function nextCaseNo(dateLike){
+  const mk=monthKeyOf(dateLike);
+  let max=0;
+  (DB.sessions||[]).forEach(s=>{
+    if(monthKeyOf(s.date||s.startTime)===mk && typeof s.no==='number' && s.no>max) max=s.no;
+  });
+  return max+1;
+}
+
+// ── บันทึกเคสที่กำลัง CPR ลงชุดข้อมูลถาวรแบบต่อเนื่อง (realtime) กันข้อมูลหาย ──
+function commitActive(){
+  if(!S.id || !S.startTime) return;
+  const clean=JSON.parse(JSON.stringify(S,(k,v)=>k==='timerID'?undefined:v));
+  const idx=DB.sessions.findIndex(x=>x.id===S.id);
+  if(idx>=0) DB.sessions[idx]=clean; else DB.sessions.push(clean);
+  try{ localStorage.setItem('cpr_db',JSON.stringify(DB)); }catch(e){}
+  if(fbRef){ try{ fbRef.child('sessions/'+S.id).set(clean); }catch(e){} }
+  if($('screen-home') && $('screen-home').classList.contains('active')) renderDashboard();
+}
+
 // ════════════════════════════════════════
 // SESSION BUILD
 // ════════════════════════════════════════
@@ -1669,10 +1700,15 @@ function setAType(t){
 // ════════════════════════════════════════
 function startCPR(){
   initAudio();
+  // เริ่มเคสใหม่แบบสะอาด (คงชนิดผู้ป่วย/ชนิด arrest ที่เลือกไว้) + generate id/No. ทันที
+  const pType=S.patientType||'adult', aType=S.arrestType||'IHCA';
+  S=buildSession();
+  S.patientType=pType; S.arrestType=aType;
   S.patientName = $('inp-name').value.trim() || 'Unknown';
   S.hn          = $('inp-hn').value.trim();
   S.weight      = parseFloat($('inp-weight').value)||null;
   S.startTime   = new Date().toISOString();
+  S.date        = new Date().toISOString().slice(0,10);
   S.stopTime    = null;
   S.events      = [];
   S.rhythmData  = {};
@@ -1682,6 +1718,7 @@ function startCPR(){
   S.currentMin  = 0;
   S.causes      = [];
   S.outcome     = null;
+  S.no          = nextCaseNo(S.startTime);   // เลขใบบันทึกประจำเดือน (แก้ไขภายหลังได้)
 
   const atVal = $('inp-arrest').value;
   if(atVal){
@@ -1706,6 +1743,10 @@ function startCPR(){
   if(S.timerID) clearInterval(S.timerID);
   S.timerID=setInterval(tick,500);
   tick();
+
+  // บันทึกทันทีตั้งแต่กด START (มีใน records แล้ว) + เริ่ม autosave ต่อเนื่อง
+  saveSession(S);
+  autoSave();
 }
 
 // ════════════════════════════════════════
@@ -2500,7 +2541,7 @@ function autoSaveSummary(){
 
 function buildSummary(){
   const hn=S.hn?` · HN: ${S.hn}`:'';
-  $('sum-pt').textContent=`${S.patientName}${hn} · ${S.arrestType} · ${S.patientType==='adult'?'ผู้ใหญ่':'เด็ก'}`;
+  $('sum-pt').textContent=`No.${S.no||'—'} · ${S.patientName}${hn} · ${S.arrestType} · ${S.patientType==='adult'?'ผู้ใหญ่':'เด็ก'}`;
   const dur=Math.floor((new Date(S.stopTime)-new Date(S.startTime))/1000);
   const dm=Math.floor(dur/60), ds=dur%60;
   $('s-time').textContent=`${dm}:${String(ds).padStart(2,'0')}`;
@@ -2950,7 +2991,7 @@ function renderDashboard(){
       const qLabel=qs>=3?'Quality ดี':qs>=1?'พอใช้':'ไม่ดี';
       return `<div class="case-item" onclick="openCaseDetail('${s.id}')">
         <div class="case-item-top">
-          <div><div class="case-name">${s.patientName}${hn}</div><div class="case-hn">${fmtDateTime(s.startTime)}</div></div>
+          <div><div class="case-name"><span style="display:inline-block;background:var(--navy);color:#fff;font-weight:800;font-size:12px;border-radius:6px;padding:1px 8px;margin-right:6px">No.${s.no||'—'}</span>${s.patientName}${hn}</div><div class="case-hn">${fmtDateTime(s.startTime)}</div></div>
           <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
             <span class="case-badge ${badge}">${oc||'ongoing'}</span>
             ${qs!=null?`<span class="quality-badge ${qBadge}">${qLabel}</span>`:''}
@@ -2982,7 +3023,7 @@ function openCaseDetail(id){
   const typeLabel=s.patientType==='adult'?'ผู้ใหญ่':'เด็ก';
   const etco2=s.quality?.etco2Avg?s.quality.etco2Avg+' mmHg':'—';
 
-  $('cd-title').textContent=`${s.patientName}${s.hn?' · '+s.hn:''}`;
+  $('cd-title').textContent=`No.${s.no||'—'} · ${s.patientName}${s.hn?' · '+s.hn:''}`;
   $('cd-info').innerHTML=
     `<b>วันที่:</b> ${fmtDateTime(s.startTime)} &nbsp;|&nbsp; ${typeLabel} · ${s.arrestType||'—'}<br>`+
     `<b>Arrest:</b> ${fmtTime(s.arrestTime)} → <b>Start:</b> ${fmtTime(s.startTime)} → <b>Stop:</b> ${fmtTime(s.stopTime)}`;
@@ -3017,6 +3058,7 @@ function openCaseDetail(id){
   }
 
   // ── Edit fields ──
+  $('cd-no').value=s.no||'';
   $('cd-name').value=s.patientName||'';
   $('cd-hn').value=s.hn||'';
   $('cd-outcome').value=s.outcome||'';
@@ -3190,6 +3232,8 @@ function applyCaseEdits(){
   if(!s) return null;
   const nameVal=$('cd-name').value.trim();
   if(nameVal) s.patientName=nameVal;
+  const noVal=parseInt($('cd-no').value,10);
+  if(noVal>0) s.no=noVal;
   s.hn=$('cd-hn').value.trim();
   s.outcome=$('cd-outcome').value;
   const causesTxt=$('cd-causes').value.trim();
