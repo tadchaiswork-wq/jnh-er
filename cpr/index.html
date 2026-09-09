@@ -34,6 +34,27 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
 .screen{display:none;height:100dvh;flex-direction:column;overflow:hidden}
 .screen.active{display:flex}
 
+/* ── Time + Alarm (จอทีม) ── */
+#screen-timealarm{background:#fff}
+#ta-root{height:100dvh;display:flex;flex-direction:column;background:#fff;transition:background .15s}
+#ta-root.ta-blink{animation:ta-blink-bg .5s steps(1) infinite}
+@keyframes ta-blink-bg{50%{background:#f97316}}
+#ta-top{flex:0 0 20%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:10px 16px;border-bottom:2px solid #e2e8f0}
+#ta-top .ta-no{font-size:20px;font-weight:800;color:#fff;background:#0e2a47;border-radius:8px;padding:2px 14px}
+#ta-top .ta-name{font-size:min(6vw,30px);font-weight:800;color:#0e2a47;margin-top:4px;line-height:1.1}
+#ta-top .ta-hn{font-size:min(3.6vw,16px);color:#64748b;margin-top:2px}
+#ta-mid{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center}
+#ta-clock{font-size:min(42vw,260px);font-weight:800;line-height:.9;color:#0e2a47;font-variant-numeric:tabular-nums;letter-spacing:2px}
+#ta-root.ta-blink #ta-clock,#ta-root.ta-blink #ta-top .ta-name,#ta-root.ta-blink #ta-sub{color:#fff}
+#ta-sub{font-size:min(5vw,26px);font-weight:800;color:#c2410c;margin-top:8px}
+#ta-bot{flex:0 0 20%;display:flex;gap:10px;padding:10px 14px;border-top:2px solid #e2e8f0}
+#ta-bot .ta-stat{flex:1;background:#f1f5f9;border-radius:12px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:6px}
+#ta-bot .ta-stat.ta-due{background:#fee2e2;animation:pulse-text .7s ease-in-out infinite}
+#ta-bot .ta-k{font-size:min(3.6vw,16px);font-weight:700;color:#475569}
+#ta-bot .ta-v{font-size:min(4.4vw,20px);font-weight:800;color:#0e2a47;margin-top:2px}
+#ta-bot .ta-due .ta-v{color:#b91c1c}
+#ta-close{position:fixed;top:10px;right:12px;z-index:20;background:rgba(255,255,255,.85);border:2px solid #e2e8f0;border-radius:10px;width:44px;height:44px;font-size:20px;font-weight:800;color:#64748b;cursor:pointer}
+
 /* ── SHARED COMPONENTS ── */
 .btn{border:none;border-radius:10px;cursor:pointer;font-family:inherit;transition:transform .1s,filter .1s}
 .btn:active{transform:scale(0.96);filter:brightness(.9)}
@@ -500,6 +521,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
     </div>
     <div id="case-list"></div>
     <div class="sync-note" id="sync-note"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     TIME + ALARM (จอทีม — โชว์เวลา/แจ้งเตือน ไม่บันทึกข้อมูล)
+══════════════════════════════════════ -->
+<div id="screen-timealarm" class="screen">
+  <button id="ta-close" onclick="closeTimeAlarm()" title="ปิด">✕</button>
+  <div id="ta-root">
+    <div id="ta-top"></div>
+    <div id="ta-mid">
+      <div id="ta-clock">00:00</div>
+      <div id="ta-sub"></div>
+    </div>
+    <div id="ta-bot"></div>
   </div>
 </div>
 
@@ -1266,6 +1302,7 @@ function resumeSession(){
 }
 
 function discardSession(){
+  if(!requireDeletePin()) return;
   if(!confirm('ลบ session ที่ค้างอยู่?')) return;
   let did=null;
   try{ did=JSON.parse(localStorage.getItem('cpr_active')||'{}').id; }catch(e){}
@@ -1294,6 +1331,117 @@ function restoreTimeline(){
   renderAllMarkCells();
   highlightRow(S.currentMin||0);
   scrollToNow();
+}
+
+// ════════════════════════════════════════
+// MULTI-DEVICE: รวมข้อมูลจากเครื่องอื่นเข้าเคสที่กำลังทำ + กลับเข้าเคสจากการ์ด
+// ════════════════════════════════════════
+function rhythmToObj(rd){
+  const o={}; if(!rd) return o;
+  if(Array.isArray(rd)){ rd.forEach((r,i)=>{ if(r) o[i]=r; }); }
+  else { Object.entries(rd).forEach(([k,v])=>{ if(v) o[k]=v; }); }
+  return o;
+}
+function mergeRemoteIntoActive(remote){
+  if(!remote) return;
+  let changed=false;
+  S.events=S.events||[];
+  const have=new Set(S.events.map(e=>e&&e.uid).filter(Boolean));
+  (remote.events||[]).forEach(e=>{
+    if(e && e.uid && !have.has(e.uid)){ S.events.push(e); have.add(e.uid); changed=true; }
+  });
+  // rhythm: เติมเฉพาะช่องที่เครื่องนี้ยังว่าง (กันทับของที่กำลังพิมพ์)
+  const rl=rhythmToObj(S.rhythmData), rr=rhythmToObj(remote.rhythmData);
+  Object.keys(rr).forEach(m=>{
+    const cur=rl[m], curEmpty=!cur||(!cur.rhythm&&!cur.rate&&!cur.etco2);
+    if(curEmpty){ rl[m]=rr[m]; changed=true; }
+  });
+  if(!changed) return;
+  S.rhythmData=rl;
+  S.events.sort((a,b)=>((a.minute||0)-(b.minute||0))||String(a.ts||'').localeCompare(String(b.ts||'')));
+  renumberEvents();   // renumber + autoSave (คืนค่ารวมกลับ Firebase)
+  if($('screen-cpr').classList.contains('active')) restoreTimeline();
+  updateHeader();
+}
+// กลับเข้า/เข้าร่วมเคสที่กำลัง CPR จากการ์ดในรายการ (รองรับหลายจอพร้อมกัน)
+function enterCase(id){
+  const s=(DB.sessions||[]).find(x=>x.id===id);
+  if(!s){ alert('ไม่พบเคสนี้'); return; }
+  if(s.stopTime){ openCaseDetail(id); return; }        // จบแล้ว → เปิดรายละเอียด
+  initAudio();
+  if(S.id===id && S.startTime && !S.stopTime && S.timerID){ showScreen('screen-cpr'); scrollToNow(); return; }
+  if(S.timerID) clearInterval(S.timerID);
+  S=JSON.parse(JSON.stringify(s));   // โหลดเคสนี้เข้ามาทำต่อ
+  S.timerID=null;
+  try{ localStorage.setItem('cpr_active',JSON.stringify(S)); }catch(e){}
+  showScreen('screen-cpr');
+  restoreTimeline();
+  updateTargetMinOptions(); renderDrugPresets(); updateHeader(); updateDrugRef(); updateDefibSub();
+  shockableActive=false; $('shockable-banner').classList.remove('show'); postDefibClear=false; lastSecond=-1;
+  S.timerID=setInterval(tick,500); tick();
+}
+
+// ════════════════════════════════════════
+// TIME + ALARM (จอแยกสำหรับทีม — โชว์เวลา/แจ้งเตือน ไม่บันทึกข้อมูล)
+// ════════════════════════════════════════
+let taTimer=null, taId=null, taLastSec=-1;
+function openTimeAlarm(id){
+  const s=(DB.sessions||[]).find(x=>x.id===id) || (S.id===id?S:null);
+  if(!s||!s.startTime){ alert('เคสนี้ยังไม่เริ่ม CPR'); return; }
+  taId=id; taLastSec=-1; initAudio();
+  showScreen('screen-timealarm');
+  try{ (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen||function(){}).call(document.documentElement); }catch(e){}
+  taRender();
+  if(taTimer) clearInterval(taTimer);
+  taTimer=setInterval(taRender,250);
+}
+function closeTimeAlarm(){
+  if(taTimer){ clearInterval(taTimer); taTimer=null; }
+  stopAlarm();
+  const root=$('ta-root'); if(root) root.classList.remove('ta-blink');
+  try{ if(document.fullscreenElement) (document.exitFullscreen||function(){}).call(document); }catch(e){}
+  taId=null;
+  showScreen('screen-home'); renderDashboard();
+}
+function taRender(){
+  const s=(DB.sessions||[]).find(x=>x.id===taId) || (S.id===taId?S:null);
+  if(!s||!s.startTime||s.stopTime){ closeTimeAlarm(); return; }
+  const elSec=Math.floor((Date.now()-new Date(s.startTime).getTime())/1000);
+  const mm=String(Math.floor(elSec/60)).padStart(2,'0'), ss=String(elSec%60).padStart(2,'0');
+  const clk=$('ta-clock'); if(clk) clk.textContent=mm+':'+ss;
+  // top
+  const top=$('ta-top');
+  if(top) top.innerHTML=`<div class="ta-no">No.${s.no||'—'}</div>
+    <div class="ta-name">${s.patientName||'—'}</div>
+    <div class="ta-hn">HN: ${s.hn||'—'} · เริ่ม CPR ${fmtTime(s.startTime)}</div>`;
+  // 2-min cycle
+  const cycleLen=RHYTHM_INTERVAL_MIN*60;
+  const secInCycle=elSec%cycleLen;
+  const left=cycleLen-secInCycle;
+  const warn = elSec>0 && left<=SOUND_WARN_SEC && left>0;   // 10 วิสุดท้ายก่อนครบ 2 นาที
+  const root=$('ta-root'); if(root) root.classList.toggle('ta-blink', warn);
+  const sub=$('ta-sub');
+  if(sub) sub.textContent = warn ? ('⚠️ CHECK RHYTHM ใน '+left+' วิ') : ('รอบ Rhythm ถัดไป '+String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0'));
+  // เสียงจังหวะเดียวกับหน้าบันทึกปกติ (ยิงครั้งเดียวต่อวินาที)
+  if(elSec!==taLastSec){
+    taLastSec=elSec;
+    const warnAt=cycleLen-SOUND_WARN_SEC;
+    if(secInCycle===warnAt && elSec>0) startAlarm10s();
+    if(secInCycle===0 && elSec>0){ stopAlarm(); soundCycleEnd(); }
+  }
+  // bottom 1/5: adr / defib
+  const adrs=(s.events||[]).filter(e=>e.type==='adr');
+  const defs=(s.events||[]).filter(e=>e.type==='defib');
+  let adrClass='ta-stat', adrMsg='ยังไม่ได้ให้';
+  if(s.adrLastTs){
+    const since=(Date.now()-s.adrLastTs)/60000;
+    adrMsg=`${adrs.length} ครั้ง · ล่าสุด ${Math.floor(since)} นาทีที่แล้ว`;
+    if(since>=ADR_INTERVAL_MIN){ adrClass='ta-stat ta-due'; adrMsg=`⏰ ถึงเวลา Adrenaline! (${adrs.length} ครั้ง)`; }
+  } else if(adrs.length){ adrMsg=`${adrs.length} ครั้ง`; }
+  const bot=$('ta-bot');
+  if(bot) bot.innerHTML=`
+    <div class="${adrClass}"><div class="ta-k">💉 Adrenaline</div><div class="ta-v">${adrMsg}</div></div>
+    <div class="ta-stat"><div class="ta-k">⚡ Defibrillation</div><div class="ta-v">${defs.length} ครั้ง${defs.length?(' · ล่าสุด '+(defs[defs.length-1].joules||''))+' นาที '+defs[defs.length-1].minute:''}</div></div>`;
 }
 
 // ════════════════════════════════════════
@@ -1338,6 +1486,15 @@ function saveDB(){
     fbRef.update({ sessions: sessionsObj, updatedAt: Date.now() })
       .catch(err=>console.warn('[Firebase] save error:',err));
   }
+}
+
+// ── ต้องใส่รหัส Admin ทุกครั้งก่อนลบข้อมูล (ลบถาวร / ลบเคส ongoing / ลบทั้งหมด) ──
+function requireDeletePin(){
+  const pin=prompt('🔒 ลบข้อมูล CPR — กรุณาใส่รหัส Admin เพื่อยืนยัน');
+  if(pin===null) return false;
+  if(pin.trim()===(CFG.pin||'1234') || pin.trim()==='1234') return true;
+  alert('รหัส Admin ไม่ถูกต้อง — ไม่สามารถลบได้');
+  return false;
 }
 
 // ── ลบถาวร: บันทึก tombstone + ลบจาก Firebase/Sheets ──
@@ -1405,6 +1562,10 @@ function initFirebase(){
       const incoming=Object.values(data).filter(s=>s && !isDeleted(s.id));
       DB.sessions=incoming;
       try{ localStorage.setItem('cpr_db',JSON.stringify(DB)); }catch(e){}
+      // หลายจอบันทึกเคสเดียวกันพร้อมกัน → รวมเหตุการณ์จากเครื่องอื่นเข้าเคสที่กำลังทำอยู่
+      if(S.id && S.startTime && !S.stopTime){
+        try{ const remote=incoming.find(x=>x.id===S.id); if(remote) mergeRemoteIntoActive(remote); }catch(e){}
+      }
       // Re-render live screens
       if($('screen-home').classList.contains('active')) renderDashboard();
       if(adminUnlocked&&$('screen-admin').classList.contains('active')) renderAdminContent();
@@ -1416,11 +1577,7 @@ function initFirebase(){
     // Active-case listener — เคสที่เครื่องอื่นกำลังบันทึกอยู่
     fbRef.child('active').on('value', snap=>{
       remoteActive=snap.val()||null;
-      // ถ้าอยู่หน้า dashboard และมีเคสค้างจากเครื่องอื่น → ถามทันที
-      if($('screen-home').classList.contains('active') && !(S.startTime&&!S.stopTime) && !checkInterruptedSession()){
-        if(remoteActiveValid()) showRemoteActiveBanner();
-        else if(!remoteActive) $('restore-banner').style.display='none';
-      }
+      // ไม่ใช้แถบสีส้มด้านบนแล้ว (กลับเข้าเคสจากการ์ด ongoing)
     });
 
     // Tombstone listener — เคสที่เครื่องอื่นลบ ให้ลบตามด้วย
@@ -1594,15 +1751,8 @@ function goHome(){
   showScreen('screen-home');
   renderDashboard();
   fetchRemoteSessions(); // ดึงเคสทุกเครื่องจาก Google Sheets อัตโนมัติ
-  if(S.startTime&&!S.stopTime){
-    // CPR กำลังบันทึกอยู่ (timer ยังเดิน) → แสดง banner กลับเข้าหน้า timeline
-    showOngoingBanner();
-  } else {
-    const interrupted=checkInterruptedSession();
-    if(interrupted) showRestoreBanner(interrupted);
-    else if(remoteActiveValid()) showRemoteActiveBanner();
-    else $('restore-banner').style.display='none';
-  }
+  // ไม่ใช้แถบสีส้มด้านบนแล้ว — กลับเข้าเคสที่กำลัง CPR จากปุ่มในการ์ด "ongoing" ในรายการด้านล่างแทน
+  $('restore-banner').style.display='none';
 }
 
 // ── เคสค้างจากเครื่องอื่น (ผ่าน Firebase) ──
@@ -1938,7 +2088,7 @@ function appendRow(i,tbody){
   tr.id=`tr-${i}`;
   tr.className='tl-row'+(isR?' rhythm-row':'');
   tr.innerHTML=`
-    <td class="td-min${i%10===0?' big':''}">${i}</td>
+    <td class="td-min${i%10===0?' big':''}">${i}<span style="display:block;font-size:9px;font-weight:600;color:#94a3b8;line-height:1;margin-top:2px;letter-spacing:-.3px">${clockAtMin(i)}</span></td>
     <td class="td-adr" id="adrcell-${i}" onclick="adrCellTap(${i})" title="แตะ = ให้ Adrenaline นาทีนี้ / แตะ ✓ = ลบ"></td>
     <td class="td-df"  id="dfcell-${i}"  onclick="dfCellTap(${i})"  title="แตะ = Defib นาทีนี้ / แตะ ✓ = ลบ"></td>
     <td class="td-content">
@@ -2989,12 +3139,19 @@ function renderDashboard(){
       const qs=s.quality?.qualScore;
       const qBadge=qs>=3?'qb-good':qs>=1?'qb-warn':'qb-bad';
       const qLabel=qs>=3?'Quality ดี':qs>=1?'พอใช้':'ไม่ดี';
+      const ongoing=!s.stopTime;
+      const ongoingBtns = ongoing ? `
+          <div style="display:flex;flex-direction:column;gap:5px;margin-top:5px;align-items:flex-end">
+            <button onclick="event.stopPropagation();enterCase('${s.id}')" style="background:#c94a08;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap">▶ กลับเข้าหน้า CPR</button>
+            <button onclick="event.stopPropagation();openTimeAlarm('${s.id}')" style="background:#fff;color:#c94a08;border:2px solid #f59e0b;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap">⏱ Time + Alarm</button>
+          </div>` : '';
       return `<div class="case-item" onclick="openCaseDetail('${s.id}')">
         <div class="case-item-top">
           <div><div class="case-name"><span style="display:inline-block;background:var(--navy);color:#fff;font-weight:800;font-size:12px;border-radius:6px;padding:1px 8px;margin-right:6px">No.${s.no||'—'}</span>${s.patientName}${hn}</div><div class="case-hn">${fmtDateTime(s.startTime)}</div></div>
           <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
             <span class="case-badge ${badge}">${oc||'ongoing'}</span>
             ${qs!=null?`<span class="quality-badge ${qBadge}">${qLabel}</span>`:''}
+            ${ongoingBtns}
           </div>
         </div>
         <div class="case-item-bot">
@@ -3148,6 +3305,7 @@ function cdAddRhythm(){ cdReadRhythms(); cdRhythms.push({min:0,rhythm:'',rate:''
 function cdDelRhythm(i){ cdReadRhythms(); cdRhythms.splice(i,1); renderCdRhythms(); }
 
 function deleteCase(){
+  if(!requireDeletePin()) return;
   const s=DB.sessions.find(x=>x.id===currentCaseDetailId);
   const nm=s?`${s.patientName||'—'}${s.hn?' · '+s.hn:''}`:'';
   if(!confirm('ลบเคสนี้ถาวร?\n'+nm+'\n\n(กู้คืนไม่ได้)')) return;
@@ -3357,6 +3515,7 @@ function exportJSON(){
   a.click();
 }
 function clearAll(){
+  if(!requireDeletePin()) return;
   if(!confirm('ลบข้อมูลทั้งหมด? ไม่สามารถกู้คืนได้!')) return;
   if(!confirm('ยืนยันอีกครั้ง — ลบทั้งหมดจริงๆ? (ลบทั้งเครื่องนี้ + Firebase + Google Sheets)')) return;
   // tombstone ทุกเคส กันเด้งกลับจากเครื่องอื่น
