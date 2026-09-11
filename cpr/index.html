@@ -2,6 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
+<script src="../time-sync.js"></script><!-- JNH central time (must load first) -->
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -1369,16 +1370,25 @@ function enterCase(id){
   if(!s){ alert('ไม่พบเคสนี้'); return; }
   if(s.stopTime){ openCaseDetail(id); return; }        // จบแล้ว → เปิดรายละเอียด
   initAudio();
-  if(S.id===id && S.startTime && !S.stopTime && S.timerID){ showScreen('screen-cpr'); scrollToNow(); return; }
+  const sameActive = (S.id===id && S.startTime && !S.stopTime);
+  if(!sameActive){
+    if(S.timerID) clearInterval(S.timerID);
+    S=JSON.parse(JSON.stringify(s));   // โหลดเคสนี้เข้ามาทำต่อ
+    S.timerID=null;
+    try{ localStorage.setItem('cpr_active',JSON.stringify(S)); }catch(e){}
+    showScreen('screen-cpr');
+    restoreTimeline();
+    updateTargetMinOptions(); renderDrugPresets(); updateHeader(); updateDrugRef(); updateDefibSub();
+    shockableActive=false; $('shockable-banner').classList.remove('show'); postDefibClear=false;
+  } else {
+    showScreen('screen-cpr');
+  }
+  // เดินเวลาต่อเสมอ — รีสตาร์ท timer กันกรณีเวลาไม่รันต่อตอนกลับเข้าเคส
+  lastSecond=-1;
   if(S.timerID) clearInterval(S.timerID);
-  S=JSON.parse(JSON.stringify(s));   // โหลดเคสนี้เข้ามาทำต่อ
-  S.timerID=null;
-  try{ localStorage.setItem('cpr_active',JSON.stringify(S)); }catch(e){}
-  showScreen('screen-cpr');
-  restoreTimeline();
-  updateTargetMinOptions(); renderDrugPresets(); updateHeader(); updateDrugRef(); updateDefibSub();
-  shockableActive=false; $('shockable-banner').classList.remove('show'); postDefibClear=false; lastSecond=-1;
-  S.timerID=setInterval(tick,500); tick();
+  S.timerID=setInterval(tick,500);
+  tick();
+  scrollToNow();
 }
 
 // ════════════════════════════════════════
@@ -2937,21 +2947,21 @@ function buildPrintPages(){
       <td style="font-weight:${rh.rhythm?'700':'400'};color:${shock?'#6b21a8':'#000'};padding:3px 4px">${rh.rhythm||''}</td>
       <td style="text-align:center;padding:3px 4px">${rh.rate||''}</td>
       <td style="text-align:center;padding:3px 4px;font-weight:${etLow?'700':'400'};color:${etLow?'#b91c1c':'inherit'}">${rh.etco2||''}</td>
-      <td style="font-size:8.5pt;padding:3px 4px;background:${drugs?'#ecfeff':'inherit'}">${drugs}</td>
-      <td style="font-size:8.5pt;padding:3px 4px;background:${procs?'#f0fdf4':'inherit'}">${procs}</td>
+      <td style="font-size:8.5pt;padding:3px 4px;word-break:break-word;background:${drugs?'#ecfeff':'inherit'}">${drugs}</td>
+      <td style="font-size:8.5pt;padding:3px 4px;word-break:break-word;background:${procs?'#f0fdf4':'inherit'}">${procs}</td>
     </tr>`;
   }).join('');
 
   $('print-p1').innerHTML=hdr('Page 1/2 — Timeline')+`
-    <table style="width:100%;border-collapse:collapse;font-size:9.5pt">
+    <table style="width:100%;border-collapse:collapse;font-size:9.5pt;table-layout:fixed">
       <thead><tr style="background:#1a2e4a;color:#fff">
         <th style="padding:4px;width:28px">Min</th>
         <th style="padding:4px;width:40px">เวลา</th>
         <th style="padding:4px;width:72px">Rhythm</th>
         <th style="padding:4px;width:32px">HR</th>
         <th style="padding:4px;width:44px">EtCO2</th>
-        <th style="padding:4px">💊 ยา</th>
-        <th style="padding:4px">🔧 หัตถการ</th>
+        <th style="padding:4px;width:auto">💊 ยา</th>
+        <th style="padding:4px;width:auto">🔧 หัตถการ</th>
       </tr></thead>
       <tbody>${tlRows}</tbody>
     </table>
@@ -2969,10 +2979,12 @@ function buildPrintPages(){
   const adrEvs=S.events.filter(e=>e.type==='adr');
   const adrInterval=adrEvs.length>=2?((adrEvs[adrEvs.length-1].minute-adrEvs[0].minute)/(adrEvs.length-1)).toFixed(1)+'min':'—';
 
-  // Drugs
-  const dc={};
-  S.events.forEach(e=>{ const b=e.detail.replace(/\s*#\d+$/,'').trim(); dc[b]=(dc[b]||0)+1; });
-  const drugHtml=Object.entries(dc).map(([d,c])=>`<tr><td style="padding:2px 4px">${d}</td><td style="padding:2px 4px;text-align:right;font-weight:700">${c>1?`×${c}`:''}</td></tr>`).join('')||'<tr><td>—</td></tr>';
+  // Drugs & procedures (separated)
+  const dcDrug={}, dcProc={};
+  S.events.forEach(e=>{ const b=e.detail.replace(/\s*#\d+$/,'').trim(); if(isDrugT(e.type)){dcDrug[b]=(dcDrug[b]||0)+1;} else {dcProc[b]=(dcProc[b]||0)+1;} });
+  const rowsFrom=(dc)=>Object.entries(dc).map(([d,c])=>`<tr><td style="padding:2px 4px;word-break:break-word">${d}</td><td style="padding:2px 4px;text-align:right;font-weight:700;white-space:nowrap">${c>1?`×${c}`:''}</td></tr>`).join('');
+  const drugHtml=rowsFrom(dcDrug)||'<tr><td style="padding:2px 4px;color:#999">—</td></tr>';
+  const procHtml=rowsFrom(dcProc)||'<tr><td style="padding:2px 4px;color:#999">—</td></tr>';
 
   // Causes
   const h5=['Hypovolemia','Hypoxia','H⁺ (Acidosis)','Hypo/Hyperkalemia','Hypothermia'];
@@ -3015,8 +3027,16 @@ function buildPrintPages(){
         </table>
       </div>
       <div>
-        <div style="background:#1a2e4a;color:#fff;font-weight:800;padding:3px 7px;font-size:9pt;margin-bottom:3px">ยา / หัตถการ</div>
-        <table style="width:100%;border-collapse:collapse;font-size:8.5pt">${drugHtml}</table>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div>
+            <div style="background:#1a2e4a;color:#fff;font-weight:800;padding:3px 7px;font-size:9pt;margin-bottom:3px">💊 ยา</div>
+            <table style="width:100%;border-collapse:collapse;font-size:8.5pt;table-layout:fixed">${drugHtml}</table>
+          </div>
+          <div>
+            <div style="background:#1a2e4a;color:#fff;font-weight:800;padding:3px 7px;font-size:9pt;margin-bottom:3px">🔧 หัตถการ</div>
+            <table style="width:100%;border-collapse:collapse;font-size:8.5pt;table-layout:fixed">${procHtml}</table>
+          </div>
+        </div>
       </div>
     </div>
 
