@@ -41,10 +41,15 @@
 
   /* search */
   .search{position:relative;margin:12px 0 4px}
-  .search input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:11px 12px 11px 38px;
+  .search input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:11px 42px 11px 38px;
     font-family:inherit;font-size:15px;outline:none;background:#fff}
   .search input:focus{border-color:var(--brand);box-shadow:0 0 0 3px #cffafe}
+  .search input::-webkit-search-decoration,.search input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
   .search .mag{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:16px}
+  .search .clr{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:#e2e8f0;
+    color:#475569;border-radius:50%;width:26px;height:26px;font-size:17px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;padding:0}
+  .search .clr:active{background:#cbd5e1}
 
   /* admin toolbar */
   .adbar{display:none;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
@@ -133,7 +138,13 @@
     <button class="adminbtn" id="adminBtn"><span id="adminBtnIc">🔧</span><span id="adminBtnTx">ผู้ดูแล</span></button>
   </div>
 
-  <div class="search"><span class="mag">🔎</span><input id="q" placeholder="ค้นหาลิงก์…" autocomplete="off"></div>
+  <form class="search" autocomplete="off" onsubmit="return false">
+    <span class="mag">🔎</span>
+    <input id="q" type="search" name="jnh-link-search" placeholder="ค้นหาลิงก์…"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      inputmode="search" aria-autocomplete="none" data-lpignore="true" data-1p-ignore data-form-type="other">
+    <button type="button" class="clr" id="qClr" title="ล้างคำค้นหา" hidden>×</button>
+  </form>
 
   <div class="adbar" id="adbar">
     <button class="ad p" id="addLinkBtn">＋ เพิ่มลิงก์</button>
@@ -447,7 +458,23 @@ document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>b.closest(".m
 document.querySelectorAll(".modal").forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) m.classList.remove("show"); }));
 
 /* ============ search ============ */
-$("q").addEventListener("input",e=>{ filter=e.target.value.trim().toLowerCase(); render(); });
+$("q").addEventListener("input",e=>{ filter=e.target.value.trim().toLowerCase(); $("qClr").hidden=!e.target.value; render(); });
+$("qClr").onclick=()=>{ $("q").value=""; filter=""; $("qClr").hidden=true; render(); $("q").focus(); };
+/* กันเบราว์เซอร์/ตัวจำรหัส เติมชื่อผู้ใช้ (เช่น pettoo) ลงช่องค้นหาอัตโนมัติ */
+(function(){
+  const q=$("q"); let typed=false;
+  q.addEventListener("input",()=>{ typed=true; });
+  q.setAttribute("readonly","");                                  // ช่วง autofill ทำงาน ช่องเป็น readonly → ถูกข้าม
+  const unlock=()=>q.removeAttribute("readonly");
+  q.addEventListener("focus",unlock,{once:true});
+  q.addEventListener("pointerdown",unlock,{once:true});
+  setTimeout(unlock,700);
+  // backstop: ช่วง ~2 วิแรก ถ้ามีค่าโผล่มาเองโดยผู้ใช้ยังไม่พิมพ์ ให้ล้างทิ้ง
+  let n=0; const iv=setInterval(()=>{
+    if(!typed && q.value && document.activeElement!==q){ q.value=""; filter=""; $("qClr").hidden=true; render(); }
+    if(++n>=8) clearInterval(iv);
+  },250);
+})();
 
 /* ============ live data ============ */
 DB.onValue("links/adminCode",c=>{ if(c) adminCode=c; else DB.set("links/adminCode","1234"); });
