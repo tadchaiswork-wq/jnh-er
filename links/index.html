@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<script src="../time-sync.js"></script><!-- JNH central time (must load first) -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>ลิงก์สำคัญ — JNH ER</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ลิงก์สำคัญ">
+<meta name="theme-color" content="#0e7490" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{--bg:#f1f5f9;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;
+    --brand:#0e7490;--brand-d:#155e75;--danger:#dc2626;
+    --shadow:0 1px 3px rgba(15,23,42,.07),0 8px 24px rgba(15,23,42,.06)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{overflow-x:hidden}
+  body{font-family:'Sarabun',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:radial-gradient(1100px 460px at 50% -8%,#cffafe,transparent),var(--bg);color:var(--ink);
+    min-height:100vh;line-height:1.5;-webkit-text-size-adjust:100%}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:820px;margin:0 auto;padding:18px 14px 80px}
+
+  /* header */
+  .top{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .home{width:40px;height:40px;flex:0 0 auto;border-radius:12px;background:#fff;border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:var(--shadow)}
+  .ttl{flex:1;min-width:0}
+  .ttl h1{font-size:20px;font-weight:800;color:var(--brand-d);line-height:1.2}
+  .ttl p{font-size:12.5px;color:var(--muted)}
+  .adminbtn{flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:999px;
+    padding:8px 13px;font-family:inherit;font-size:13px;font-weight:700;color:var(--brand-d);cursor:pointer;
+    display:flex;align-items:center;gap:6px;box-shadow:var(--shadow)}
+  .adminbtn.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+
+  /* search */
+  .search{position:relative;margin:12px 0 4px}
+  .search input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:11px 12px 11px 38px;
+    font-family:inherit;font-size:15px;outline:none;background:#fff}
+  .search input:focus{border-color:var(--brand);box-shadow:0 0 0 3px #cffafe}
+  .search .mag{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:16px}
+
+  /* admin toolbar */
+  .adbar{display:none;flex-wrap:wrap;gap:8px;margin:12px 0 4px}
+  .adbar.show{display:flex}
+  .ad{border:none;border-radius:11px;padding:10px 13px;font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+  .ad.p{background:var(--brand);color:#fff}
+  .ad.g{background:#fff;color:var(--brand-d);border:1px solid var(--line)}
+  .ad.d{background:#fee2e2;color:var(--danger)}
+
+  /* category */
+  .cat{margin-top:20px}
+  .cathead{display:flex;align-items:center;gap:8px;margin-bottom:9px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}
+  .cathead .cname{font-size:15.5px;font-weight:800;color:var(--brand-d);flex:1;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cathead .cnt{font-size:12px;color:var(--muted);flex:0 0 auto}
+  .cathead .cadmin{display:none;gap:4px;flex:0 0 auto}
+  body.admin .cathead .cadmin{display:flex}
+  .ico-btn{border:none;background:#f1f5f9;border-radius:9px;width:30px;height:30px;font-size:15px;
+    color:#334155;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center}
+  .ico-btn:active{background:#cbd5e1}
+  .ico-btn.del{background:#fee2e2;color:var(--danger)}
+
+  /* items */
+  .items{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:11px}
+  .item{position:relative;display:flex;gap:11px;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:11px;box-shadow:var(--shadow);transition:.14s;align-items:center}
+  a.item:hover{transform:translateY(-2px);border-color:var(--brand)}
+  .thumb{width:64px;height:48px;flex:0 0 auto;border-radius:9px;background:#e2e8f0 center/cover no-repeat;
+    display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden;position:relative}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .thumb .yt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.18);color:#fff;font-size:22px;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+  .meta{flex:1;min-width:0}
+  .meta .t{font-weight:700;font-size:14.5px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .meta .u{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+  .meta .n{font-size:12px;color:#475569;margin-top:2px;overflow:hidden;text-overflow:ellipsis;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .iadmin{display:none;position:absolute;top:7px;right:7px;gap:4px}
+  body.admin .item .iadmin{display:flex}
+  body.admin a.item{pointer-events:none}          /* ในโหมดผู้ดูแล ไม่เผลอเปิดลิงก์ */
+  body.admin .item .iadmin{pointer-events:auto}
+  .badge-type{position:absolute;bottom:7px;right:9px;font-size:10px;color:#94a3b8}
+
+  .empty{text-align:center;color:var(--muted);padding:50px 20px;font-size:14px}
+  .empty .big{font-size:40px;margin-bottom:8px}
+
+  .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:34px;line-height:1.7}
+  .foot .st{display:inline-block;margin-top:4px;font-size:11px}
+
+  /* modal */
+  .modal{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;
+    padding:18px;background:rgba(15,23,42,.5)}
+  .modal.show{display:flex}
+  .box{background:#fff;border-radius:20px;box-shadow:0 24px 60px rgba(0,0,0,.35);width:100%;max-width:420px;
+    padding:22px 20px;max-height:90vh;overflow:auto}
+  .box h3{font-size:17px;color:var(--brand-d);margin-bottom:4px}
+  .box .sub{font-size:12.5px;color:var(--muted);margin-bottom:12px}
+  .field{margin-bottom:11px}
+  .field label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:4px}
+  .field input,.field select,.field textarea{width:100%;border:1.5px solid var(--line);border-radius:11px;
+    padding:10px 12px;font-family:inherit;font-size:15px;outline:none;background:#fff}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px #cffafe}
+  .field textarea{resize:vertical;min-height:54px}
+  .err{color:var(--danger);font-size:13px;min-height:18px;margin:2px 0 4px}
+  .row{display:flex;gap:9px;margin-top:6px}
+  .btn{flex:1;border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer}
+  .btn.p{background:var(--brand);color:#fff}
+  .btn.g{background:#fff;color:var(--brand-d);border:1px solid var(--line)}
+  .btn.d{background:#fee2e2;color:var(--danger)}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0f172a;color:#fff;
+    padding:10px 18px;border-radius:12px;font-size:14px;z-index:10000;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+
+  @media(max-width:420px){ .items{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="home" href="../portal/" title="กลับหน้าหลัก">←</a>
+    <div class="ttl">
+      <h1>🔖 ลิงก์สำคัญ</h1>
+      <p>YouTube &amp; เว็บที่ใช้บ่อยของ ER JNH</p>
+    </div>
+    <button class="adminbtn" id="adminBtn"><span id="adminBtnIc">🔧</span><span id="adminBtnTx">ผู้ดูแล</span></button>
+  </div>
+
+  <div class="search"><span class="mag">🔎</span><input id="q" placeholder="ค้นหาลิงก์…" autocomplete="off"></div>
+
+  <div class="adbar" id="adbar">
+    <button class="ad p" id="addLinkBtn">＋ เพิ่มลิงก์</button>
+    <button class="ad g" id="addCatBtn">＋ เพิ่มหมวดหมู่</button>
+    <button class="ad g" id="chgPinBtn">🔑 เปลี่ยนรหัส</button>
+    <button class="ad d" id="lockBtn">ล็อก</button>
+  </div>
+
+  <div id="content"></div>
+
+  <div class="foot">
+    ทุกคนเปิดดูและกดลิงก์ได้ทันที · การเพิ่ม/ลบ/จัดหมวดหมู่ต้องใส่รหัสผู้ดูแล
+    <br><span class="st" id="st">กำลังเชื่อมต่อ…</span>
+  </div>
+</div>
+
+<!-- admin unlock -->
+<div class="modal" id="mGate"><div class="box" style="max-width:340px">
+  <h3>🔧 โหมดผู้ดูแล</h3>
+  <div class="sub">ใส่รหัสผู้ดูแลเพื่อเพิ่ม / ลบ / จัดหมวดหมู่</div>
+  <div class="field"><label>รหัสผู้ดูแล</label><input id="gatePin" type="password" inputmode="numeric" placeholder="••••"></div>
+  <div class="err" id="gateErr"></div>
+  <div class="row"><button class="btn g" data-close>ยกเลิก</button><button class="btn p" id="gateEnter">เข้าสู่โหมดผู้ดูแล</button></div>
+</div></div>
+
+<!-- add / edit link -->
+<div class="modal" id="mLink"><div class="box">
+  <h3 id="lkTitle">เพิ่มลิงก์</h3>
+  <div class="sub">วางลิงก์ YouTube หรือเว็บใดก็ได้</div>
+  <div class="field"><label>ลิงก์ (URL)</label><input id="lkUrl" inputmode="url" placeholder="https://…"></div>
+  <div class="field"><label>ชื่อที่จะแสดง</label><input id="lkTitleIn" placeholder="เช่น วิธีใส่ท่อช่วยหายใจ"></div>
+  <div class="field"><label>หมวดหมู่</label>
+    <select id="lkCat"></select>
+  </div>
+  <div class="field" id="lkNewCatWrap" style="display:none"><label>ชื่อหมวดหมู่ใหม่</label><input id="lkNewCat" placeholder="ตั้งชื่อหมวดใหม่"></div>
+  <div class="field"><label>หมายเหตุ (ไม่บังคับ)</label><textarea id="lkNote" placeholder="รายละเอียดสั้น ๆ"></textarea></div>
+  <div class="err" id="lkErr"></div>
+  <div class="row"><button class="btn g" data-close>ยกเลิก</button><button class="btn p" id="lkSave">บันทึก</button></div>
+</div></div>
+
+<!-- add / edit category -->
+<div class="modal" id="mCat"><div class="box" style="max-width:360px">
+  <h3 id="catTitle">เพิ่มหมวดหมู่</h3>
+  <div class="field"><label>ชื่อหมวดหมู่</label><input id="catName" placeholder="เช่น หัตถการ, แนวทางรักษา, วิดีโอสอน"></div>
+  <div class="err" id="catErr"></div>
+  <div class="row"><button class="btn g" data-close>ยกเลิก</button><button class="btn p" id="catSave">บันทึก</button></div>
+</div></div>
+
+<!-- change pin -->
+<div class="modal" id="mPin"><div class="box" style="max-width:360px">
+  <h3>🔑 เปลี่ยนรหัสผู้ดูแล</h3>
+  <div class="field"><label>รหัสเดิม</label><input id="pinCur" type="password" inputmode="numeric"></div>
+  <div class="field"><label>รหัสใหม่ (ตัวเลข 4–8 หลัก)</label><input id="pinNew" inputmode="numeric"></div>
+  <div class="err" id="pinErr"></div>
+  <div class="row"><button class="btn g" data-close>ยกเลิก</button><button class="btn p" id="pinSave">บันทึกรหัสใหม่</button></div>
+</div></div>
+
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="../firebase-config.js"></script>
+<script>
+/* ============ storage (Firebase RTDB or local fallback) ============ */
+const cfg = window.FIREBASE_CONFIG||{};
+const FB_OK = cfg.apiKey && cfg.apiKey!=="PASTE_API_KEY" && cfg.databaseURL && !/PASTE/.test(cfg.databaseURL);
+let db=null;
+if(FB_OK){ try{ firebase.initializeApp(cfg); db=firebase.database(); }catch(e){ console.error(e); } }
+
+/* local fallback: one nested tree in localStorage, behaves like RTDB
+   (child writes notify parent listeners; slash-keyed updates do deep writes) */
+const MEMKEY="jnher_links_tree";
+let mem={}; try{ mem=JSON.parse(localStorage.getItem(MEMKEY)||"{}"); }catch(e){ mem={}; }
+function persist(){ try{ localStorage.setItem(MEMKEY,JSON.stringify(mem)); }catch(e){} }
+function getPath(path){ return path.split("/").reduce((o,k)=> (o==null?undefined:o[k]), mem); }
+function setPath(path,val){
+  const ks=path.split("/"); let o=mem;
+  for(let i=0;i<ks.length-1;i++){ if(typeof o[ks[i]]!=="object"||o[ks[i]]==null) o[ks[i]]={}; o=o[ks[i]]; }
+  const last=ks[ks.length-1];
+  if(val===null||val===undefined) delete o[last]; else o[last]=val;
+}
+const localSubs=[]; // {path,cb}
+function notifyAll(){ localSubs.forEach(s=>{ const v=getPath(s.path); s.cb(v===undefined?null:v); }); }
+const DB = {
+  onValue(path, cb){
+    if(db){ db.ref(path).on("value", s=>cb(s.val())); }
+    else { localSubs.push({path,cb}); const v=getPath(path); cb(v===undefined?null:v); }
+  },
+  set(path, val){
+    if(db){ return db.ref(path).set(val); }
+    setPath(path,val); persist(); notifyAll(); return Promise.resolve();
+  },
+  update(path, val){
+    if(db){ return db.ref(path).update(val); }
+    Object.keys(val).forEach(k=> setPath(path+"/"+k, val[k]));   // slash keys => deep write
+    persist(); notifyAll(); return Promise.resolve();
+  },
+  async once(path){ if(db){ const s=await db.ref(path).once("value"); return s.val(); } const v=getPath(path); return v===undefined?null:v; },
+  newKey(path){ if(db){ return db.ref(path).push().key; } return "k"+Date.now()+Math.random().toString(36).slice(2,7); }
+};
+
+/* ============ state ============ */
+let adminCode="1234";
+let cats={};       // {id:{name,order,createdAt}}
+let items={};      // {id:{title,url,catId,note,order,createdAt}}
+let isAdmin=false;
+let filter="";
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function toast(m){ const t=document.createElement("div"); t.className="toast"; t.textContent=m; document.body.appendChild(t); setTimeout(()=>t.remove(),1900); }
+
+/* ============ URL helpers ============ */
+function ytId(url){
+  try{
+    const u=new URL(url);
+    const h=u.hostname.replace(/^www\./,"");
+    if(h==="youtu.be") return u.pathname.slice(1).split("/")[0]||"";
+    if(h.endsWith("youtube.com")){
+      if(u.searchParams.get("v")) return u.searchParams.get("v");
+      const m=u.pathname.match(/\/(embed|shorts|live)\/([^/?#]+)/);
+      if(m) return m[2];
+    }
+  }catch(e){}
+  return "";
+}
+function hostOf(url){ try{ return new URL(url).hostname.replace(/^www\./,""); }catch(e){ return url; } }
+function normUrl(url){ url=(url||"").trim(); if(!url) return ""; if(!/^https?:\/\//i.test(url)) url="https://"+url; return url; }
+
+/* ============ render ============ */
+function catList(){
+  return Object.entries(cats).map(([id,c])=>({id,...c}))
+    .sort((a,b)=>(a.order||0)-(b.order||0)||(a.createdAt||0)-(b.createdAt||0));
+}
+function itemsOf(catId){
+  return Object.entries(items).map(([id,it])=>({id,...it}))
+    .filter(it=>(it.catId||"")===catId)
+    .filter(it=>{ if(!filter) return true; const s=(it.title+" "+it.url+" "+(it.note||"")).toLowerCase(); return s.includes(filter); })
+    .sort((a,b)=>(a.order||0)-(b.order||0)||(a.createdAt||0)-(b.createdAt||0));
+}
+function itemCard(it){
+  const yid=ytId(it.url);
+  let thumb;
+  if(yid){ thumb=`<div class="thumb"><img src="https://img.youtube.com/vi/${esc(yid)}/mqdefault.jpg" loading="lazy" onerror="this.style.display='none'"><span class="yt">▶</span></div>`; }
+  else{ const host=esc(hostOf(it.url));
+    thumb=`<div class="thumb"><img src="https://www.google.com/s2/favicons?domain=${host}&sz=64" loading="lazy" onerror="this.replaceWith(document.createTextNode('🌐'))"></div>`; }
+  const note=it.note?`<div class="n">${esc(it.note)}</div>`:"";
+  const admin=`<div class="iadmin">
+      <button class="ico-btn" title="แก้ไข" onclick="editItem('${it.id}')">✎</button>
+      <button class="ico-btn" title="เลื่อนขึ้น" onclick="moveItem('${it.id}',-1)">↑</button>
+      <button class="ico-btn" title="เลื่อนลง" onclick="moveItem('${it.id}',1)">↓</button>
+      <button class="ico-btn del" title="ลบ" onclick="delItem('${it.id}')">🗑</button>
+    </div>`;
+  const type=yid?"YouTube":esc(hostOf(it.url));
+  return `<a class="item" href="${esc(normUrl(it.url))}" target="_blank" rel="noopener">
+      ${thumb}
+      <div class="meta"><div class="t">${esc(it.title||hostOf(it.url))}</div>
+        <div class="u">${esc(hostOf(it.url))}</div>${note}</div>
+      <span class="badge-type">${type}</span>${admin}
+    </a>`;
+}
+function render(){
+  const wrap=$("content");
+  const list=catList();
+  // build ordered sections: real categories in order, then uncategorized
+  const sections=list.map(c=>({id:c.id,name:c.name}));
+  const unc=itemsOf(""); // uncategorized
+  if(unc.length || (isAdmin && !filter)) sections.push({id:"",name:"ไม่มีหมวดหมู่"});
+
+  let anyItem=false;
+  let html="";
+  sections.forEach(sec=>{
+    const its=itemsOf(sec.id);
+    if(!its.length && filter) return;               // hide empty sections while searching
+    if(!its.length && !isAdmin) return;             // users don't see empty sections
+    anyItem = anyItem || its.length>0;
+    const catAdmin = sec.id ? `<div class="cadmin">
+        <button class="ico-btn" title="เปลี่ยนชื่อ" onclick="renameCat('${sec.id}')">✎</button>
+        <button class="ico-btn" title="เลื่อนขึ้น" onclick="moveCat('${sec.id}',-1)">↑</button>
+        <button class="ico-btn" title="เลื่อนลง" onclick="moveCat('${sec.id}',1)">↓</button>
+        <button class="ico-btn del" title="ลบหมวด" onclick="delCat('${sec.id}')">🗑</button>
+      </div>` : "";
+    html+=`<div class="cat"><div class="cathead">
+        <span class="cname">${esc(sec.name)}</span>
+        <span class="cnt">${its.length} ลิงก์</span>${catAdmin}
+      </div>
+      <div class="items">${its.map(itemCard).join("") || '<div class="empty" style="padding:14px;grid-column:1/-1">— ยังไม่มีลิงก์ —</div>'}</div>
+    </div>`;
+  });
+
+  if(!anyItem && !html.trim()){
+    html=`<div class="empty"><div class="big">🔖</div>
+      ${filter?"ไม่พบลิงก์ที่ค้นหา":"ยังไม่มีลิงก์<br>กด <b>🔧 ผู้ดูแล</b> เพื่อเริ่มเพิ่มลิงก์"}</div>`;
+  }
+  wrap.innerHTML=html;
+}
+
+/* ============ admin actions ============ */
+function fillCatSelect(sel,current){
+  const opts=catList().map(c=>`<option value="${c.id}" ${c.id===current?"selected":""}>${esc(c.name)}</option>`).join("");
+  sel.innerHTML=`<option value="">— ไม่มีหมวดหมู่ —</option>${opts}<option value="__new__">➕ สร้างหมวดใหม่…</option>`;
+}
+let editingItem=null;
+function openLinkModal(it){
+  editingItem=it||null;
+  $("lkTitle").textContent=it?"แก้ไขลิงก์":"เพิ่มลิงก์";
+  $("lkUrl").value=it?it.url:""; $("lkTitleIn").value=it?it.title:""; $("lkNote").value=it?(it.note||""):"";
+  fillCatSelect($("lkCat"), it?(it.catId||""):"");
+  $("lkNewCatWrap").style.display="none"; $("lkNewCat").value=""; $("lkErr").textContent="";
+  show("mLink"); setTimeout(()=>$("lkUrl").focus(),60);
+}
+$("lkCat").onchange=()=>{ $("lkNewCatWrap").style.display = $("lkCat").value==="__new__" ? "block":"none"; };
+window.editItem=id=>openLinkModal({id,...items[id]});
+
+$("lkSave").onclick=async()=>{
+  const url=normUrl($("lkUrl").value);
+  const title=$("lkTitleIn").value.trim();
+  let catId=$("lkCat").value;
+  const note=$("lkNote").value.trim();
+  const e=$("lkErr");
+  if(!url){ e.textContent="กรุณาใส่ลิงก์"; return; }
+  try{ new URL(url); }catch(_){ e.textContent="ลิงก์ไม่ถูกต้อง"; return; }
+  if(catId==="__new__"){
+    const nm=$("lkNewCat").value.trim();
+    if(!nm){ e.textContent="กรุณาตั้งชื่อหมวดใหม่"; return; }
+    catId=await addCat(nm);
+  }
+  const t=title||hostOf(url);
+  if(editingItem){
+    await DB.update("links/items/"+editingItem.id,{title:t,url,catId,note});
+    toast("บันทึกแล้ว");
+  }else{
+    const id=DB.newKey("links/items");
+    await DB.set("links/items/"+id,{title:t,url,catId,note,order:Date.now(),createdAt:Date.now()});
+    toast("เพิ่มลิงก์แล้ว");
+  }
+  hide("mLink");
+};
+
+async function addCat(name){
+  const id=DB.newKey("links/categories");
+  await DB.set("links/categories/"+id,{name,order:Date.now(),createdAt:Date.now()});
+  return id;
+}
+$("addCatBtn").onclick=()=>{ $("catTitle").textContent="เพิ่มหมวดหมู่"; $("catName").value=""; $("catErr").textContent=""; catEditing=null; show("mCat"); setTimeout(()=>$("catName").focus(),60); };
+let catEditing=null;
+window.renameCat=id=>{ catEditing=id; $("catTitle").textContent="เปลี่ยนชื่อหมวดหมู่"; $("catName").value=cats[id]?cats[id].name:""; $("catErr").textContent=""; show("mCat"); setTimeout(()=>$("catName").focus(),60); };
+$("catSave").onclick=async()=>{
+  const nm=$("catName").value.trim();
+  if(!nm){ $("catErr").textContent="กรุณาใส่ชื่อหมวดหมู่"; return; }
+  if(catEditing){ await DB.update("links/categories/"+catEditing,{name:nm}); toast("เปลี่ยนชื่อแล้ว"); }
+  else{ await addCat(nm); toast("เพิ่มหมวดหมู่แล้ว"); }
+  hide("mCat");
+};
+window.delCat=async id=>{
+  const n=itemsOf(id).length;
+  if(!confirm(`ลบหมวด "${cats[id]?cats[id].name:""}" ?`+(n?`\nลิงก์ ${n} รายการในหมวดนี้จะย้ายไปที่ "ไม่มีหมวดหมู่"`:""))) return;
+  // move items to uncategorized
+  const upd={};
+  Object.entries(items).forEach(([iid,it])=>{ if((it.catId||"")===id) upd[iid+"/catId"]=""; });
+  if(Object.keys(upd).length) await DB.update("links/items",upd);
+  await DB.set("links/categories/"+id,null);
+  toast("ลบหมวดแล้ว");
+};
+window.delItem=async id=>{
+  if(!confirm(`ลบลิงก์ "${items[id]?items[id].title:""}" ?`)) return;
+  await DB.set("links/items/"+id,null); toast("ลบลิงก์แล้ว");
+};
+
+/* reorder by swapping order values with neighbor */
+async function swapOrder(coll, arr, id, dir){
+  const idx=arr.findIndex(x=>x.id===id); const j=idx+dir;
+  if(idx<0||j<0||j>=arr.length) return;
+  const a=arr[idx], b=arr[j];
+  const oa=(a.order!=null?a.order:a.createdAt||0), ob=(b.order!=null?b.order:b.createdAt||0);
+  const upd={}; upd[a.id+"/order"]=ob; upd[b.id+"/order"]=oa;
+  await DB.update(coll,upd);
+}
+window.moveItem=(id,dir)=>{ const cid=items[id].catId||""; swapOrder("links/items",itemsOf(cid),id,dir); };
+window.moveCat=(id,dir)=>{ swapOrder("links/categories",catList(),id,dir); };
+
+/* ============ admin mode / pin ============ */
+function setAdmin(on){
+  isAdmin=on; document.body.classList.toggle("admin",on);
+  $("adbar").classList.toggle("show",on);
+  $("adminBtn").classList.toggle("on",on);
+  $("adminBtnIc").textContent=on?"✓":"🔧";
+  $("adminBtnTx").textContent=on?"ผู้ดูแล":"ผู้ดูแล";
+  render();
+}
+$("adminBtn").onclick=()=>{ if(isAdmin){ /*toggle off quickly*/ show("mGate"); $("gatePin").value=""; $("gateErr").textContent="กดยกเลิกเพื่ออยู่ต่อ หรือปิดโหมดด้านล่าง"; } else { $("gatePin").value=""; $("gateErr").textContent=""; show("mGate"); setTimeout(()=>$("gatePin").focus(),60);} };
+$("lockBtn").onclick=()=>{ setAdmin(false); toast("ออกจากโหมดผู้ดูแลแล้ว"); };
+$("gateEnter").onclick=()=>{
+  if($("gatePin").value===adminCode){ hide("mGate"); setAdmin(true); toast("เข้าสู่โหมดผู้ดูแล"); }
+  else{ $("gateErr").textContent="รหัสไม่ถูกต้อง"; }
+};
+$("gatePin").addEventListener("keydown",e=>{ if(e.key==="Enter")$("gateEnter").click(); });
+
+$("addLinkBtn").onclick=()=>openLinkModal(null);
+$("chgPinBtn").onclick=()=>{ $("pinCur").value="";$("pinNew").value="";$("pinErr").textContent=""; show("mPin"); };
+$("pinSave").onclick=async()=>{
+  if($("pinCur").value!==adminCode){ $("pinErr").textContent="รหัสเดิมไม่ถูกต้อง"; return; }
+  const nw=$("pinNew").value.trim();
+  if(!/^\d{4,8}$/.test(nw)){ $("pinErr").textContent="รหัสใหม่ต้องเป็นตัวเลข 4–8 หลัก"; return; }
+  await DB.set("links/adminCode",nw); adminCode=nw; hide("mPin"); toast("เปลี่ยนรหัสแล้ว");
+};
+
+/* ============ modal helpers ============ */
+function show(id){ $(id).classList.add("show"); }
+function hide(id){ $(id).classList.remove("show"); }
+document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>b.closest(".modal").classList.remove("show"));
+document.querySelectorAll(".modal").forEach(m=>m.addEventListener("click",e=>{ if(e.target===m) m.classList.remove("show"); }));
+
+/* ============ search ============ */
+$("q").addEventListener("input",e=>{ filter=e.target.value.trim().toLowerCase(); render(); });
+
+/* ============ live data ============ */
+DB.onValue("links/adminCode",c=>{ if(c) adminCode=c; else DB.set("links/adminCode","1234"); });
+DB.onValue("links/categories",v=>{ cats=v||{}; render(); });
+DB.onValue("links/items",v=>{ items=v||{}; render(); });
+$("st").textContent = FB_OK ? "🔗 เชื่อมต่อฐานข้อมูลกลาง — แชร์ทุกเครื่อง" : "⚠️ ยังไม่ได้ตั้งค่า Firebase — บันทึกเฉพาะเครื่องนี้";
+render();
+</script>
+</body>
+</html>

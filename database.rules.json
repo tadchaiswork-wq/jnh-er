@@ -11,7 +11,16 @@
     "portal": {
       ".read": true,
       ".write": true,
-      "users": { ".indexOn": ["status", "createdAt"] }
+      "users": {
+        ".indexOn": [
+          "status",
+          "createdAt"
+        ]
+      }
+    },
+    "links": {
+      ".read": true,
+      ".write": true
     }
   }
 }
