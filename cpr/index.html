@@ -222,6 +222,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
 .btn-defib{background:linear-gradient(145deg,var(--defib),var(--defib2));box-shadow:0 3px 12px rgba(107,33,168,.35);margin-top:8px}
 .btn-drug{background:linear-gradient(145deg,#0e7490,#0891b2);box-shadow:0 3px 12px rgba(14,116,144,.35)}
 .btn-proc{background:linear-gradient(145deg,#1d4ed8,#3b82f6);box-shadow:0 3px 12px rgba(29,78,216,.32);margin-top:8px}
+/* ปุ่มคอลัมน์ขวา: ADRENALINE · DEFIB · บันทึกยา · บันทึกหัตถการ ให้ติดกันเป็นแถวเดียว ไม่มีเส้น/ป้ายคั่น */
+.act-actions{display:flex;flex-direction:column;gap:4px}
+.act-actions .big-btn{margin-top:0;border-radius:10px}
+.act-actions .reminder{margin:0}
 .sm-btn{width:100%;padding:11px 10px;border-radius:9px;border:none;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:7px;text-align:center;font-family:inherit;transition:transform .1s,filter .1s}
 .sm-btn:active{transform:scale(.97);filter:brightness(.9)}
 .sm-btn:last-child{margin-bottom:0}
@@ -637,25 +641,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
         <div style="margin-top:8px" id="proto-panel"></div>
       </div>
 
-      <div class="act-sec">
-        <div class="act-lbl">💊 Adrenaline</div>
+      <div class="act-sec act-actions">
         <button class="big-btn btn-adr" id="btn-adr" onclick="giveAdr()">
           <span class="t">ADRENALINE<span class="kb-hint">A</span></span>
           <span class="s" id="adr-sub">1 mg IV — tap to give</span>
         </button>
-        <div class="reminder rem-ok" id="adr-rem" style="margin-top:7px">รอให้ครั้งแรก</div>
-      </div>
-
-      <div class="act-sec">
-        <div class="act-lbl">⚡ Defibrillation</div>
+        <div class="reminder rem-ok" id="adr-rem">รอให้ครั้งแรก</div>
         <button class="big-btn btn-defib" id="btn-defib" onclick="showDefibModal()">
           <span class="t">⚡ DEFIB<span class="kb-hint">D</span></span>
           <span class="s" id="defib-sub">200J Biphasic</span>
         </button>
-      </div>
-
-      <div class="act-sec">
-        <div class="act-lbl">📝 บันทึก ยา / หัตถการ</div>
         <button class="big-btn btn-drug" id="btn-drug" onclick="openDrugPanel()">
           <span class="t">💊 บันทึกยา<span class="kb-hint">M</span></span>
           <span class="s">ยาอื่นๆ นอกจาก Adrenaline</span>
@@ -1825,8 +1820,12 @@ function showOngoingBanner(){
 }
 // กลับเข้า CPR: ถ้า timer ยังเดินอยู่ในหน่วยความจำ → สลับหน้าเลย, ถ้าเปิดแอปใหม่ → restore จาก localStorage
 function resumeOngoing(){
-  if(S.startTime&&!S.stopTime&&S.timerID){
+  if(S.startTime&&!S.stopTime){
     showScreen('screen-cpr');
+    lastSecond=-1;
+    if(S.timerID) clearInterval(S.timerID);
+    S.timerID=setInterval(tick,500);   // เดินเวลาต่อเสมอ (watchdog ก็ครอบอีกชั้น)
+    tick();
     scrollToNow();
     return;
   }
@@ -3624,6 +3623,15 @@ function syncAll(){
 document.addEventListener('DOMContentLoaded',()=>{
   loadDB();
   S=buildSession();
+  // ── นาฬิกากลาง (watchdog): ให้เวลาเดินต่อเสมอเมื่ออยู่หน้า CPR และเคสยังไม่จบ
+  //    ครอบทุกทางเข้า (กลับเข้าเคส / เปิดจากเครื่องอื่น / restore) กันเวลาไม่รันต่อ
+  setInterval(()=>{
+    try{
+      if(S && S.startTime && !S.stopTime && document.getElementById('screen-cpr').classList.contains('active')){
+        tick();
+      }
+    }catch(e){}
+  },500);
   // V/S stepper grids (summary + case detail)
   $('rosc-vs-container').innerHTML=vsGridHTML('r');
   $('cd-vs-container').innerHTML=vsGridHTML('cdv');
