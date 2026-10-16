@@ -32,3 +32,6 @@ window.EMAIL_DOMAIN = "jnher.web";
 
 // admin ใหญ่ของ Portal — สมัคร username นี้แล้วจะได้สิทธิ์ superadmin อัตโนมัติ
 window.SUPERADMIN_USERNAME = "pettoo";
+
+// แอป "ลิงก์สำคัญ" — เก็บไฟล์แนบลง Google Drive ผ่าน Apps Script (ดูไฟล์ drive-appsscript.gs)
+window.LINKS_DRIVE_URL = "https://script.google.com/macros/s/AKfycbwqIvfenjKhQyLJf6Yleg_LYIFQdVbovNJrty_nYbvZxdZxdq8UBCP4ps2kvyykTKN_/exec";

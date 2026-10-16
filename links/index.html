@@ -80,6 +80,7 @@
   .thumb{width:64px;height:48px;flex:0 0 auto;border-radius:9px;background:#e2e8f0 center/cover no-repeat;
     display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden;position:relative}
   .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .thumb-file{background:linear-gradient(145deg,#eef2f7,#dbe3ec);font-size:28px}
   .thumb .yt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:rgba(0,0,0,.18);color:#fff;font-size:22px;text-shadow:0 1px 4px rgba(0,0,0,.5)}
   .meta{flex:1;min-width:0}
@@ -170,11 +171,16 @@
   <div class="row"><button class="btn g" data-close>ยกเลิก</button><button class="btn p" id="gateEnter">เข้าสู่โหมดผู้ดูแล</button></div>
 </div></div>
 
-<!-- add / edit link -->
+<!-- add / edit link or file -->
 <div class="modal" id="mLink"><div class="box">
-  <h3 id="lkTitle">เพิ่มลิงก์</h3>
-  <div class="sub">วางลิงก์ YouTube หรือเว็บใดก็ได้</div>
-  <div class="field"><label>ลิงก์ (URL)</label><input id="lkUrl" inputmode="url" placeholder="https://…"></div>
+  <h3 id="lkTitle">เพิ่มลิงก์ / ไฟล์</h3>
+  <div class="sub">วางลิงก์ (YouTube/เว็บ) <b>หรือ</b> แนบไฟล์ (PDF / รูป / เอกสาร) อย่างใดอย่างหนึ่ง</div>
+  <div class="field"><label>ลิงก์ (URL) — เว้นว่างได้ถ้าแนบไฟล์</label><input id="lkUrl" inputmode="url" placeholder="https://…"></div>
+  <div class="field"><label>📎 แนบไฟล์ (รูป / PDF / เอกสาร)</label>
+    <input type="file" id="lkFile">
+    <div class="sub" id="lkFileInfo" style="margin-top:4px"></div>
+    <div class="sub" id="lkProg" style="display:none;margin-top:6px">⬆️ กำลังอัปโหลด… <b id="lkProgPct">0%</b></div>
+  </div>
   <div class="field"><label>ชื่อที่จะแสดง</label><input id="lkTitleIn" placeholder="เช่น วิธีใส่ท่อช่วยหายใจ"></div>
   <div class="field"><label>หมวดหมู่</label>
     <select id="lkCat"></select>
@@ -205,13 +211,17 @@
 <!-- Firebase compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script src="../firebase-config.js"></script>
 <script>
 /* ============ storage (Firebase RTDB or local fallback) ============ */
 const cfg = window.FIREBASE_CONFIG||{};
 const FB_OK = cfg.apiKey && cfg.apiKey!=="PASTE_API_KEY" && cfg.databaseURL && !/PASTE/.test(cfg.databaseURL);
-let db=null;
+let db=null, storage=null;
 if(FB_OK){ try{ firebase.initializeApp(cfg); db=firebase.database(); }catch(e){ console.error(e); } }
+if(db && firebase.storage){ try{ storage=firebase.storage(); }catch(e){ console.warn('storage init',e); } }
+// Google Drive ผ่าน Apps Script (ตั้งค่า window.LINKS_DRIVE_URL ใน firebase-config.js)
+const DRIVE_URL = (window.LINKS_DRIVE_URL||'').trim();
 
 /* local fallback: one nested tree in localStorage, behaves like RTDB
    (child writes notify parent listeners; slash-keyed updates do deep writes) */
@@ -272,6 +282,16 @@ function ytId(url){
 }
 function hostOf(url){ try{ return new URL(url).hostname.replace(/^www\./,""); }catch(e){ return url; } }
 function normUrl(url){ url=(url||"").trim(); if(!url) return ""; if(!/^https?:\/\//i.test(url)) url="https://"+url; return url; }
+function fmtSize(b){ b=+b||0; if(b<1024) return b+" B"; if(b<1048576) return (b/1024).toFixed(0)+" KB"; return (b/1048576).toFixed(1)+" MB"; }
+function fileIcon(it){
+  const m=(it.mime||"").toLowerCase(), n=(it.fileName||"").toLowerCase();
+  if(m.startsWith("image/")) return "🖼️";
+  if(m.includes("pdf")||n.endsWith(".pdf")) return "📄";
+  if(m.includes("word")||/\.docx?$/.test(n)) return "📝";
+  if(m.includes("sheet")||m.includes("excel")||/\.(xlsx?|csv)$/.test(n)) return "📊";
+  if(m.includes("presentation")||/\.pptx?$/.test(n)) return "📑";
+  return "📎";
+}
 
 /* ============ render ============ */
 function catList(){
@@ -281,15 +301,31 @@ function catList(){
 function itemsOf(catId){
   return Object.entries(items).map(([id,it])=>({id,...it}))
     .filter(it=>(it.catId||"")===catId)
-    .filter(it=>{ if(!filter) return true; const s=(it.title+" "+it.url+" "+(it.note||"")).toLowerCase(); return s.includes(filter); })
+    .filter(it=>{ if(!filter) return true; const s=((it.title||"")+" "+(it.url||"")+" "+(it.note||"")+" "+(it.fileName||"")).toLowerCase(); return s.includes(filter); })
     .sort((a,b)=>(a.order||0)-(b.order||0)||(a.createdAt||0)-(b.createdAt||0));
 }
 function itemCard(it){
-  const yid=ytId(it.url);
-  let thumb;
-  if(yid){ thumb=`<div class="thumb"><img src="https://img.youtube.com/vi/${esc(yid)}/mqdefault.jpg" loading="lazy" onerror="this.style.display='none'"><span class="yt">▶</span></div>`; }
-  else{ const host=esc(hostOf(it.url));
-    thumb=`<div class="thumb"><img src="https://www.google.com/s2/favicons?domain=${host}&sz=64" loading="lazy" onerror="this.replaceWith(document.createTextNode('🌐'))"></div>`; }
+  const isFile = it.kind==='file';
+  let thumb, typeLabel, subLine, href;
+  if(isFile){
+    href = it.url;
+    if((it.mime||"").startsWith("image/")){
+      const imgSrc = (it.source==='drive' && it.driveId) ? `https://drive.google.com/thumbnail?id=${esc(it.driveId)}&sz=w160` : esc(it.url);
+      thumb=`<div class="thumb"><img src="${imgSrc}" loading="lazy" onerror="this.replaceWith(document.createTextNode('🖼️'))"></div>`;
+    } else {
+      thumb=`<div class="thumb thumb-file">${fileIcon(it)}</div>`;
+    }
+    typeLabel="ไฟล์";
+    subLine = esc(it.fileName||"ไฟล์") + (it.fileSize?` · ${fmtSize(it.fileSize)}`:"");
+  } else {
+    const yid=ytId(it.url);
+    if(yid){ thumb=`<div class="thumb"><img src="https://img.youtube.com/vi/${esc(yid)}/mqdefault.jpg" loading="lazy" onerror="this.style.display='none'"><span class="yt">▶</span></div>`; }
+    else{ const host=esc(hostOf(it.url));
+      thumb=`<div class="thumb"><img src="https://www.google.com/s2/favicons?domain=${host}&sz=64" loading="lazy" onerror="this.replaceWith(document.createTextNode('🌐'))"></div>`; }
+    typeLabel = yid?"YouTube":esc(hostOf(it.url));
+    subLine = esc(hostOf(it.url));
+    href = normUrl(it.url);
+  }
   const note=it.note?`<div class="n">${esc(it.note)}</div>`:"";
   const admin=`<div class="iadmin">
       <button class="ico-btn" title="แก้ไข" onclick="editItem('${it.id}')">✎</button>
@@ -297,12 +333,11 @@ function itemCard(it){
       <button class="ico-btn" title="เลื่อนลง" onclick="moveItem('${it.id}',1)">↓</button>
       <button class="ico-btn del" title="ลบ" onclick="delItem('${it.id}')">🗑</button>
     </div>`;
-  const type=yid?"YouTube":esc(hostOf(it.url));
-  return `<a class="item" href="${esc(normUrl(it.url))}" target="_blank" rel="noopener">
+  return `<a class="item" href="${esc(href)}" target="_blank" rel="noopener"${isFile?' download':''}>
       ${thumb}
-      <div class="meta"><div class="t">${esc(it.title||hostOf(it.url))}</div>
-        <div class="u">${esc(hostOf(it.url))}</div>${note}</div>
-      <span class="badge-type">${type}</span>${admin}
+      <div class="meta"><div class="t">${esc(it.title||it.fileName||hostOf(it.url))}</div>
+        <div class="u">${subLine}</div>${note}</div>
+      <span class="badge-type">${typeLabel}</span>${admin}
     </a>`;
 }
 function render(){
@@ -328,9 +363,9 @@ function render(){
       </div>` : "";
     html+=`<div class="cat"><div class="cathead">
         <span class="cname">${esc(sec.name)}</span>
-        <span class="cnt">${its.length} ลิงก์</span>${catAdmin}
+        <span class="cnt">${its.length} รายการ</span>${catAdmin}
       </div>
-      <div class="items">${its.map(itemCard).join("") || '<div class="empty" style="padding:14px;grid-column:1/-1">— ยังไม่มีลิงก์ —</div>'}</div>
+      <div class="items">${its.map(itemCard).join("") || '<div class="empty" style="padding:14px;grid-column:1/-1">— ยังไม่มีรายการ —</div>'}</div>
     </div>`;
   });
 
@@ -349,38 +384,143 @@ function fillCatSelect(sel,current){
 let editingItem=null;
 function openLinkModal(it){
   editingItem=it||null;
-  $("lkTitle").textContent=it?"แก้ไขลิงก์":"เพิ่มลิงก์";
-  $("lkUrl").value=it?it.url:""; $("lkTitleIn").value=it?it.title:""; $("lkNote").value=it?(it.note||""):"";
+  const isFile = it && it.kind==='file';
+  $("lkTitle").textContent=it?"แก้ไขรายการ":"เพิ่มลิงก์ / ไฟล์";
+  $("lkUrl").value=(it&&!isFile)?(it.url||""):"";
+  $("lkTitleIn").value=it?(it.title||""):"";
+  $("lkNote").value=it?(it.note||""):"";
   fillCatSelect($("lkCat"), it?(it.catId||""):"");
   $("lkNewCatWrap").style.display="none"; $("lkNewCat").value=""; $("lkErr").textContent="";
+  $("lkFile").value="";
+  $("lkFileInfo").textContent = isFile ? ("ไฟล์ปัจจุบัน: "+(it.fileName||"")+" — เลือกไฟล์ใหม่เพื่อแทนที่ (ไม่บังคับ)") : storageModeHint();
+  $("lkProg").style.display="none";
   show("mLink"); setTimeout(()=>$("lkUrl").focus(),60);
 }
 $("lkCat").onchange=()=>{ $("lkNewCatWrap").style.display = $("lkCat").value==="__new__" ? "block":"none"; };
+$("lkFile").onchange=()=>{ const f=$("lkFile").files[0]; $("lkFileInfo").textContent=f?("เลือก: "+f.name+" ("+fmtSize(f.size)+")"):""; };
 window.editItem=id=>openLinkModal({id,...items[id]});
 
+function readAsDataURL(file){
+  return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error||new Error('read')); r.readAsDataURL(file); });
+}
+function readAsBase64(file){
+  return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>{ const s=String(r.result); const i=s.indexOf(','); res(i>=0?s.slice(i+1):s); }; r.onerror=()=>rej(r.error||new Error('read')); r.readAsDataURL(file); });
+}
+async function driveUpload(file){
+  const dataBase64=await readAsBase64(file);
+  // body เป็น text/plain (ไม่ trigger preflight) — Apps Script อ่านจาก e.postData.contents
+  const r=await fetch(DRIVE_URL,{method:'POST',body:JSON.stringify({action:'upload',name:file.name,mime:file.type||'application/octet-stream',dataBase64})});
+  const j=await r.json();
+  if(!j||!j.ok) throw new Error((j&&j.error)||'drive upload failed');
+  return j; // {ok,id,url}
+}
+function driveDelete(id){ try{ fetch(DRIVE_URL,{method:'POST',body:JSON.stringify({action:'delete',id})}); }catch(_){} }
+function storageModeHint(){
+  if(storage) return "อัปโหลดขึ้น Firebase Storage · สูงสุด 25MB";
+  if(DRIVE_URL) return "อัปโหลดขึ้น Google Drive · สูงสุด 20MB";
+  return "โหมดฟรี (เก็บในฐานข้อมูล) · สูงสุด 700KB — ตั้งค่า Google Drive เพื่อรองรับไฟล์ใหญ่";
+}
+function uploadWithProgress(ref, file){
+  return new Promise((resolve,reject)=>{
+    const task=ref.put(file,{contentType:file.type||'application/octet-stream'});
+    $("lkProg").style.display="block"; $("lkProgPct").textContent="0%";
+    task.on('state_changed',
+      s=>{ const p=s.totalBytes?Math.round(s.bytesTransferred/s.totalBytes*100):0; $("lkProgPct").textContent=p+"%"; },
+      err=>reject(err),
+      async()=>{ try{ resolve(await task.snapshot.ref.getDownloadURL()); }catch(err){ reject(err); } }
+    );
+  });
+}
 $("lkSave").onclick=async()=>{
-  const url=normUrl($("lkUrl").value);
+  const e=$("lkErr"); e.textContent="";
+  const urlRaw=$("lkUrl").value.trim();
   const title=$("lkTitleIn").value.trim();
   let catId=$("lkCat").value;
   const note=$("lkNote").value.trim();
-  const e=$("lkErr");
-  if(!url){ e.textContent="กรุณาใส่ลิงก์"; return; }
-  try{ new URL(url); }catch(_){ e.textContent="ลิงก์ไม่ถูกต้อง"; return; }
+  const file=$("lkFile").files[0];
+  const editingFile = editingItem && editingItem.kind==='file';
+
+  // ต้องมีลิงก์ หรือไฟล์ อย่างใดอย่างหนึ่ง (ตอนแก้ไขไฟล์เดิม ไม่บังคับเลือกไฟล์ใหม่)
+  if(!file && !urlRaw && !editingFile){ e.textContent="ใส่ลิงก์ หรือแนบไฟล์อย่างใดอย่างหนึ่ง"; return; }
+  if(!file && urlRaw){ try{ new URL(normUrl(urlRaw)); }catch(_){ e.textContent="ลิงก์ไม่ถูกต้อง"; return; } }
+  if(file){
+    if(!db){ e.textContent="ออฟไลน์ — แนบไฟล์ไม่ได้ ใช้ลิงก์แทน"; return; }
+    const MAX = storage ? 25*1024*1024 : DRIVE_URL ? 20*1024*1024 : 700*1024;
+    if(file.size>MAX){
+      e.textContent = storage ? "ไฟล์ใหญ่เกิน 25 MB"
+        : DRIVE_URL ? "ไฟล์ใหญ่เกิน 20 MB"
+        : "ไฟล์ใหญ่เกิน 700KB — ยังไม่ได้ตั้งค่า Google Drive (ดูวิธีในไฟล์ drive-appsscript.gs) หรือใช้ลิงก์แทน";
+      return;
+    }
+  }
   if(catId==="__new__"){
     const nm=$("lkNewCat").value.trim();
     if(!nm){ e.textContent="กรุณาตั้งชื่อหมวดใหม่"; return; }
     catId=await addCat(nm);
   }
-  const t=title||hostOf(url);
-  if(editingItem){
-    await DB.update("links/items/"+editingItem.id,{title:t,url,catId,note});
-    toast("บันทึกแล้ว");
-  }else{
-    const id=DB.newKey("links/items");
-    await DB.set("links/items/"+id,{title:t,url,catId,note,order:Date.now(),createdAt:Date.now()});
-    toast("เพิ่มลิงก์แล้ว");
+
+  const id = editingItem ? editingItem.id : DB.newKey("links/items");
+  $("lkSave").disabled=true;
+  try{
+    let data;
+    if(file){
+      if(storage){
+        // โหมด Storage (Blaze): อัปโหลดเป็นไฟล์จริง
+        const safe=file.name.replace(/[^\w.\-]+/g,"_");
+        const path="links/"+id+"/"+Date.now()+"_"+safe;
+        let dlurl;
+        try{ dlurl=await uploadWithProgress(storage.ref(path), file); }
+        catch(err){ console.warn('[upload]',err);
+          e.textContent="อัปโหลดไม่สำเร็จ — ตรวจว่าเปิด Storage และตั้ง rules แล้ว ("+(err.code||err.message||'error')+")";
+          $("lkProg").style.display="none"; $("lkSave").disabled=false; return; }
+        if(editingFile && editingItem.storagePath && editingItem.storagePath!==path){ try{ await storage.ref(editingItem.storagePath).delete(); }catch(_){} }
+        if(editingItem && editingItem.driveId) driveDelete(editingItem.driveId);
+        data={ kind:'file', source:null, driveId:null, url:dlurl, fileName:file.name, fileSize:file.size, mime:file.type||'', storagePath:path, inline:null,
+               title:title||file.name, catId, note };
+      } else if(DRIVE_URL){
+        // โหมด Google Drive (ผ่าน Apps Script) — ฐานข้อมูลเก็บแค่ลิงก์ โหลดหน้าเร็ว
+        $("lkProg").style.display="block"; $("lkProgPct").textContent="⬆️…";
+        let up;
+        try{ up=await driveUpload(file); }
+        catch(err){ console.warn('[drive]',err);
+          e.textContent="อัปโหลดขึ้น Drive ไม่สำเร็จ — ตรวจ URL / การ deploy Apps Script ("+(err.message||'error')+")";
+          $("lkProg").style.display="none"; $("lkSave").disabled=false; return; }
+        if(editingItem && editingItem.driveId && editingItem.driveId!==up.id) driveDelete(editingItem.driveId);
+        data={ kind:'file', source:'drive', driveId:up.id, url:up.url, fileName:file.name, fileSize:file.size, mime:file.type||'', storagePath:null, inline:null,
+               title:title||file.name, catId, note };
+      } else {
+        // โหมดฟรี: เก็บไฟล์เป็น data URL ในฐานข้อมูลเดิม (ไม่ต้องผูกบัตร, ≤700KB)
+        $("lkProg").style.display="block"; $("lkProgPct").textContent="…";
+        let dataUrl;
+        try{ dataUrl=await readAsDataURL(file); }
+        catch(err){ e.textContent="อ่านไฟล์ไม่สำเร็จ"; $("lkProg").style.display="none"; $("lkSave").disabled=false; return; }
+        data={ kind:'file', source:null, driveId:null, url:dataUrl, fileName:file.name, fileSize:file.size, mime:file.type||'', storagePath:null, inline:true,
+               title:title||file.name, catId, note };
+      }
+    } else if(editingFile && !urlRaw){
+      // แก้เฉพาะชื่อ/หมวด/หมายเหตุ ของไฟล์เดิม (ไม่เปลี่ยนไฟล์)
+      data={ title:title||editingItem.fileName||'ไฟล์', catId, note };
+    } else {
+      const url=normUrl(urlRaw);
+      // ถ้าเดิมเป็นไฟล์แล้วเปลี่ยนเป็นลิงก์ → ลบไฟล์เก่า
+      if(editingFile && editingItem.storagePath && storage){ try{ await storage.ref(editingItem.storagePath).delete(); }catch(_){} }
+      if(editingFile && editingItem.driveId) driveDelete(editingItem.driveId);
+      data={ kind:'link', url, title:title||hostOf(url), catId, note,
+             fileName:null, fileSize:null, mime:null, storagePath:null, source:null, driveId:null };
+    }
+
+    if(editingItem){
+      await DB.update("links/items/"+id, data);
+      toast("บันทึกแล้ว");
+    }else{
+      data.order=Date.now(); data.createdAt=Date.now();
+      await DB.set("links/items/"+id, data);
+      toast(file?"เพิ่มไฟล์แล้ว":"เพิ่มลิงก์แล้ว");
+    }
+    hide("mLink");
+  } finally {
+    $("lkSave").disabled=false; $("lkProg").style.display="none";
   }
-  hide("mLink");
 };
 
 async function addCat(name){
@@ -409,8 +549,11 @@ window.delCat=async id=>{
   toast("ลบหมวดแล้ว");
 };
 window.delItem=async id=>{
-  if(!confirm(`ลบลิงก์ "${items[id]?items[id].title:""}" ?`)) return;
-  await DB.set("links/items/"+id,null); toast("ลบลิงก์แล้ว");
+  const it=items[id]; if(!it) return;
+  if(!confirm(`ลบ "${it.title||it.fileName||''}" ?`)) return;
+  if(it.storagePath && storage){ try{ await storage.ref(it.storagePath).delete(); }catch(e){ console.warn('del storage',e); } }
+  if(it.driveId && DRIVE_URL) driveDelete(it.driveId);
+  await DB.set("links/items/"+id,null); toast("ลบแล้ว");
 };
 
 /* reorder by swapping order values with neighbor */
@@ -480,7 +623,8 @@ $("qClr").onclick=()=>{ $("q").value=""; filter=""; $("qClr").hidden=true; rende
 DB.onValue("links/adminCode",c=>{ if(c) adminCode=c; else DB.set("links/adminCode","1234"); });
 DB.onValue("links/categories",v=>{ cats=v||{}; render(); });
 DB.onValue("links/items",v=>{ items=v||{}; render(); });
-$("st").textContent = FB_OK ? "🔗 เชื่อมต่อฐานข้อมูลกลาง — แชร์ทุกเครื่อง" : "⚠️ ยังไม่ได้ตั้งค่า Firebase — บันทึกเฉพาะเครื่องนี้";
+$("st").textContent = (FB_OK ? "🔗 เชื่อมต่อฐานข้อมูลกลาง — แชร์ทุกเครื่อง" : "⚠️ ยังไม่ได้ตั้งค่า Firebase — บันทึกเฉพาะเครื่องนี้")
+  + " · ไฟล์: " + (storage ? "Firebase Storage" : DRIVE_URL ? "Google Drive" : "ในฐานข้อมูล (≤700KB)");
 render();
 </script>
 </body>
