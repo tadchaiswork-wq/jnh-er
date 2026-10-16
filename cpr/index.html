@@ -197,7 +197,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
 .td-content{cursor:pointer}
 #topAlert{display:none;align-items:center;justify-content:center;gap:12px;flex-shrink:0;background:#1e3a8a;color:#fff;padding:9px 14px;font-size:15px;font-weight:800;text-align:center}
 #topAlert.show{display:flex}
-#topAlert .ta-x{background:rgba(255,255,255,.22);border:none;color:#fff;border-radius:8px;width:28px;height:28px;font-size:15px;font-weight:800;cursor:pointer;flex-shrink:0;font-family:inherit}
+#topAlert.blink{animation:taBlink .6s steps(1) infinite}
+@keyframes taBlink{50%{background:#dc2626}}
+#topAlert .ta-x{background:rgba(255,255,255,.95);border:none;color:#b91c1c;border-radius:9px;min-width:28px;height:30px;padding:0 12px;font-size:14px;font-weight:800;cursor:pointer;flex-shrink:0;font-family:inherit;white-space:nowrap}
+#note-modal{z-index:300}
 .big-choose{flex:1;border:none;border-radius:14px;padding:24px 10px;font-size:19px;font-weight:800;color:#fff;cursor:pointer;font-family:inherit}
 .big-choose.drug{background:linear-gradient(145deg,#0e7490,#0891b2)}
 .big-choose.proc{background:linear-gradient(145deg,#1d4ed8,#3b82f6)}
@@ -883,11 +886,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
   <div class="modal" style="max-width:340px">
     <h3>บันทึกที่ <span id="chooser-min">นาทีปัจจุบัน</span></h3>
     <div class="modal-sub">เลือกประเภทที่ต้องการบันทึก แล้วเลือก preset หรือพิมพ์เองได้</div>
-    <div style="display:flex;gap:10px;margin:14px 0 4px">
+    <div style="display:flex;gap:10px;margin:14px 0 10px">
       <button class="big-choose drug" onclick="chooseType('drug')">💊 ยา</button>
       <button class="big-choose proc" onclick="chooseType('proc')">🔧 หัตถการ</button>
     </div>
-    <div class="modal-btns"><button class="m-cancel" onclick="hide('chooser-modal')">ยกเลิก</button></div>
+    <div class="modal-sub" style="margin-bottom:4px">หรือพิมพ์บันทึกเอง (อื่นๆ) แล้วกดบันทึก</div>
+    <div style="display:flex;gap:8px;align-items:stretch">
+      <input type="text" class="modal-inp" id="chooser-note" placeholder="พิมพ์บันทึก / note เอง..." autocomplete="off" style="flex:1;font-size:16px"
+        onkeydown="if(event.key==='Enter')saveChooserNote()">
+      <button class="m-ok m-ok-navy" style="flex:0 0 auto;padding:0 16px" onclick="saveChooserNote()">✓ บันทึก</button>
+    </div>
+    <div class="modal-btns" style="margin-top:12px"><button class="m-cancel" onclick="hide('chooser-modal')">ยกเลิก</button></div>
   </div>
 </div>
 
@@ -1413,8 +1422,33 @@ function mergeRemoteIntoActive(remote){
   S.rhythmData=rl;
   S.events.sort((a,b)=>((a.minute||0)-(b.minute||0))||String(a.ts||'').localeCompare(String(b.ts||'')));
   renumberEvents();   // renumber + autoSave (คืนค่ารวมกลับ Firebase)
-  if($('screen-cpr').classList.contains('active')) restoreTimeline();
+  // อัปเดตเฉพาะส่วนที่เปลี่ยน (ไม่ rebuild ทั้งตาราง) → ลดดีเลย์/กระตุก และไม่แย่งโฟกัสช่องที่กำลังพิมพ์
+  if($('screen-cpr').classList.contains('active')) applyTimelineIncremental();
   updateHeader();
+}
+// เติม DOM แบบ incremental จากข้อมูลที่ sync มา — ไม่ teardown ตารางทั้ง 120 แถว
+function applyTimelineIncremental(){
+  (S.events||[]).forEach(ev=>{
+    if(!ev||!ev.uid) return;
+    if(ev.type==='adr'||ev.type==='defib') return;         // adr/defib ใช้ช่อง ✓ (mark cells)
+    const el=document.querySelector(`[data-evid="${ev.uid}"]`);
+    if(!el){ addTag(ev.minute,ev.type,ev.detail,ev.uid); }
+    else if(ev.type!=='warn' && el.textContent!==ev.detail){ el.textContent=ev.detail; }  // ซิงค์ข้อความที่ถูกแก้
+  });
+  renderAllMarkCells();                                     // รีเฟรช ✓/# ของ adr/defib (เบา ไม่ teardown)
+  // เติมค่า rhythm/HR/EtCO2 เฉพาะช่องที่ยังว่าง และไม่ได้กำลังพิมพ์อยู่ (กันทับของที่พิมพ์ค้าง)
+  Object.entries(S.rhythmData||{}).forEach(([min,data])=>{
+    if(!data) return;
+    const m=parseInt(min);
+    const rhEl=$(`rh-${m}`), rrEl=$(`rr-${m}`), reEl=$(`re-${m}`);
+    if(rhEl&&document.activeElement!==rhEl&&!rhEl.value&&data.rhythm) rhEl.value=data.rhythm;
+    if(rrEl&&document.activeElement!==rrEl&&!rrEl.value&&data.rate)   rrEl.value=data.rate;
+    if(reEl&&document.activeElement!==reEl&&!reEl.value&&data.etco2){
+      reEl.value=data.etco2;
+      if(parseFloat(data.etco2)<10 && !document.querySelector(`[data-evid="etco2-warn-${m}"]`))
+        addTag(m,'warn',`⚠️ EtCO2 ${data.etco2} mmHg ต่ำ!`,'etco2-warn-'+m);
+    }
+  });
 }
 // กลับเข้า/เข้าร่วมเคสที่กำลัง CPR จากการ์ดในรายการ (รองรับหลายจอพร้อมกัน)
 function enterCase(id){
@@ -2327,21 +2361,27 @@ function quickShock(min){
   checkShockMilestone();
 }
 function checkShockMilestone(){
-  if(S.defibCount===3) showTopAlert('💊 แนะนำ Cordarone (Amiodarone) 300 mg IV/IO');
-  else if(S.defibCount===5) showTopAlert('💊 Cordarone (Amiodarone) 150 mg IV/IO — โดสที่ 2');
+  // Cordarone: กระพริบ + ค้างจนกว่าจะกด "ให้แล้ว"
+  if(S.defibCount===3) showTopAlert('💊 แนะนำ Cordarone (Amiodarone) 300 mg IV/IO', {blink:true, persist:true});
+  else if(S.defibCount===5) showTopAlert('💊 Cordarone (Amiodarone) 150 mg IV/IO — โดสที่ 2', {blink:true, persist:true});
 }
 
 /* ── แถบเล็กด้านบน (คำแนะนำยา) ── */
 let topAlertTimer=null;
-function showTopAlert(msg){
+function showTopAlert(msg, opts){
+  opts=opts||{};
   const el=$('topAlert'); if(!el) return;
   const m=el.querySelector('.ta-msg'); if(m) m.textContent=msg;
+  const x=el.querySelector('.ta-x');
   el.classList.add('show');
+  if(opts.blink){ el.classList.add('blink'); if(x) x.textContent='✓ ให้แล้ว'; }
+  else { el.classList.remove('blink'); if(x) x.textContent='✕'; }
   try{ initAudio(); beep(880,.12,.4); setTimeout(()=>beep(1175,.22,.4),150); }catch(e){}
   if(topAlertTimer) clearTimeout(topAlertTimer);
-  topAlertTimer=setTimeout(()=>el.classList.remove('show'), 60000);
+  // blink/persist = ค้างจนกดปิดเอง · อื่นๆ = หายเองใน 60 วิ
+  if(!opts.persist){ topAlertTimer=setTimeout(()=>{ el.classList.remove('show'); el.classList.remove('blink'); }, 60000); }
 }
-function closeTopAlert(){ const el=$('topAlert'); if(el) el.classList.remove('show'); if(topAlertTimer) clearTimeout(topAlertTimer); }
+function closeTopAlert(){ const el=$('topAlert'); if(el){ el.classList.remove('show'); el.classList.remove('blink'); } if(topAlertTimer) clearTimeout(topAlertTimer); }
 
 /* ── ไฟกระพริบในช่อง ── */
 function clearDfBlink(){ document.querySelectorAll('.td-df.cell-due').forEach(c=>c.classList.remove('cell-due')); }
@@ -2362,11 +2402,21 @@ function contentTap(e,min){
   if(min>(S.currentMin||0)) return;
   tapMin=min;
   const lbl=$('chooser-min'); if(lbl) lbl.textContent=(min===(S.currentMin||0))?'นาทีปัจจุบัน':('นาที '+min);
+  const n=$('chooser-note'); if(n) n.value='';
   $('chooser-modal').classList.remove('hide');
 }
 function chooseType(t){
   $('chooser-modal').classList.add('hide');   // ไม่ใช้ hide() เพื่อคง tapMin
   if(t==='proc') showProcModal(); else showDrugModal();
+}
+// บันทึก note เอง (อื่นๆ) จากหน้า chooser ได้เลย
+function saveChooserNote(){
+  const inp=$('chooser-note');
+  const v=(inp&&inp.value||'').trim();
+  if(!v){ if(inp) inp.focus(); return; }
+  $('chooser-modal').classList.add('hide');   // คง tapMin ไว้ → ลงนาทีที่แตะ
+  quickDrug(v,'note');
+  if(inp) inp.value='';
 }
 
 function openEditEvent(id, type, btn){

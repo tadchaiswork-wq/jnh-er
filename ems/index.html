@@ -65,6 +65,10 @@
   .act-big:active{transform:scale(.97);filter:brightness(.93)}
   .act-big.als{background:linear-gradient(145deg,#dc2626,#b91c1c)}
   .act-big.bls{background:linear-gradient(145deg,#2563eb,#1d4ed8)}
+  .act-big.ils{background:linear-gradient(145deg,#f59e0b,#d97706)}
+  .act-big.acked-toggle{background:linear-gradient(145deg,#64748b,#475569);font-size:20px}
+  .act-big.acked-toggle.has{background:linear-gradient(145deg,#15803d,#166534)}
+  .act-new-h{width:100%;max-width:720px;font-weight:800;color:#b91c1c;font-size:15px;margin:2px 0 -10px}
   /* รายการเคสที่ Activate (หน้า activate) */
   .act-alerts{width:100%;max-width:720px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
   .act-alerts-h{font-weight:800;color:#b91c1c;margin-bottom:10px;font-size:15px}
@@ -321,6 +325,7 @@ const hhmm=ts=>{ const d=new Date(ts); return pad(d.getHours())+":"+pad(d.getMin
 const ACK_LINGER=5*60000;          // หลังรับทราบ เคสยังค้างบนจอ 5 นาที แล้วหายไป
 const activationAlarmAt={};         // เวลาเล่นเสียงเตือน activate ล่าสุด (ต่อ 1 เคส)
 let homeTimer=null;                 // รีเฟรชหน้า activate ให้เคสที่รับทราบแล้วหายเองเมื่อครบ 5 นาที
+let showAckedActs=false;            // แสดง/ซ่อน รายการเคส activate ที่รับทราบแล้ว (รวมในปุ่มเดียว)
 function fmtTime(ts){ if(!ts) return ""; const d=new Date(ts);
   return pad(d.getHours())+":"+pad(d.getMinutes()); }
 function fmtDateTime(ts){ if(!ts) return ""; const d=new Date(ts);
@@ -401,42 +406,66 @@ function render(){
 function renderHome(app){
   stopTV();
   const now=Date.now();
-  const alerts=Object.entries(CASES)
+  const quickAll=Object.entries(CASES)
     .filter(([id,c])=>c.quick && (!c.ack || (c.ackAt && now < c.ackAt+ACK_LINGER)))
     .sort((a,b)=> (b[1].command&&b[1].command.time||b[1].createdAt||0)-(a[1].command&&a[1].command.time||a[1].createdAt||0));
-  const alertsHtml = alerts.length ? `
+  const live  = quickAll.filter(([id,c])=>!c.ack);        // ยังไม่ได้กดรับทราบ
+  const acked = quickAll.filter(([id,c])=> c.ack);        // รับทราบแล้ว (ค้าง 5 นาที)
+
+  // รายการเคสใหม่ที่ยังไม่รับทราบ (กระพริบ) — อยู่บรรทัดถัดๆ มา
+  const liveHtml = live.length ? `
+     <div class="act-new-h">🚨 เคส Activate ใหม่ — กด "รับทราบเคส" เพื่อปิดเสียงที่จอ Monitor</div>
      <div class="act-alerts">
-       <div class="act-alerts-h">🚨 เคสที่ Activate — กด "รับทราบเคส" เพื่อปิดเสียงที่จอ Monitor</div>
-       ${alerts.map(([id,c])=>{
-         const acked=!!c.ack;
-         return `<div class="act-row ${acked?'acked':'live'}">
+       ${live.map(([id,c])=>`
+          <div class="act-row live">
             <div class="act-row-info"><span class="act-veh">${c.vehicle}</span>
               <span class="act-time">แจ้งเวลา ${hhmm(c.command&&c.command.time||c.createdAt)}</span>
-              ${acked?`<span class="act-ackinfo">✅ รับทราบแล้ว ${hhmm(c.ackAt)}</span>`:`<span class="act-waiting">⏳ รอรับทราบ</span>`}</div>
-            ${acked?'':`<button class="act-ackbtn" onclick="ackActivation('${id}')">✓ รับทราบเคส</button>`}
-         </div>`;
-       }).join("")}
+              <span class="act-waiting">⏳ รอรับทราบ</span></div>
+            <button class="act-ackbtn" onclick="ackActivation('${id}')">✓ รับทราบเคส</button>
+          </div>`).join("")}
      </div>` : "";
+
+  // รายการเคสที่รับทราบแล้ว — รวมไว้ในปุ่มเดียว เปิด/ปิดได้ (ไม่ขึ้นทั้งหมด)
+  const ackedListHtml = (showAckedActs && acked.length) ? `
+     <div class="act-alerts">
+       ${acked.map(([id,c])=>`
+          <div class="act-row acked">
+            <div class="act-row-info"><span class="act-veh">${c.vehicle}</span>
+              <span class="act-time">แจ้งเวลา ${hhmm(c.command&&c.command.time||c.createdAt)}</span>
+              <span class="act-ackinfo">✅ รับทราบแล้ว ${hhmm(c.ackAt)}</span></div>
+          </div>`).join("")}
+     </div>` : "";
+
   app.innerHTML=`
    <div class="home">
      <div style="text-align:center">
        <h1>ระบบบันทึกข้อมูล EMS</h1>
        <p>โรงพยาบาล ER JNH — Real-time</p>
      </div>
-     <div class="act-btns">
-       <button class="act-big als" onclick="activateEMS('ALS')">🚨 Activate ALS</button>
-       <button class="act-big bls" onclick="activateEMS('BLS')">🚑 Activate BLS</button>
-     </div>
-     ${alertsHtml}
+
+     <!-- ปุ่มเดิม 3 อัน อยู่บนสุด -->
      <div class="home-cards">
        <div class="card" onclick="go('entry')"><div class="ic">📝</div>ลงข้อมูล</div>
        <div class="card" onclick="go('tv')"><div class="ic">📺</div>TV Monitor</div>
        <div class="card" onclick="go('dashboard')"><div class="ic">📊</div>Dashboard</div>
      </div>
+
+     <!-- บรรทัดถัดมา: Activate ALS / ILS / รวมเคสที่รับทราบแล้ว -->
+     <div class="act-btns">
+       <button class="act-big als" onclick="activateEMS('ALS')">🚨 Activate ALS</button>
+       <button class="act-big ils" onclick="activateEMS('ILS')">🚑 Activate ILS</button>
+       <button class="act-big acked-toggle ${acked.length?'has':''}" onclick="toggleAckedActs()">
+         ✅ รับทราบแล้ว (${acked.length}) ${acked.length?(showAckedActs?'▲':'▼'):''}</button>
+     </div>
+     ${ackedListHtml}
+
+     <!-- บรรทัดถัดๆ มา: เคส activate ใหม่ ยังไม่ได้รับทราบ -->
+     ${liveHtml}
    </div>`;
   if(homeTimer) clearInterval(homeTimer);
   homeTimer=setInterval(()=>{ if(currentRoute==='home') renderHome(document.getElementById('app')); }, 5000);
 }
+function toggleAckedActs(){ showAckedActs=!showAckedActs; if(currentRoute==='home') renderHome(document.getElementById('app')); }
 
 /* ---------- Activate (ด่วน): กดปุ่มเดียวแจ้งเตือนจอ Monitor ---------- */
 function activateEMS(vehicle){
@@ -822,12 +851,20 @@ function playBeep(freq,dur,vol){
   o.start(t); o.stop(t+d+0.02);
 }
 /* ประกาศประเภทรถด้วยเสียงพูด (ALS/ILS/BLS) */
+function pickEnVoice(){
+  try{
+    const vs=window.speechSynthesis.getVoices()||[];
+    return vs.find(x=>/en[-_]US/i.test(x.lang)) || vs.find(x=>/^en/i.test(x.lang)) || null;
+  }catch(e){ return null; }
+}
 function speakVehicle(v){
   try{
     if(!window.speechSynthesis || !v) return;
-    const say = v==="ALS"?"Advance" : v==="ILS"?"I. L. S." : v==="BLS"?"B. L. S." : v;
+    // คำพูดให้ชัดเจน แยกออกด้วยหู: ALS = "Advanced", ILS = สะกดทีละตัว
+    const say = v==="ALS"?"Advanced" : v==="ILS"?"I L S" : v==="BLS"?"B L S" : v;
     const u=new SpeechSynthesisUtterance(say);
-    u.lang="en-US"; u.rate=0.55; u.volume=1; u.pitch=1;   // พูดช้าลง
+    u.lang="en-US"; u.rate=0.7; u.volume=1; u.pitch=1;   // เร็วพอให้ฟังชัด ไม่เพี้ยน
+    const voice=pickEnVoice(); if(voice) u.voice=voice;
     window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
   }catch(e){}
 }
@@ -947,7 +984,7 @@ function drawTV(){
       }else{
         countHtml=`<div class="tv-count warn">00:00</div>
                    <div style="text-align:center;color:var(--red)">เกินเวลาออกฐาน!</div>`;
-        if(!alarmedIds[id] && !isBLS){ alarmedIds[id]=true; playAlarm(c.vehicle); }
+        // countdown ครบ 2 นาที: แสดงสถานะอย่างเดียว ไม่เล่นเสียงแจ้งเตือนซ้ำ
       }
     }
     const triClr={red:'var(--red)',yellow:'var(--yellow)',green:'var(--green)',white:'var(--white)',black:'#000'}[c.triage]||'transparent';
