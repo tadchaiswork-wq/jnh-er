@@ -186,6 +186,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
 .td-df{width:60px;color:var(--defib);background:#faf5ff;border-right:1px solid var(--border)}
 .td-adr:active,.td-df:active{filter:brightness(.93)}
 .df-j{font-size:10px;font-weight:700;margin-left:1px;vertical-align:1px}
+.cell-plus{display:inline-block;font-size:24px;line-height:1;color:#cbd5e1;font-weight:400}
+.mk-ok{display:block;font-size:17px;line-height:1}
+.mk-num{display:block;font-size:10px;font-weight:800;line-height:1;margin-top:1px;color:#64748b}
+.td-adr .mk-ok{color:var(--adr)} .td-df .mk-ok{color:var(--defib)}
+.td-adr.cell-due{animation:adrDue 1s steps(1) infinite}
+@keyframes adrDue{50%{background:#fdba74}}
+.td-df.cell-due{animation:dfDue 1s steps(1) infinite}
+@keyframes dfDue{50%{background:#f0abfc}}
+.td-content{cursor:pointer}
+#topAlert{display:none;align-items:center;justify-content:center;gap:12px;flex-shrink:0;background:#1e3a8a;color:#fff;padding:9px 14px;font-size:15px;font-weight:800;text-align:center}
+#topAlert.show{display:flex}
+#topAlert .ta-x{background:rgba(255,255,255,.22);border:none;color:#fff;border-radius:8px;width:28px;height:28px;font-size:15px;font-weight:800;cursor:pointer;flex-shrink:0;font-family:inherit}
+.big-choose{flex:1;border:none;border-radius:14px;padding:24px 10px;font-size:19px;font-weight:800;color:#fff;cursor:pointer;font-family:inherit}
+.big-choose.drug{background:linear-gradient(145deg,#0e7490,#0891b2)}
+.big-choose.proc{background:linear-gradient(145deg,#1d4ed8,#3b82f6)}
+.big-choose:active{filter:brightness(.93)}
 .td-content{padding:2px 6px}
 /* ── One-line row: rhythm + tags inline + ปุ่มเพิ่มเล็กๆ ท้ายแถว ── */
 .row-line{display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-height:26px}
@@ -635,6 +651,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
     <button class="shock-dismiss" onclick="dismissShockable()">ให้ Defib แล้ว</button>
   </div>
 
+  <!-- ══ แถบเล็กด้านบน: คำแนะนำยา (Cordarone ฯลฯ) ══ -->
+  <div id="topAlert"><span class="ta-msg"></span><button class="ta-x" onclick="closeTopAlert()">✕</button></div>
+
   <!-- Countdown ใหญ่ ก่อนครบรอบ 2 นาที -->
   <div id="cycle-countdown">
     <div class="cc-lbl">⚠️ RHYTHM CHECK ใน</div>
@@ -653,42 +672,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
         </tr></thead>
         <tbody id="tl-body"></tbody>
       </table>
-    </div>
-
-    <!-- Actions: Alarm · Adrenaline · Defib · Drug dose เท่านั้น
-         (ยา/หัตถการอื่นๆ → กดปุ่ม + เล็กๆ ในตาราง timeline) -->
-    <div class="act-panel">
-      <div class="act-sec">
-        <div class="act-lbl">🔔 Alarm</div>
-        <div class="reminder rem-ok" id="rhythm-rem">Check rhythm ใน 2 นาที</div>
-        <div class="reminder rem-ok" id="comp-rem"  style="margin-top:4px">เปลี่ยน compressor ใน 2 นาที</div>
-        <div style="margin-top:8px" id="proto-panel"></div>
-      </div>
-
-      <div class="act-sec act-actions">
-        <button class="big-btn btn-adr" id="btn-adr" onclick="giveAdr()">
-          <span class="t">ADRENALINE<span class="kb-hint">A</span></span>
-          <span class="s" id="adr-sub">1 mg IV — tap to give</span>
-        </button>
-        <div class="reminder rem-ok" id="adr-rem">รอให้ครั้งแรก</div>
-        <button class="big-btn btn-defib" id="btn-defib" onclick="showDefibModal()">
-          <span class="t">⚡ DEFIB<span class="kb-hint">D</span></span>
-          <span class="s" id="defib-sub">200J Biphasic</span>
-        </button>
-        <button class="big-btn btn-drug" id="btn-drug" onclick="openDrugPanel()">
-          <span class="t">💊 บันทึกยา<span class="kb-hint">M</span></span>
-          <span class="s">ยาอื่นๆ นอกจาก Adrenaline</span>
-        </button>
-        <button class="big-btn btn-proc" id="btn-proc" onclick="openProcPanel()">
-          <span class="t">🔧 บันทึกหัตถการ<span class="kb-hint">P</span></span>
-          <span class="s">ETT · IO · U/S · CPR ฯลฯ</span>
-        </button>
-      </div>
-
-      <div class="act-sec">
-        <div class="act-lbl">📋 Suggest Drug Dose</div>
-        <div class="drug-ref" id="drug-ref"></div>
-      </div>
     </div>
   </div>
 </div>
@@ -880,6 +863,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
 <!-- ══════════════════════════════════════
      MODALS
 ══════════════════════════════════════ -->
+
+<!-- Chooser: แตะแถบเนื้อหา → เลือก ยา / หัตถการ -->
+<div class="overlay hide" id="chooser-modal">
+  <div class="modal" style="max-width:340px">
+    <h3>บันทึกที่ <span id="chooser-min">นาทีปัจจุบัน</span></h3>
+    <div class="modal-sub">เลือกประเภทที่ต้องการบันทึก แล้วเลือก preset หรือพิมพ์เองได้</div>
+    <div style="display:flex;gap:10px;margin:14px 0 4px">
+      <button class="big-choose drug" onclick="chooseType('drug')">💊 ยา</button>
+      <button class="big-choose proc" onclick="chooseType('proc')">🔧 หัตถการ</button>
+    </div>
+    <div class="modal-btns"><button class="m-cancel" onclick="hide('chooser-modal')">ยกเลิก</button></div>
+  </div>
+</div>
 
 <!-- Drug -->
 <div class="overlay hide" id="drug-modal">
@@ -1785,6 +1781,7 @@ function buildSession(){
     adrCount: 0,
     defibCount: 0,
     adrLastTs: null,
+    adrNextMin: null,
     outcome: null,
     causes: [],
     quality: {},
@@ -1920,6 +1917,7 @@ function startCPR(){
   S.adrCount    = 0;
   S.defibCount  = 0;
   S.adrLastTs   = null;
+  S.adrNextMin  = null;
   S.currentMin  = 0;
   S.causes      = [];
   S.outcome     = null;
@@ -1972,10 +1970,11 @@ function tick(){
     if(min!==S.currentMin){
       S.currentMin=min;
       highlightRow(min);
+      renderMarkCells(min);        // ให้ช่อง +/✓ ของแถวปัจจุบันโผล่มา
       updateMinuteReminders(min);
       updateTargetMinOptions();
     }
-    updateAdrTimer(elSec);
+    updateAdrDueBlink();
     if(elSec%30===0 && elSec>0) autoSave(); // save every 30 seconds
   }
 }
@@ -2013,15 +2012,16 @@ function checkSoundAlerts(elSec,min,sec){
   if(secInCycle===warnAt && elSec>0) startAlarm10s(); // 10-sec alarm starts
   if(secInCycle===0 && elSec>0){ stopAlarm(); soundCycleEnd(); } // ครบ 2 นาที → เสียง chime
 
-  // Adrenaline overdue alarm (once per minute)
-  if(S.adrLastTs){
-    const sinceMin=(Date.now()-S.adrLastTs)/60000;
-    if(sinceMin>=ADR_INTERVAL_MIN+0.5 && sec===0) soundAlarm();
+  // Adrenaline due alarm (once per minute) — อิงนาทีถัดไปที่กำหนด (ปัดนาทีกลมๆ)
+  if(S.adrNextMin!=null && sec===0 && min>=S.adrNextMin
+     && !S.events.some(e=>e.type==='adr'&&e.minute>=S.adrNextMin)){
+    soundAlarm();
   }
 }
 
 function updateMinuteReminders(min){
   const rhythmEl=$('rhythm-rem'), compEl=$('comp-rem');
+  if(!rhythmEl || !compEl) return;   // แผงขวาเดิมถูกเอาออก — การเตือน rhythm ใช้ตัวนับถอยหลังใหญ่ (cycle-countdown) แทน
   if(min>0 && min%RHYTHM_INTERVAL_MIN===0){
     rhythmEl.textContent='⚠️ CHECK RHYTHM NOW!';
     rhythmEl.className='reminder rem-warn';
@@ -2038,6 +2038,7 @@ function updateMinuteReminders(min){
 
 function updateAdrTimer(elSec){
   const sub=$('adr-sub'), rem=$('adr-rem');
+  if(!sub || !rem) return;   // แผงขวาเดิมถูกเอาออก — ใช้ไฟกระพริบในช่องสีส้มแทน (updateAdrDueBlink)
   if(!S.adrLastTs){
     sub.textContent='1 mg IV — tap to give';
     rem.textContent='รอให้ครั้งแรก';
@@ -2084,29 +2085,29 @@ function checkProtocolAlerts(min,sec){
   const lastR=getLastRhythm();
   const isShockable=lastR==='VF'||lastR==='pVT'||lastR==='TdP';
   const banner=$('shockable-banner');
-  // Show banner only if: shockable rhythm AND no defib given since last rhythm check
+  // แสดงเตือน shockable + กระพริบช่อง DF (สีชมพู) จนกว่าจะ shock
   if(isShockable && !shockableActive && !postDefibClear){
     shockableActive=true;
-    banner.classList.add('show');
-    $('btn-defib').classList.add('blink-defib');
+    if(banner) banner.classList.add('show');
+    setDfBlinkCurrent();
     soundShockable();
   } else if((!isShockable || postDefibClear) && shockableActive){
     shockableActive=false;
-    banner.classList.remove('show');
-    $('btn-defib').classList.remove('blink-defib');
+    if(banner) banner.classList.remove('show');
+    clearDfBlink();
+  } else if(shockableActive){
+    setDfBlinkCurrent();      // เลื่อนไฟกระพริบตามนาทีปัจจุบัน
   }
-  renderProtoPanel(min);
 }
 
 function dismissShockable(){
-  postDefibClear=true;
-  shockableActive=false;
-  $('shockable-banner').classList.remove('show');
-  $('btn-defib').classList.remove('blink-defib');
-  showDefibModal();
+  // กด "ให้ Defib แล้ว" บนแบนเนอร์ = บันทึก shock ที่นาทีปัจจุบันทันที
+  const b=$('shockable-banner'); if(b) b.classList.remove('show');
+  quickShock(S.currentMin||0);
 }
 
 function renderProtoPanel(min){
+  if(!$('proto-panel')) return;   // แผงขวาเดิมถูกเอาออก
   const last=getLastRhythm();
   const isShockable=last==='VF'||last==='pVT'||last==='TdP';
   const adrOk=!S.adrLastTs||(Date.now()-S.adrLastTs)/60000<ADR_INTERVAL_MIN+0.5;
@@ -2144,9 +2145,9 @@ function appendRow(i,tbody){
   tr.className='tl-row'+(isR?' rhythm-row':'');
   tr.innerHTML=`
     <td class="td-min${i%10===0?' big':''}">${i}<span style="display:block;font-size:9px;font-weight:600;color:#94a3b8;line-height:1;margin-top:2px;letter-spacing:-.3px">${clockAtMin(i)}</span></td>
-    <td class="td-adr" id="adrcell-${i}" onclick="adrCellTap(${i})" title="แตะ = ให้ Adrenaline นาทีนี้ / แตะ ✓ = ลบ"></td>
-    <td class="td-df"  id="dfcell-${i}"  onclick="dfCellTap(${i})"  title="แตะ = Defib นาทีนี้ / แตะ ✓ = ลบ"></td>
-    <td class="td-content">
+    <td class="td-adr" id="adrcell-${i}" onclick="adrCellTap(${i})"></td>
+    <td class="td-df"  id="dfcell-${i}"  onclick="dfCellTap(${i})"></td>
+    <td class="td-content" onclick="contentTap(event,${i})">
       <div class="row-line">
         ${isR?`<span class="rhythm-inline">
           <select class="r-sel" id="rh-${i}" onchange="saveRhythm(${i},true)">
@@ -2158,10 +2159,6 @@ function appendRow(i,tbody){
           <input type="number" class="r-inp" id="re-${i}" placeholder="CO₂" inputmode="numeric" onchange="saveRhythm(${i},false)" title="EtCO2">
         </span>`:''}
         <span class="tagwrap" id="drugtags-${i}"></span><span class="tagwrap" id="proctags-${i}"></span><span class="tagwrap" id="warntags-${i}"></span>
-        <span class="row-add">
-          <button class="add-mini" onclick="cellAdd(event,${i},'drug')" title="เพิ่มยาที่นาทีนี้">+💊</button>
-          <button class="add-mini" onclick="cellAdd(event,${i},'proc')" title="เพิ่มหัตถการที่นาทีนี้">+🔧</button>
-        </span>
       </div>
     </td>`;
   tbody.appendChild(tr);
@@ -2209,16 +2206,19 @@ function addTag(min, type, text, uid){
 // ── ช่อง checkmark Adr / DF ──────────────────────────
 function renderMarkCells(min){
   const a=$(`adrcell-${min}`), d=$(`dfcell-${min}`);
+  const cur=S.currentMin||0;
   if(a){
-    const n=S.events.filter(e=>e.minute===min&&e.type==='adr').length;
-    a.textContent=n?'✓'.repeat(n):'';
+    const evs=S.events.filter(e=>e.minute===min&&e.type==='adr');
+    if(evs.length){ const n=Math.max(...evs.map(e=>e.num||0)); a.innerHTML=`<span class="mk-ok">✓</span><span class="mk-num">#${n}</span>`; }
+    else a.innerHTML = (min<=cur) ? '<span class="cell-plus">＋</span>' : '';
   }
   if(d){
     const evs=S.events.filter(e=>e.minute===min&&e.type==='defib');
-    d.innerHTML=evs.map(e=>`✓<span class="df-j">${String(e.joules||'').replace(/J$/,'')}J</span>`).join(' ');
+    if(evs.length){ const n=Math.max(...evs.map(e=>e.num||0)); d.innerHTML=`<span class="mk-ok">✓</span><span class="mk-num">#${n}</span>`; }
+    else d.innerHTML = (min<=cur) ? '<span class="cell-plus">＋</span>' : '';
   }
 }
-function renderAllMarkCells(){ for(let i=0;i<=60;i++) renderMarkCells(i); }
+function renderAllMarkCells(){ for(let i=0;i<=120;i++) renderMarkCells(i); }
 function adrCellTap(min){
   if(min>(S.currentMin||0)) return;                  // ยังไม่ถึงนาทีนั้น
   const evs=S.events.filter(e=>e.minute===min&&e.type==='adr');
@@ -2240,9 +2240,76 @@ function dfCellTap(min){
     S.events=S.events.filter(e=>e.uid!==last.uid);
     renumberEvents(); renderMarkCells(min); autoSave();
   } else {
-    tapMin=min;             // Defib ลงที่นาทีนี้
-    showDefibModal();
+    quickShock(min);        // แตะ = บันทึก shock ที่นาทีนี้ทันที (✓ + นับครั้ง)
   }
+}
+
+/* ── พลังงาน default ── adult 200J · เด็ก 2 J/kg ครั้งแรก, 4 J/kg ครั้งถัดไป */
+function defaultJoules(){
+  if(S.patientType==='child' && S.weight){
+    const perKg=(S.defibCount>=1)?4:2;
+    return Math.round(S.weight*perKg)+'J';
+  }
+  return '200J';
+}
+function quickShock(min){
+  initAudio();
+  const past=min!==(S.currentMin||0);
+  const j=defaultJoules();
+  const ts=tsForMin(min);
+  const uid='defib_'+Date.now();
+  S.events.push({uid,minute:min,ts,type:'defib',detail:`Defib ${j}`,joules:j,tagText:''});
+  renumberEvents();                 // ตั้ง #n, S.defibCount ใหม่
+  renderMarkCells(min);
+  if(past) flashRow(min);
+  postDefibClear=true; shockableActive=false;
+  const b=$('shockable-banner'); if(b) b.classList.remove('show');
+  clearDfBlink();
+  autoSave();
+  beep(500,.05); setTimeout(()=>beep(800,.05),80); setTimeout(()=>beep(1200,.15),160);
+  checkShockMilestone();
+}
+function checkShockMilestone(){
+  if(S.defibCount===3) showTopAlert('💊 แนะนำ Cordarone (Amiodarone) 300 mg IV/IO');
+  else if(S.defibCount===5) showTopAlert('💊 Cordarone (Amiodarone) 150 mg IV/IO — โดสที่ 2');
+}
+
+/* ── แถบเล็กด้านบน (คำแนะนำยา) ── */
+let topAlertTimer=null;
+function showTopAlert(msg){
+  const el=$('topAlert'); if(!el) return;
+  const m=el.querySelector('.ta-msg'); if(m) m.textContent=msg;
+  el.classList.add('show');
+  try{ initAudio(); beep(880,.12,.4); setTimeout(()=>beep(1175,.22,.4),150); }catch(e){}
+  if(topAlertTimer) clearTimeout(topAlertTimer);
+  topAlertTimer=setTimeout(()=>el.classList.remove('show'), 60000);
+}
+function closeTopAlert(){ const el=$('topAlert'); if(el) el.classList.remove('show'); if(topAlertTimer) clearTimeout(topAlertTimer); }
+
+/* ── ไฟกระพริบในช่อง ── */
+function clearDfBlink(){ document.querySelectorAll('.td-df.cell-due').forEach(c=>c.classList.remove('cell-due')); }
+function setDfBlinkCurrent(){ clearDfBlink(); const c=$(`dfcell-${S.currentMin||0}`); if(c) c.classList.add('cell-due'); }
+function clearAdrBlink(){ document.querySelectorAll('.td-adr.cell-due').forEach(c=>c.classList.remove('cell-due')); }
+function updateAdrDueBlink(){
+  clearAdrBlink();
+  if(S.adrNextMin==null) return;
+  if(S.events.some(e=>e.type==='adr'&&e.minute>=S.adrNextMin)) return;  // ให้โดสถัดไปแล้ว
+  if((S.currentMin||0) >= S.adrNextMin){
+    const c=$(`adrcell-${S.adrNextMin}`); if(c) c.classList.add('cell-due');
+  }
+}
+
+/* ── แตะแถบเนื้อหา = เลือกบันทึก ยา/หัตถการ ── */
+function contentTap(e,min){
+  if(e&&e.target&&(e.target.closest('.rhythm-inline')||e.target.closest('.tag')||e.target.closest('.tag-del'))) return;
+  if(min>(S.currentMin||0)) return;
+  tapMin=min;
+  const lbl=$('chooser-min'); if(lbl) lbl.textContent=(min===(S.currentMin||0))?'นาทีปัจจุบัน':('นาที '+min);
+  $('chooser-modal').classList.remove('hide');
+}
+function chooseType(t){
+  $('chooser-modal').classList.add('hide');   // ไม่ใช้ hide() เพื่อคง tapMin
+  if(t==='proc') showProcModal(); else showDrugModal();
 }
 
 function openEditEvent(id, type, btn){
@@ -2347,15 +2414,15 @@ function giveAdr(){ giveAdrAt(recMin()); }
 function giveAdrAt(min){
   initAudio();
   const past=min!==(S.currentMin||0);
-  S.adrCount++;
   if(!past) S.adrLastTs=Date.now();
   const ts=tsForMin(min);   // เก็บเวลาไว้ในข้อมูล (ไม่แสดงในตาราง)
   const uid='adr_'+Date.now();
-  S.events.push({uid,minute:min,ts,type:'adr',detail:`Adrenaline 1mg #${S.adrCount}`,num:S.adrCount,tagText:''});
-  renumberEvents();
+  S.events.push({uid,minute:min,ts,type:'adr',detail:`Adrenaline 1mg`,tagText:''});
+  renumberEvents();                    // ตั้ง #n, S.adrCount
+  S.adrNextMin = min + ADR_INTERVAL_MIN;   // โดสถัดไป = +4 นาที (ปัดเป็นนาทีกลมๆ) → ช่องสีส้มนาทีนั้นจะกระพริบ
   renderMarkCells(min);
+  updateAdrDueBlink();
   if(past) flashRow(min);
-  $('btn-adr').classList.remove('adr-blink-warn','adr-blink-danger');
   autoSave();
   beep(600,.08); setTimeout(()=>beep(900,.12),100);
 }
@@ -2384,10 +2451,11 @@ function confirmDefib(){
   autoSave();
   postDefibClear=true;
   shockableActive=false;
-  $('shockable-banner').classList.remove('show');
-  $('btn-defib').classList.remove('blink-defib');
+  const _b=$('shockable-banner'); if(_b) _b.classList.remove('show');
+  clearDfBlink();
   hide('defib-modal');
   beep(500,.05); setTimeout(()=>beep(800,.05),80); setTimeout(()=>beep(1200,.15),160);
+  checkShockMilestone();
 }
 
 function quickDrug(name, type='drug'){
@@ -2822,6 +2890,21 @@ function buildQuality(totalMin){
       note:ok?'✅ ≥ 10 mmHg':'❌ < 10 mmHg — Reassess CPR!'});
   }
 
+  // 4) Cordarone (Amiodarone) ภายใน 2 นาทีหลังครบ shock ครั้งที่ 3
+  const defibEvs=S.events.filter(e=>e.type==='defib').sort((a,b)=>a.minute-b.minute);
+  if(defibEvs.length>=3){
+    applicable++;
+    const alertMin=defibEvs[2].minute;   // shock ครั้งที่ 3 = จุดที่ควรแจ้งเตือน Cordarone
+    const cAfter=S.events.filter(e=>/(amiodarone|cordarone)/i.test(e.detail||'')).map(e=>e.minute).filter(m=>m>=alertMin);
+    const firstCord=cAfter.length?Math.min(...cAfter):null;
+    const ok=firstCord!=null&&(firstCord-alertMin)<=2;
+    if(ok) passed++;
+    items.push({lbl:'Cordarone หลังครบ 3 shock',
+      val:firstCord!=null?`${firstCord-alertMin} min`:'ไม่ได้ให้',
+      cls:ok?'q-good':'q-bad',
+      note:ok?'✅ ภายใน 2 นาทีหลังแจ้งเตือน':'❌ Target ≤ 2 นาทีหลัง shock ครั้งที่ 3'});
+  }
+
   // ข้อมูลประกอบ (ไม่คิดคะแนน)
   const ex=Math.max(1,Math.floor(totalMin/RHYTHM_INTERVAL_MIN));
   const ac=Object.values(S.rhythmData).filter(r=>r.rhythm).length;
@@ -2832,7 +2915,7 @@ function buildQuality(totalMin){
   items.unshift({lbl:'สรุป Quality',
     val:applicable?`ผ่าน ${passed}/${applicable} ข้อ`:'—',
     cls:applicable&&passed===applicable?'q-good':passed>=1?'q-warn':'q-bad',
-    note:applicable&&passed===applicable?'✅ CPR quality ดีจริง':'เกณฑ์: DF≤2 นาที · Adr 3–5 นาที · EtCO2 ≥10'});
+    note:applicable&&passed===applicable?'✅ CPR quality ดีจริง':'เกณฑ์: Shock≤2 นาที · Adr 3–5 นาที · Cordarone≤2 นาที · EtCO2≥10'});
 
   // Save quality to session — 3 = ผ่านครบทุกข้อที่ประเมินได้
   const qualScore=applicable>0?(passed===applicable?3:Math.min(2,passed)):null;
