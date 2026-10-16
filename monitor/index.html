@@ -72,9 +72,19 @@
     display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;opacity:.6}
   #fsBtn:hover{opacity:1;background:#1e2f45}
   :fullscreen #fsBtn{opacity:.25}
+  /* แถบแจ้งเตือน Activate เต็มความกว้าง — กระพริบแดง จนกว่าจะรับทราบ */
+  #emsAlert{position:fixed;top:0;left:0;right:0;z-index:100;display:none;
+    align-items:center;justify-content:center;gap:14px;text-align:center;
+    padding:16px 20px;font-size:30px;font-weight:900;letter-spacing:.5px;color:#fff;
+    background:#dc2626;box-shadow:0 6px 24px rgba(0,0,0,.5);
+    animation:emsAlertBlink 1s steps(1) infinite}
+  #emsAlert.show{display:flex}
+  @keyframes emsAlertBlink{50%{background:#7f1d1d;color:#fecaca}}
 </style>
 </head>
 <body>
+<!-- แถบแจ้งเตือน Activate เด่นเต็มจอ (กระพริบจนกว่าจะรับทราบในแอป EMS) -->
+<div id="emsAlert"></div>
 <div class="stage">
   <!-- LEFT 70% : ER Fast Track TV -->
   <div class="cell">
@@ -184,6 +194,27 @@ function enableAllAudio(){
   try{ const ew=document.getElementById("emsFrame").contentWindow; if(ew&&ew.ensureAudio) ew.ensureAudio(); }catch(e){}
 }
 ["pointerdown","keydown","touchstart"].forEach(ev=>document.addEventListener(ev, enableAllAudio, {once:true}));
+
+/* ================= แจ้งเตือน Activate เด่นทั้งจอ =================
+   อ่านเคสสดจากกล่อง EMS (same-origin) → ถ้ามีเคส activate ที่ยัง "ไม่รับทราบ"
+   ให้โชว์แถบแดงกระพริบเต็มจอ (เสียงมาจากกล่อง EMS อยู่แล้ว) · หายเมื่อรับทราบ */
+function emsCasesForAlert(){
+  if(typeof window.__emsCasesForAlert==='function'){ try{ return window.__emsCasesForAlert()||{}; }catch(e){ return {}; } }
+  try{ const cw=document.getElementById('emsFrame').contentWindow; return (cw&&cw.CASES)||{}; }catch(e){ return {}; }
+}
+function updateEmsAlert(){
+  const C=emsCasesForAlert();
+  const actives=Object.keys(C).map(k=>C[k]).filter(c=>c && c.quick && !c.ack);
+  const el=document.getElementById('emsAlert'); if(!el) return;
+  if(actives.length){
+    const types=actives.map(c=>c.vehicle||'').join(' · ');
+    el.textContent='🚨 ACTIVATE '+types+' — ยังไม่รับทราบ (กด "รับทราบเคส" ในแอป EMS)';
+    el.classList.add('show');
+  } else {
+    el.classList.remove('show');
+  }
+}
+setInterval(updateEmsAlert, 1000);
 
 /* ---------- positions ---------- */
 const POSITIONS=[

@@ -58,6 +58,30 @@
   .home h1{font-size:34px;margin:0;text-align:center}
   .home p{color:var(--muted);margin:0 0 10px}
   .home-cards{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
+  /* ปุ่ม Activate ด่วน */
+  .act-btns{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin:4px 0 6px;width:100%;max-width:720px}
+  .act-big{flex:1 1 240px;min-height:92px;border:none;border-radius:18px;color:#fff;font-size:26px;font-weight:800;
+    cursor:pointer;font-family:inherit;box-shadow:0 6px 18px rgba(0,0,0,.18);transition:transform .1s,filter .1s;letter-spacing:.3px}
+  .act-big:active{transform:scale(.97);filter:brightness(.93)}
+  .act-big.als{background:linear-gradient(145deg,#dc2626,#b91c1c)}
+  .act-big.bls{background:linear-gradient(145deg,#2563eb,#1d4ed8)}
+  /* รายการเคสที่ Activate (หน้า activate) */
+  .act-alerts{width:100%;max-width:720px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+  .act-alerts-h{font-weight:800;color:#b91c1c;margin-bottom:10px;font-size:15px}
+  .act-row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:11px 12px;border-radius:12px;margin-bottom:8px;border:1.5px solid var(--line)}
+  .act-row.live{background:#fef2f2;border-color:#fca5a5;animation:actBlink 1s steps(1) infinite}
+  @keyframes actBlink{50%{background:#fee2e2;border-color:#dc2626}}
+  .act-row.acked{background:#f1f5f9;opacity:.85}
+  .act-row-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .act-veh{font-weight:800;font-size:18px}
+  .act-time{font-size:12.5px;color:var(--muted)}
+  .act-waiting{font-size:13px;font-weight:700;color:#dc2626}
+  .act-ackinfo{font-size:13px;font-weight:700;color:#15803d}
+  .act-ackbtn{flex:0 0 auto;border:none;background:#15803d;color:#fff;border-radius:11px;padding:12px 18px;font-size:15px;font-weight:800;cursor:pointer;font-family:inherit}
+  .act-ackbtn:active{filter:brightness(.92)}
+  /* การ์ด Activate บนจอ TV/Monitor — เด่นกว่าเคสปกติ */
+  .tv-card.tv-activate{border-width:6px}
+  .tv-card.tv-activate .tv-veh{font-size:30px;font-weight:900}
   .card{width:230px;height:180px;background:var(--panel);border:1px solid var(--line);
     border-radius:18px;display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:14px;transition:.15s;font-size:20px;font-weight:600}
@@ -293,6 +317,10 @@ function makeLocalRef(KEY){
 
 /* ---------- helpers: time / shift ---------- */
 const pad=n=>String(n).padStart(2,"0");
+const hhmm=ts=>{ const d=new Date(ts); return pad(d.getHours())+":"+pad(d.getMinutes()); };
+const ACK_LINGER=5*60000;          // หลังรับทราบ เคสยังค้างบนจอ 5 นาที แล้วหายไป
+const activationAlarmAt={};         // เวลาเล่นเสียงเตือน activate ล่าสุด (ต่อ 1 เคส)
+let homeTimer=null;                 // รีเฟรชหน้า activate ให้เคสที่รับทราบแล้วหายเองเมื่อครบ 5 นาที
 function fmtTime(ts){ if(!ts) return ""; const d=new Date(ts);
   return pad(d.getHours())+":"+pad(d.getMinutes()); }
 function fmtDateTime(ts){ if(!ts) return ""; const d=new Date(ts);
@@ -354,6 +382,7 @@ function refreshAdminChip(){
    RENDER dispatcher
    ============================================================ */
 function render(){
+  if(homeTimer){ clearInterval(homeTimer); homeTimer=null; }
   const initial=(location.hash||"#home").slice(1);
   currentRoute = initial||"home";
   setNavActive();
@@ -371,18 +400,60 @@ function render(){
    ============================================================ */
 function renderHome(app){
   stopTV();
+  const now=Date.now();
+  const alerts=Object.entries(CASES)
+    .filter(([id,c])=>c.quick && (!c.ack || (c.ackAt && now < c.ackAt+ACK_LINGER)))
+    .sort((a,b)=> (b[1].command&&b[1].command.time||b[1].createdAt||0)-(a[1].command&&a[1].command.time||a[1].createdAt||0));
+  const alertsHtml = alerts.length ? `
+     <div class="act-alerts">
+       <div class="act-alerts-h">🚨 เคสที่ Activate — กด "รับทราบเคส" เพื่อปิดเสียงที่จอ Monitor</div>
+       ${alerts.map(([id,c])=>{
+         const acked=!!c.ack;
+         return `<div class="act-row ${acked?'acked':'live'}">
+            <div class="act-row-info"><span class="act-veh">${c.vehicle}</span>
+              <span class="act-time">แจ้งเวลา ${hhmm(c.command&&c.command.time||c.createdAt)}</span>
+              ${acked?`<span class="act-ackinfo">✅ รับทราบแล้ว ${hhmm(c.ackAt)}</span>`:`<span class="act-waiting">⏳ รอรับทราบ</span>`}</div>
+            ${acked?'':`<button class="act-ackbtn" onclick="ackActivation('${id}')">✓ รับทราบเคส</button>`}
+         </div>`;
+       }).join("")}
+     </div>` : "";
   app.innerHTML=`
    <div class="home">
      <div style="text-align:center">
        <h1>ระบบบันทึกข้อมูล EMS</h1>
        <p>โรงพยาบาล ER JNH — Real-time</p>
      </div>
+     <div class="act-btns">
+       <button class="act-big als" onclick="activateEMS('ALS')">🚨 Activate ALS</button>
+       <button class="act-big bls" onclick="activateEMS('BLS')">🚑 Activate BLS</button>
+     </div>
+     ${alertsHtml}
      <div class="home-cards">
        <div class="card" onclick="go('entry')"><div class="ic">📝</div>ลงข้อมูล</div>
        <div class="card" onclick="go('tv')"><div class="ic">📺</div>TV Monitor</div>
        <div class="card" onclick="go('dashboard')"><div class="ic">📊</div>Dashboard</div>
      </div>
    </div>`;
+  if(homeTimer) clearInterval(homeTimer);
+  homeTimer=setInterval(()=>{ if(currentRoute==='home') renderHome(document.getElementById('app')); }, 5000);
+}
+
+/* ---------- Activate (ด่วน): กดปุ่มเดียวแจ้งเตือนจอ Monitor ---------- */
+function activateEMS(vehicle){
+  if(!confirm('ยืนยัน Activate '+vehicle+' ?')) return;
+  const now=Date.now();
+  const ref=casesRef.push();
+  ref.set({ createdAt:now, notifyTime:now, vehicle:vehicle, inCity:true, quick:true,
+    command:{time:now,color:'green'}, ack:false, ackAt:null,
+    sexAge:"", symptom:"", phone:"", other:"", vehicleUnit:"", triage:"",
+    depart:null, arrive:null, leave:null, hosp:null, toBase:null,
+    mileDepart:"", mileArrive:"", mileHosp:"", mileBase:"", departCrew:"",
+    vsRecords:[], caseRecords:[], note:"", opNumber:"", summaryCode:"" });
+  try{ ensureAudio(); playBeep(1200,0.1,0.3); }catch(e){}
+}
+function ackActivation(id){
+  const c=CASES[id]; if(!c) return;
+  casesRef.child(id).update({ ack:true, ackAt:Date.now() });
 }
 
 /* ============================================================
@@ -820,19 +891,45 @@ function drawTV(){
   const now=Date.now();
   // จอรวม (whole monitor) ส่ง ?cityonly=1 มา → แสดงเฉพาะเคสในเขตเมือง
   const cityOnly = new URLSearchParams(location.search).get("cityonly")==="1";
-  // ALS/ILS/BLS, เริ่มเมื่อกดสั่งการ, ยังไม่จบ (ยังไม่ถึงฐาน) — BLS แสดงภาพอย่างเดียว ไม่มีเสียง
-  const list=Object.entries(CASES).filter(([id,c])=>
-    (c.vehicle==="ALS"||c.vehicle==="ILS"||c.vehicle==="BLS") && c.command && !c.toBase && (!cityOnly || c.inCity))
-    .sort((a,b)=> a[1].command.time - b[1].command.time);
 
-  // แจ้งเตือนเสียงเฉพาะ ALS/ILS ที่โผล่ใหม่ (BLS ไม่มีเสียง)
+  // ── เคส Activate ด่วน (quick) ── แสดงเสมอ (ไม่ขึ้นกับ cityOnly) · ค้าง 5 นาทีหลังรับทราบ
+  const quick=Object.entries(CASES)
+    .filter(([id,c])=> c.quick && (!c.ack || (c.ackAt && now < c.ackAt+ACK_LINGER)))
+    .sort((a,b)=> (a[1].command&&a[1].command.time||a[1].createdAt||0)-(b[1].command&&b[1].command.time||b[1].createdAt||0));
+  // เสียงเตือน Activate: ดังต่อเนื่อง (เล่นซ้ำทุก ~13 วิ) จนกว่าจะมีคนกดรับทราบ
+  quick.forEach(([id,c])=>{
+    if(!c.ack){ if(soundOn && (now-(activationAlarmAt[id]||0)>=13000)){ activationAlarmAt[id]=now; playAlarm(c.vehicle); } }
+    else { delete activationAlarmAt[id]; }
+  });
+
+  // ── เคสปกติ (ลงข้อมูลเต็ม) ── ALS/ILS/BLS, สั่งการแล้ว ยังไม่ถึงฐาน
+  const list=Object.entries(CASES).filter(([id,c])=>
+    !c.quick && (c.vehicle==="ALS"||c.vehicle==="ILS"||c.vehicle==="BLS") && c.command && !c.toBase && (!cityOnly || c.inCity))
+    .sort((a,b)=> a[1].command.time - b[1].command.time);
+  // แจ้งเตือนเสียงเฉพาะ ALS/ILS ที่โผล่ใหม่ (BLS ไม่มีเสียง) — เตือนครั้งเดียวเหมือนเดิม
   const activeIds={};
   list.forEach(([id,c])=>{ activeIds[id]=true; if(tvPrimed && !tvSeen[id] && c.vehicle!=="BLS"){ playAlarm(c.vehicle); } });
   tvSeen=activeIds; tvPrimed=true;
 
-  if(!list.length){ grid.innerHTML=`<div class="tv-empty">— ไม่มีเคส ALS/ILS/BLS${cityOnly?" ในเขตเมือง":""} ที่กำลังดำเนินการ —</div>`; return; }
+  // ── การ์ด Activate ด่วน ──
+  const quickHtml=quick.map(([id,c])=>{
+    const acked=!!c.ack, isALS=c.vehicle==="ALS", isBLS=c.vehicle==="BLS";
+    let cls="tv-card tv-activate "+(isBLS?"bls":isALS?"als":"ils");
+    if(!acked) cls+= isALS?" flash-als":" flash-ils";   // กระพริบจนรับทราบ
+    const tstr=hhmm(c.command&&c.command.time||c.createdAt);
+    const status = acked
+      ? `<div class="tv-status" style="color:var(--green)">✅ รับทราบแล้ว ${hhmm(c.ackAt)}</div>`
+      : `<div class="tv-status" style="color:#fff">⏳ รอรับทราบ — กด "รับทราบเคส" ในแอป EMS</div>`;
+    return `<div class="${cls}">
+       <div class="tv-veh">🚨 ACTIVATE ${c.vehicle}</div>
+       <div class="tv-detail">แจ้ง Activate เวลา ${tstr}</div>
+       ${status}
+     </div>`;
+  }).join("");
 
-  grid.innerHTML=list.map(([id,c])=>{
+  if(!quick.length && !list.length){ grid.innerHTML=`<div class="tv-empty">— ไม่มีเคส ALS/ILS/BLS${cityOnly?" ในเขตเมือง":""} ที่กำลังดำเนินการ —</div>`; return; }
+
+  const normalHtml=list.map(([id,c])=>{
     const isALS=c.vehicle==="ALS", isBLS=c.vehicle==="BLS";
     const flashing = !isBLS && !c.depart;                 // กระพริบแดง/เหลืองจนกดออกฐาน (เฉพาะ ALS/ILS)
     const returning = !isBLS && c.leave && !c.toBase;     // กระพริบเขียวตอนกลับฐาน (เฉพาะ ALS/ILS)
@@ -862,6 +959,8 @@ function drawTV(){
        <div class="tv-status">${tvStatusText(c)}</div>
      </div>`;
   }).join("");
+
+  grid.innerHTML = quickHtml + normalHtml;
 }
 
 /* ============================================================
