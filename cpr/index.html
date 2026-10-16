@@ -202,6 +202,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
 .big-choose.drug{background:linear-gradient(145deg,#0e7490,#0891b2)}
 .big-choose.proc{background:linear-gradient(145deg,#1d4ed8,#3b82f6)}
 .big-choose:active{filter:brightness(.93)}
+/* ปุ่ม preset ยา: ให้วาง "?" มุมขวาบนได้ */
+#drug-presets-grid .qk-btn,#proc-presets-grid .qk-btn{position:relative}
+.q-help{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#1e3a8a;color:#fff;
+  font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.3);z-index:2}
+.q-help:active{filter:brightness(1.2)}
 .td-content{padding:2px 6px}
 /* ── One-line row: rhythm + tags inline + ปุ่มเพิ่มเล็กๆ ท้ายแถว ── */
 .row-line{display:flex;align-items:center;gap:4px;flex-wrap:wrap;min-height:26px}
@@ -864,6 +869,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
      MODALS
 ══════════════════════════════════════ -->
 
+<!-- Note popover: คำแนะนำ dose ของ preset -->
+<div class="overlay hide" id="note-modal">
+  <div class="modal" style="max-width:340px">
+    <h3 id="note-title" style="color:var(--navy)">—</h3>
+    <div id="note-body" style="font-size:15px;line-height:1.6;color:var(--text);white-space:pre-wrap;margin:6px 0 4px"></div>
+    <div class="modal-btns"><button class="m-ok m-ok-navy" style="flex:1" onclick="hide('note-modal')">ปิด</button></div>
+  </div>
+</div>
+
 <!-- Chooser: แตะแถบเนื้อหา → เลือก ยา / หัตถการ -->
 <div class="overlay hide" id="chooser-modal">
   <div class="modal" style="max-width:340px">
@@ -877,6 +891,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
   </div>
 </div>
 
+<!-- END CPR — ยืนยันในแอป (ใช้ได้แม้โหมดเต็มจอ/standalone ที่ confirm() ถูกบล็อก) -->
+<div class="overlay hide" id="end-modal">
+  <div class="modal" style="max-width:360px">
+    <h3>■ สิ้นสุด CPR?</h3>
+    <div class="modal-sub">จบเคสนี้และไปหน้าสรุป</div>
+    <div class="modal-btns">
+      <button class="m-cancel" onclick="hide('end-modal')">ยกเลิก</button>
+      <button class="m-ok m-ok-navy" onclick="doEndCPR()">■ จบเคส</button>
+    </div>
+  </div>
+</div>
+
 <!-- Drug -->
 <div class="overlay hide" id="drug-modal">
   <div class="modal">
@@ -885,20 +911,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
       <button id="preset-edit-btn" onclick="togglePresetEdit()">✎ แก้ไข</button>
     </h3>
     <div class="modal-sub" id="drug-modal-min" style="display:none"></div>
-    <div class="modal-sub">แตะ preset แล้วแก้ dose ในช่องด้านล่างได้ · กด ✎ เพื่อแก้/ลบ/เพิ่ม</div>
+    <div class="modal-sub">แตะปุ่มเพื่อบันทึก · แตะ "?" ดูคำแนะนำ dose · กด ✎ (admin) เพื่อแก้ไข/เพิ่ม note</div>
     <div class="qk-grid" id="drug-presets-grid"></div>
-    <div class="qk-grid">
-      <button class="qk-btn" onclick="fillDrug('NaHCO3 50mEq')">NaHCO3<br>50mEq</button>
-      <button class="qk-btn" onclick="fillDrug('Ca Gluconate 1g')">Ca Gluco<br>1g</button>
-      <button class="qk-btn" onclick="fillDrug('50%G 50mL')">50%G<br>50mL</button>
-      <button class="qk-btn" onclick="fillDrug('Lidocaine 100mg (1st)')">Lido<br>100mg</button>
-      <button class="qk-btn" onclick="fillDrug('Lidocaine 75mg (2nd)')">Lido<br>75mg</button>
-      <button class="qk-btn" onclick="fillDrug('MgSO4 2g')">MgSO4<br>2g</button>
-      <button class="qk-btn" onclick="fillDrug('Dopamine')">Dopamine</button>
-      <button class="qk-btn" onclick="fillDrug('Norepinephrine')">NorEpi</button>
-      <button class="qk-btn" onclick="fillDrug('Thrombolysis')">Thrombo-<br>lysis</button>
-    </div>
-    <input type="text" class="modal-inp" id="drug-custom" placeholder="ชื่อยา + dose (แก้ได้)..." autocomplete="off" style="font-size:16px">
+    <input type="text" class="modal-inp" id="drug-custom" placeholder="หรือพิมพ์ยา + dose เอง..." autocomplete="off" style="font-size:16px">
     <div class="modal-btns">
       <button class="m-cancel" onclick="hide('drug-modal')">ยกเลิก</button>
       <button class="m-ok m-ok-navy" onclick="confirmCustomDrug()">✓ บันทึก</button>
@@ -1543,6 +1558,48 @@ function requireDeletePin(){
   alert('รหัส Admin ไม่ถูกต้อง — ไม่สามารถลบได้');
   return false;
 }
+// ── Admin PIN สำหรับแก้ไข preset (ใช้รหัสเดียวกับการลบ) ──
+let presetAdminOK=false;
+function requireAdmin(){
+  if(presetAdminOK || adminUnlocked) return true;
+  const pin=prompt('🔒 แก้ไข preset — ใส่รหัส Admin');
+  if(pin===null) return false;
+  if(pin.trim()===(CFG.pin||'1234') || pin.trim()==='1234'){ presetAdminOK=true; return true; }
+  alert('รหัส Admin ไม่ถูกต้อง');
+  return false;
+}
+// ── คำแนะนำ dose เริ่มต้น (ใช้เติม note อัตโนมัติครั้งแรก · admin แก้ได้) ──
+const NOTE_HINTS=[
+  ['adrenaline','1 mg (1:10,000) IV/IO ทุก 3–5 นาที'],
+  ['amiodarone','ครั้งแรก 300 mg IV push · ครั้งที่ 2 150 mg (VF/pVT ที่ shock แล้วไม่ตอบสนอง)'],
+  ['cordarone','ครั้งแรก 300 mg IV push · ครั้งที่ 2 150 mg'],
+  ['nahco3','1 amp (50 mEq) IV — prolonged arrest / hyperK / TCA toxicity'],
+  ['ca gluconate','10% 10 mL IV ช้าๆ — hyperK / hypoCa / CCB-BB overdose'],
+  ['50%g','Dextrose 50% 50 mL IV — ภาวะน้ำตาลต่ำ'],
+  ['lidocaine','1–1.5 mg/kg IV (ทางเลือกแทน Amiodarone) · ซ้ำ 0.5–0.75 mg/kg'],
+  ['mgso4','1–2 g IV — Torsades de pointes'],
+  ['dopamine','2–20 mcg/kg/min IV drip (post-ROSC hypotension)'],
+  ['norepinephrine','0.1–0.5 mcg/kg/min IV drip (post-ROSC)'],
+  ['thrombolysis','พิจารณาเมื่อสงสัย massive PE'],
+];
+function hintFor(text){
+  const t=(text||'').toLowerCase();
+  for(const [k,v] of NOTE_HINTS){ if(t.includes(k)) return v; }
+  return '';
+}
+function seedDrugDefaults(){
+  if(!Array.isArray(CFG.drugPresets)) CFG.drugPresets=[];
+  let changed=false;
+  if(!CFG.drugSeeded){
+    const defs=['NaHCO3 50mEq','Ca Gluconate 1g','50%G 50mL','Lidocaine 100mg (1st)','Lidocaine 75mg (2nd)','MgSO4 2g','Dopamine','Norepinephrine','Thrombolysis'];
+    const have=new Set(CFG.drugPresets.map(p=>(p&&p.text||'').trim()));
+    defs.forEach(t=>{ if(!have.has(t)) CFG.drugPresets.push({text:t,type:'drug',note:hintFor(t)}); });
+    CFG.drugSeeded=true; changed=true;
+  }
+  // เติม note อัตโนมัติให้ preset ที่ยังไม่มี note (ครั้งแรก)
+  CFG.drugPresets.forEach(p=>{ if(p && typeof p==='object' && (p.note==null||p.note==='')){ const h=hintFor(p.text); if(h){ p.note=h; changed=true; } } });
+  if(changed){ DB.settings=CFG; saveDB(); }
+}
 
 // ── ลบถาวร: บันทึก tombstone + ลบจาก Firebase/Sheets ──
 // tombstone (DB.deleted) กันเคสที่ลบแล้วถูก sync กลับมาอีก
@@ -2144,7 +2201,7 @@ function appendRow(i,tbody){
   tr.id=`tr-${i}`;
   tr.className='tl-row'+(isR?' rhythm-row':'');
   tr.innerHTML=`
-    <td class="td-min${i%10===0?' big':''}">${i}<span style="display:block;font-size:9px;font-weight:600;color:#94a3b8;line-height:1;margin-top:2px;letter-spacing:-.3px">${clockAtMin(i)}</span></td>
+    <td class="td-min${i%10===0?' big':''}">${i}<span class="td-clock" style="display:block;font-size:9px;font-weight:600;color:#94a3b8;line-height:1;margin-top:2px;letter-spacing:-.3px">${clockAtMin(i)}</span></td>
     <td class="td-adr" id="adrcell-${i}" onclick="adrCellTap(${i})"></td>
     <td class="td-df"  id="dfcell-${i}"  onclick="dfCellTap(${i})"></td>
     <td class="td-content" onclick="contentTap(event,${i})">
@@ -2514,15 +2571,18 @@ function renderProcGrid(){
   const grid=$('proc-presets-grid'); if(!grid) return;
   const list=CFG.procPresets||[];
   let html='';
+  const nameOf=t=>typeof t==='object'?(t.text||''):t;
+  const noteOf=t=>typeof t==='object'?(t.note||''):'';
   if(!procEditMode){
     // ปุ่มพิเศษ: ETT/Airway และ Defib (นับครั้ง + เลือก Joules)
     html+=`<button class="qk-btn" onclick="procToAirway()">ETT /<br>Airway</button>`;
     html+=`<button class="qk-btn" style="border-color:var(--defib);color:var(--defib);font-weight:700" onclick="procToDefib()">⚡ Defib</button>`;
-    list.forEach(t=>{ html+=`<button class="qk-btn" onclick="fillProc('${escJs(t)}')">${t}</button>`; });
+    list.forEach(t=>{ const nm=nameOf(t), nt=noteOf(t);
+      html+=`<button class="qk-btn" onclick="fillProc('${escJs(nm)}')">${nm}${nt?`<span class="q-help" onclick="event.stopPropagation();showNote('${escJs(nm)}','${escJs(nt)}')">?</span>`:''}</button>`; });
   } else {
-    list.forEach((t,i)=>{
+    list.forEach((t,i)=>{ const nm=nameOf(t), nt=noteOf(t);
       html+=`<div class="preset-edit-row" style="grid-column:1 / -1">
-        <button class="sm-btn sm-green" style="flex:1" onclick="editProcPreset(${i})">${t}</button>
+        <button class="sm-btn sm-green" style="flex:1;text-align:left" onclick="editProcPreset(${i})">${nm}${nt?' <span style="opacity:.6">· 📝'+escJs(nt.slice(0,20))+(nt.length>20?'…':'')+'</span>':' <span style="opacity:.5">· + note</span>'}</button>
         <button class="preset-del-btn" onclick="delProcPreset(${i})" title="ลบ">🗑</button>
       </div>`;
     });
@@ -2532,25 +2592,31 @@ function renderProcGrid(){
   const b=$('proc-edit-btn');
   if(b){ b.textContent=procEditMode?'✓ เสร็จ':'✎ แก้ไข'; }
 }
-function toggleProcEdit(){ procEditMode=!procEditMode; renderProcGrid(); }
+function toggleProcEdit(){ if(!procEditMode && !requireAdmin()) return; procEditMode=!procEditMode; renderProcGrid(); }
 function addProcPreset(){
+  if(!requireAdmin()) return;
   const v=prompt('เพิ่มหัตถการ (ชื่อ):','');
   if(v===null) return;
   const t=v.trim(); if(!t) return;
+  const note=prompt('คำแนะนำ/รายละเอียด (note) — แสดงเมื่อแตะ "?" (เว้นว่างได้):','')||'';
   if(!Array.isArray(CFG.procPresets)) CFG.procPresets=[];
-  CFG.procPresets.push(t);
+  CFG.procPresets.push(note.trim()?{text:t,note:note.trim()}:t);
   persistProc();
 }
 function editProcPreset(i){
+  if(!requireAdmin()) return;
   const cur=(CFG.procPresets||[])[i]; if(cur==null) return;
-  const v=prompt('แก้ไขหัตถการ (เว้นว่าง = ลบ):',cur);
+  const curName=typeof cur==='object'?cur.text:cur, curNote=typeof cur==='object'?(cur.note||''):'';
+  const v=prompt('แก้ไขหัตถการ (เว้นว่าง = ลบ):',curName);
   if(v===null) return;
   const t=v.trim();
   if(!t){ delProcPreset(i,true); return; }
-  CFG.procPresets[i]=t;
+  const note=prompt('คำแนะนำ (note) — เว้นว่าง = ไม่มี "?":',curNote);
+  CFG.procPresets[i]=(note&&note.trim())?{text:t,note:note.trim()}:t;
   persistProc();
 }
 function delProcPreset(i,skip){
+  if(!skip && !requireAdmin()) return;
   if(!skip && !confirm('ลบหัตถการนี้?')) return;
   if(!Array.isArray(CFG.procPresets)) return;
   CFG.procPresets.splice(i,1);
@@ -2586,19 +2652,23 @@ let presetEditMode=false;
 // ยา preset — แสดงในกรอบบนของ modal ยา (ปุ่ม + ในตาราง timeline)
 function renderPresets(){
   const box=$('drug-presets-grid'); if(!box) return;
+  seedDrugDefaults();
   let html='';
   if(!presetEditMode){
     // Adrenaline พิเศษ: นับ dose + จับเวลาให้อัตโนมัติ
-    html+=`<button class="qk-btn" style="border-color:var(--adr);color:var(--adr);font-weight:700" onclick="modalGiveAdr()">💉 Adrenaline<br>1mg</button>`;
+    const adrNote=hintFor('adrenaline');
+    html+=`<button class="qk-btn" style="border-color:var(--adr);color:var(--adr);font-weight:700" onclick="modalGiveAdr()">💉 Adrenaline 1mg${adrNote?`<span class="q-help" onclick="event.stopPropagation();showNote('Adrenaline','${escJs(adrNote)}')">?</span>`:''}</button>`;
     (CFG.drugPresets||[]).forEach((p,i)=>{
       if(!p||p.type==='proc') return;
-      html+=`<button class="qk-btn" onclick="pressPreset(${i})">${p.text}</button>`;
+      const note=(typeof p==='object'&&p.note)?p.note:'';
+      html+=`<button class="qk-btn" onclick="pressPreset(${i})">${p.text}${note?`<span class="q-help" onclick="event.stopPropagation();showNote('${escJs(p.text)}','${escJs(note)}')">?</span>`:''}</button>`;
     });
   } else {
     (CFG.drugPresets||[]).forEach((p,i)=>{
       if(!p||p.type==='proc') return;
+      const note=(typeof p==='object'&&p.note)?p.note:'';
       html+=`<div class="preset-edit-row" style="grid-column:1 / -1">
-        <button class="sm-btn sm-blue" style="flex:1;margin-bottom:0" onclick="editPreset(${i})">${p.text}</button>
+        <button class="sm-btn sm-blue" style="flex:1;margin-bottom:0;text-align:left" onclick="editPreset(${i})">${p.text}${note?' <span style="opacity:.6">· 📝'+escJs(note.slice(0,24))+(note.length>24?'…':'')+'</span>':' <span style="opacity:.5">· + note</span>'}</button>
         <button class="preset-del-btn" onclick="deletePreset(${i})" title="ลบ">🗑</button>
       </div>`;
     });
@@ -2606,11 +2676,18 @@ function renderPresets(){
   }
   box.innerHTML=html;
 }
+// ── popover แสดงคำแนะนำ dose ──
+function showNote(title,note){
+  $('note-title').textContent=title||'';
+  $('note-body').textContent=note||'';
+  $('note-modal').classList.remove('hide');
+}
 // Adrenaline จาก modal ยา — ใช้นาทีที่แตะ (tapMin) ถ้ามี
 function modalGiveAdr(){ giveAdr(); hide('drug-modal'); }
 // เก็บชื่อเดิมไว้กันโค้ดส่วนอื่นเรียก
 function renderDrugPresets(){ renderPresets(); }
 function togglePresetEdit(){
+  if(!presetEditMode && !requireAdmin()) return;   // เข้าโหมดแก้ไขต้องเป็น admin
   presetEditMode=!presetEditMode;
   const b=$('preset-edit-btn');
   if(b){ b.textContent=presetEditMode?'✓ เสร็จ':'✎ แก้ไข'; b.classList.toggle('on',presetEditMode); }
@@ -2621,24 +2698,30 @@ function pressPreset(i){
   quickDrug(p.text, p.type||'drug');
 }
 function addPreset(type){
+  if(!requireAdmin()) return;
   const isProc=type==='proc';
   const v=prompt(`เพิ่มปุ่ม${isProc?'หัตถการ':'ยา'} (ชื่อ + dose):`,'');
   if(v===null) return;
   const t=v.trim(); if(!t) return;
+  const note=prompt('คำแนะนำ dose (note) — แสดงเมื่อแตะ "?" (เว้นว่างได้):','')||'';
   if(!Array.isArray(CFG.drugPresets)) CFG.drugPresets=[];
-  CFG.drugPresets.push({text:t,type:isProc?'proc':'drug'});
+  CFG.drugPresets.push({text:t,type:isProc?'proc':'drug',note:note.trim()});
   persistPresets();
 }
 function editPreset(i){
+  if(!requireAdmin()) return;
   const p=(CFG.drugPresets||[])[i]; if(!p) return;
   const v=prompt('แก้ไขชื่อ / dose (เว้นว่าง = ลบ):',p.text);
   if(v===null) return;
   const t=v.trim();
   if(!t){ deletePreset(i,true); return; }
   p.text=t;
+  const note=prompt('คำแนะนำ dose (note) — เว้นว่าง = ไม่มี "?":', (typeof p==='object'&&p.note)||'');
+  if(note!==null) p.note=note.trim();
   persistPresets();
 }
 function deletePreset(i,skip){
+  if(!skip && !requireAdmin()) return;
   if(!skip && !confirm('ลบปุ่มนี้?')) return;
   if(!Array.isArray(CFG.drugPresets)) return;
   CFG.drugPresets.splice(i,1);
@@ -2728,7 +2811,7 @@ function confirmEditPatient(){
   hide('pt-modal');
 }
 function refreshClocks(){
-  for(let i=0;i<=60;i++){
+  for(let i=0;i<=120;i++){
     const c=$(`tr-${i}`)?.querySelector('.td-clock');
     if(c) c.textContent=clockAtMin(i);
   }
@@ -2785,21 +2868,28 @@ Depth: <b>${ett.depth}</b> cm ที่ริมฝีปาก<br>
 // END CPR & SUMMARY
 // ════════════════════════════════════════
 function endCPR(){
-  if(!confirm('สิ้นสุด CPR และไปหน้าสรุป?')) return;
+  // ใช้ overlay ยืนยันในแอป แทน confirm() ของเบราว์เซอร์
+  // (บางเบราว์เซอร์โหมดเต็มจอ/standalone/kiosk บล็อก confirm() → ปุ่ม END เหมือนกดไม่ได้)
+  try{ show('end-modal'); }
+  catch(e){ doEndCPR(); }   // เผื่อ modal ใช้ไม่ได้ ก็ยังจบเคสได้
+}
+function doEndCPR(){
+  try{ hide('end-modal'); }catch(e){}
   S.stopTime=new Date().toISOString();
   if(S.timerID){ clearInterval(S.timerID); S.timerID=null; }
-  stopAlarm();
-  $('shockable-banner').classList.remove('show');
+  try{ stopAlarm(); }catch(e){}
+  try{ $('shockable-banner').classList.remove('show'); }catch(e){}
   try{ localStorage.removeItem('cpr_active'); }catch(e){}
+  // ไปหน้าสรุปก่อน — กัน error จาก Firebase/save/sync มาขวางการจบเคส
+  try{ buildSummary(); }catch(e){ console.warn('[endCPR] buildSummary',e); }
+  showScreen('screen-summary');
   // เคลียร์ active บน Firebase ถ้าเป็นเคสนี้ (ทุกเครื่องจะเลิกถาม)
   if(fbRef){ try{
     if(!remoteActive||remoteActive.device===DEVICE_ID||remoteActive.data?.id===S.id) fbRef.child('active').remove();
   }catch(e){} }
-  buildSummary();
-  showScreen('screen-summary');
   // ── บันทึกอัตโนมัติทันทีที่จบเคส (ไม่ต้องรอกดบันทึก) ──
-  saveSession(S);
-  syncSession(S);
+  try{ saveSession(S); }catch(e){ console.warn('[endCPR] save',e); }
+  try{ syncSession(S); }catch(e){ console.warn('[endCPR] sync',e); }
 }
 
 // ── บันทึกอัตโนมัติเมื่อแก้ไขในหน้า summary (เงียบๆ ไม่มี alert) ──
