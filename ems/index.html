@@ -457,10 +457,12 @@ function renderHome(app){
        <button class="act-big acked-toggle ${acked.length?'has':''}" onclick="toggleAckedActs()">
          ✅ รับทราบแล้ว (${acked.length}) ${acked.length?(showAckedActs?'▲':'▼'):''}</button>
      </div>
-     ${ackedListHtml}
 
-     <!-- บรรทัดถัดๆ มา: เคส activate ใหม่ ยังไม่ได้รับทราบ -->
+     <!-- เคส activate ใหม่ ยังไม่ได้รับทราบ → อยู่บนสุดเสมอ (ล่าสุดอยู่บน) -->
      ${liveHtml}
+
+     <!-- เคสที่รับทราบแล้ว → อยู่ล่าง กดปุ่มด้านบนเพื่อกาง (ล่าสุดอยู่บน) -->
+     ${ackedListHtml}
    </div>`;
   if(homeTimer) clearInterval(homeTimer);
   homeTimer=setInterval(()=>{ if(currentRoute==='home') renderHome(document.getElementById('app')); }, 5000);
@@ -863,7 +865,7 @@ function speakVehicle(v){
     // คำพูดให้ชัดเจน แยกออกด้วยหู: ALS = "Advanced", ILS = สะกดทีละตัว
     const say = v==="ALS"?"Advanced" : v==="ILS"?"I L S" : v==="BLS"?"B L S" : v;
     const u=new SpeechSynthesisUtterance(say);
-    u.lang="en-US"; u.rate=0.7; u.volume=1; u.pitch=1;   // เร็วพอให้ฟังชัด ไม่เพี้ยน
+    u.lang="en-US"; u.rate=0.5; u.volume=1; u.pitch=1;   // ช้าลง ~30% ให้ฟังชัดขึ้น
     const voice=pickEnVoice(); if(voice) u.voice=voice;
     window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
   }catch(e){}

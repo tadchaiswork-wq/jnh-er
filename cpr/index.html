@@ -1712,6 +1712,27 @@ function initFirebase(){
       updateFBStatus('err');
     });
 
+    // Preset (ยา/หัตถการ) — sync ทุกเครื่องให้ใช้ค่าเดียวกัน (แก้ทีเดียวใช้ได้ทุกเครื่อง)
+    fbRef.child('presets').once('value', snap=>{
+      // ถ้า Firebase ยังไม่มี preset แต่เครื่องนี้มี → push ขึ้นไปเป็นค่าเริ่มต้นร่วม
+      if(!snap.val() && ((CFG.drugPresets||[]).length || (CFG.procPresets||[]).length)){
+        syncPresetsToFirebase();
+      }
+    });
+    fbRef.child('presets').on('value', snap=>{
+      const v=snap.val(); if(!v) return;
+      if(v.by===DEVICE_ID) return;                 // ค่าที่เครื่องนี้เพิ่งส่งเอง ไม่ต้องโหลดซ้ำ
+      let changed=false;
+      if(Array.isArray(v.drugPresets)){ CFG.drugPresets=v.drugPresets; changed=true; }
+      if(Array.isArray(v.procPresets)){ CFG.procPresets=v.procPresets; changed=true; }
+      if(changed){
+        DB.settings=CFG;
+        try{ localStorage.setItem('cpr_db',JSON.stringify(DB)); }catch(e){}
+        if(!document.getElementById('drug-modal').classList.contains('hide')) renderPresets();
+        if(!document.getElementById('proc-modal').classList.contains('hide')) renderProcGrid();
+      }
+    });
+
     // Active-case listener — เคสที่เครื่องอื่นกำลังบันทึกอยู่
     fbRef.child('active').on('value', snap=>{
       remoteActive=snap.val()||null;
@@ -2676,6 +2697,7 @@ function persistProc(){
   DB.settings=CFG;
   saveDB();
   renderProcGrid();
+  syncPresetsToFirebase();   // แก้ทีเดียว → ไปทุกเครื่อง
 }
 function procToAirway(){
   $('proc-modal').classList.add('hide'); // ไม่ใช้ hide() เพื่อคง tapMin (นาทีที่แตะ) ไว้
@@ -2781,6 +2803,19 @@ function persistPresets(){
   DB.settings=CFG;
   saveDB();
   renderPresets();
+  syncPresetsToFirebase();   // แก้ทีเดียว → ไปทุกเครื่อง
+}
+// ส่ง preset (ยา/หัตถการ) ขึ้น Firebase ให้ทุกเครื่องใช้ค่าเดียวกัน
+function syncPresetsToFirebase(){
+  if(!fbRef) return;
+  try{
+    fbRef.child('presets').set({
+      drugPresets: CFG.drugPresets||[],
+      procPresets: CFG.procPresets||[],
+      updatedAt: Date.now(),
+      by: DEVICE_ID
+    });
+  }catch(e){}
 }
 function ettStep(id,delta){
   const inp=$(id); if(!inp) return;
@@ -2851,8 +2886,19 @@ function confirmEditPatient(){
   const oldStart=S.startTime;
   S.startTime=applyTime('edit-starttime',S.startTime);
   if(S.startTime!==oldStart){
-    // เวลาเริ่ม CPR เปลี่ยน → อัปเดตคอลัมน์เวลาในตารางให้ตรงจริง
-    refreshClocks();
+    // เวลาเริ่ม CPR เปลี่ยน → เลื่อนรายการที่บันทึกทั้งหมด (ยา/หัตถการ/adr/defib/rhythm)
+    // ให้คงเวลาจริงเดิม = เลื่อนนาทีไปเท่าๆ กันตามส่วนต่างของเวลาเริ่ม
+    const deltaMin=Math.round((new Date(oldStart).getTime()-new Date(S.startTime).getTime())/60000);
+    if(deltaMin!==0){
+      (S.events||[]).forEach(e=>{ if(e&&typeof e.minute==='number') e.minute=Math.max(0,e.minute+deltaMin); });
+      const rd=S.rhythmData||{}, nrd={};
+      Object.keys(rd).forEach(k=>{ const nm=Math.max(0,parseInt(k)+deltaMin); nrd[nm]=rd[k]; });
+      S.rhythmData=nrd;
+      if(S.adrNextMin!=null) S.adrNextMin=Math.max(0,S.adrNextMin+deltaMin);
+      (S.events||[]).forEach(e=>{ if(e&&typeof e.minute==='number') e.ts=tsForMin(e.minute); });
+    }
+    refreshClocks();   // อัปเดตคอลัมน์เวลาซ้ายสุด
+    if($('screen-cpr').classList.contains('active')) restoreTimeline();  // วาดรายการที่เลื่อนแล้วใหม่
     lastSecond=-1; // force tick to recompute elapsed/current row
     tick();
   }
