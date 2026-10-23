@@ -180,6 +180,7 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
       <div class="h1">🚑 ใบนำส่งผู้ป่วยระหว่างหน่วยงาน</div>
       <div class="h2">โรงพยาบาลชัยนาทนเรนทร · หน่วยงานอุบัติเหตุฉุกเฉิน · <span id="home-fb"></span></div>
     </div>
+    <div id="resume-banner"></div>
     <button class="big-btn new" onclick="startNew()">➕ สร้างใบนำส่งใหม่</button>
     <button class="big-btn dash" onclick="askAdmin('dashboard')">📊 Dashboard รายเดือน</button>
     <button class="big-btn list" onclick="askAdmin('list')">🗂 รายการเคส / Review (admin)</button>
@@ -206,7 +207,7 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
   <div class="wrap">
     <div class="month-row">
       <label style="font-weight:700">เดือน:</label>
-      <input type="month" class="inp" id="dash-month" style="max-width:200px" onchange="renderDash()">
+      <select class="inp" id="dash-month" style="max-width:200px" onchange="renderDash()"></select>
       <button class="mini-btn gray" onclick="reviewPDF()">📄 Review PDF เคสที่ต้องทบทวน</button>
     </div>
     <div class="stat-grid" id="dash-stats"></div>
@@ -218,7 +219,7 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
   <div class="app-hdr"><button class="hdr-btn" onclick="go('home')">← หน้าแรก</button><div class="ttl">🗂 รายการเคสนำส่ง</div></div>
   <div class="wrap">
     <div class="month-row">
-      <input type="month" class="inp" id="list-month" style="max-width:200px" onchange="renderList()">
+      <select class="inp" id="list-month" style="max-width:200px" onchange="renderList()"></select>
       <input type="text" class="inp" id="list-search" placeholder="ค้นหา HN / ชื่อ..." oninput="renderList()" style="flex:1;min-width:140px">
     </div>
     <div class="sublabel" style="margin-bottom:10px">📄 กด "ดู/พิมพ์" เพื่อเปิด/บันทึกไฟล์ PDF A4 ได้ทุกเมื่อ (ทำงานจากข้อมูลในระบบ ไม่ต้องพึ่ง Drive) · ไฟล์ตอนจบการนำส่งจะอัปโหลดเก็บใน Google Drive โฟลเดอร์เดียวกับแอป "ลิงก์สำคัญ" (ตามที่ตั้งใน Apps Script)</div>
@@ -235,8 +236,19 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
       <button class="big-add" style="background:linear-gradient(145deg,#2563eb,#1d4ed8)" onclick="printSaved()">🖨 พิมพ์ / บันทึก PDF</button>
       <div class="sublabel" id="saved-drive" style="margin-top:8px">☁ กำลังอัปโหลดขึ้น Google Drive...</div>
       <button class="mini-btn gray" style="margin-top:10px;width:100%;padding:14px;font-size:16px" onclick="go('home')">เสร็จ — กลับหน้าแรก</button>
-      <div style="border:1px solid var(--line);border-radius:10px;overflow:auto;background:#fff;max-height:60vh;margin-top:12px"><div id="saved-preview" style="zoom:0.5"></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><b style="font-size:13px;color:var(--muted)">ตัวอย่าง A4</b><button class="mini-btn gray" onclick="openFsPreview('saved')">⛶ เต็มจอ</button></div>
+      <div style="border:1px solid var(--line);border-radius:10px;overflow:auto;background:#fff;max-height:60vh;margin-top:6px"><div id="saved-preview" style="zoom:0.5"></div></div>
     </div>
+  </div>
+</div>
+
+<div class="ov hide" id="fs-modal" style="padding:0;align-items:stretch;z-index:160">
+  <div style="background:#fff;width:100%;height:100%;display:flex;flex-direction:column">
+    <div style="background:var(--navy);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+      <b>ตัวอย่าง A4 (เต็มจอ)</b>
+      <div><button class="hdr-btn" onclick="window.print()" style="margin-right:6px">🖨 พิมพ์</button><button class="hdr-btn" onclick="hideEl('fs-modal')">✕ ปิด</button></div>
+    </div>
+    <div style="flex:1;overflow:auto;background:#eef2f6"><div id="fs-body" style="margin:0 auto"></div></div>
   </div>
 </div>
 
@@ -361,7 +373,21 @@ function setFB(st){ const c='fb-dot '+(st==='ok'?'fb-ok':st==='err'?'fb-err':'fb
 function liveRefresh(){ if($('s-dash').classList.contains('active'))renderDash(); if($('s-list').classList.contains('active'))renderList(); }
 
 /* ============ NAV ============ */
-function go(scr){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $('s-'+scr).classList.add('active'); window.scrollTo(0,0); }
+function go(scr){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $('s-'+scr).classList.add('active'); window.scrollTo(0,0); if(scr==='home') renderResume(); }
+/* ---- draft autosave + resume (เผื่อปิดแอปก่อนจบเคส) ---- */
+function saveDraft(){ try{ if(R&&!R.locked) localStorage.setItem('tf_draft',JSON.stringify({R:R,page:page,t:Date.now()})); }catch(e){} }
+function getDraft(){ try{ return JSON.parse(localStorage.getItem('tf_draft')||'null'); }catch(e){ return null; } }
+function clearDraft(){ try{ localStorage.removeItem('tf_draft'); }catch(e){} }
+function hasDraft(){ const d=getDraft(); return !!(d&&d.R&&!d.R.locked&&(d.R.patientName||d.R.hn||d.R.transporter||(d.R.obs&&d.R.obs.length))); }
+function renderResume(){ const el=$('resume-banner'); if(!el)return; if(!hasDraft()){ el.innerHTML=''; return; } const d=getDraft();
+  el.innerHTML=`<div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:14px;padding:14px;margin-bottom:4px">
+    <div style="font-weight:800;color:#92400e">📝 มีเคสที่กรอกค้างอยู่</div>
+    <div style="font-size:13px;color:#92400e;margin-top:2px">${esc(d.R.patientName||'(ไม่ระบุชื่อ)')}${d.R.hn?' · HN '+esc(d.R.hn):''} — ขั้นตอนที่ ${d.page||1}</div>
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="mini-btn" style="flex:1;padding:12px" onclick="resumeDraft()">▶ ทำต่อ</button><button class="mini-btn gray" style="padding:12px" onclick="discardDraft()">ลบ</button></div></div>`;
+}
+function resumeDraft(){ const d=getDraft(); if(!d||!d.R){ renderResume(); return; } R=d.R; page=d.page||1; go('wiz'); renderWiz(); }
+function discardDraft(){ if(confirm('ลบเคสที่กรอกค้าง?')){ clearDraft(); renderResume(); } }
+function rememberNurse(w,v){ if(v){ try{ localStorage.setItem(w==='recv'?'tf_lastRecv':'tf_lastSend', v); }catch(e){} } }
 function toast(m,ms){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),ms||2800); }
 function hideEl(id){ $(id).classList.add('hide'); }
 
@@ -403,7 +429,7 @@ function blankRecord(){
   const now=new Date();
   return { id:'tf_'+Date.now()+'_'+Math.random().toString(36).slice(2,7), createdAt:now.toISOString(),
     month:now.getFullYear()+'-'+pad(now.getMonth()+1), locked:false,
-    transporter:'', date:now.toISOString().slice(0,10), time:hhmm(now), location:'', hn:'', patientName:'', dx:'', firstNurse:'',
+    transporter:(localStorage.getItem('tf_lastSend')||''), date:now.toISOString().slice(0,10), time:hhmm(now), location:'', hn:'', patientName:'', dx:'', firstNurse:'',
     vsSBP:'', vsDBP:'', vsPR:'', vsRR:'', vsT:'', cE:'', cV:'', cM:'', cRt:'', cLt:'', nurseNote:'',
     prep:{ idBand:'', record:'', monitor:'', film:'', belongings:'',
       oralAirway:false, nasalAirway:false, ettOn:false, ettSize:'', ettDepth:'', ambubag:false,
@@ -411,7 +437,7 @@ function blankRecord(){
       iv:false, ivLines:[], blood:false, bloodText:'',
       suture:false, pressure:false, splint:false, collar:false, scoop:false, tourniquet:false, tourniquetPos:'' },
     alertInterval:5, departER:hhmm(now), obs:[],
-    ev:{ ab:'',abDetail:'',circ:'',circDetail:'',bleed:'',bleedDetail:'',dis:'',disDetail:'',handover:'',arriveTime:'',summary:'',summaryOther:'',initialHelp:'',wardNurse:'',
+    ev:{ ab:'',abDetail:'',circ:'',circDetail:'',bleed:'',bleedDetail:'',dis:'',disDetail:'',handover:'',arriveTime:'',summary:'',summaryOther:'',initialHelp:'',wardNurse:(localStorage.getItem('tf_lastRecv')||''),
       wSBP:'',wDBP:'',wPR:'',wRR:'',wT:'',wE:'',wV:'',wM:'',wRt:'',wLt:'',wO2:'', transportComment:'', wardSign:'' },
     durationMin:null, driveUrl:'', driveId:'' };
 }
@@ -421,8 +447,8 @@ function hhmm(d){return pad(d.getHours())+':'+pad(d.getMinutes());}
 
 /* ============ WIZARD ============ */
 const STEP_NAMES=['ผู้นำส่ง','ผู้ป่วย+V/S','เตรียมย้าย','บันทึกพยาบาล','ประเมิน','Comment','สรุป+เซ็น'];
-function startNew(){ R=blankRecord(); page=1; go('wiz'); renderWiz(); }
-function confirmExitWiz(){ if(confirm('ออกจากการกรอก? ข้อมูลที่ยังไม่บันทึกจะหาย')){ stopAlert(); go('home'); } }
+function startNew(){ if(hasDraft()&&!confirm('มีเคสที่กรอกค้างอยู่ — เริ่มใหม่จะลบของเดิม ตกลงไหม?')) return; clearDraft(); R=blankRecord(); page=1; go('wiz'); renderWiz(); }
+function confirmExitWiz(){ saveDraft(); stopAlert(); toast('บันทึกร่างไว้แล้ว — กลับมาทำต่อได้',2600); go('home'); }
 function renderSteps(){ $('wiz-steps').innerHTML=STEP_NAMES.map((n,i)=>{const k=i+1;const cls=k===page?'on':(k<page?'done':'');return `<div class="wiz-step ${cls}" onclick="gotoPage(${k})">${k}.${n}</div>`;}).join(''); $('wiz-pt').textContent=R.patientName?('· '+R.patientName+(R.hn?' ('+R.hn+')':'')):''; }
 function gotoPage(k){ savecurrent(); page=k; renderWiz(); }
 function wizPrev(){ if(page>1){ savecurrent(); page--; renderWiz(); } }
@@ -458,6 +484,7 @@ function savecurrent(){
   else if(page===5){ const e=R.ev; e.abDetail=val('f-abdetail');e.circDetail=val('f-circdetail');e.bleedDetail=val('f-bleeddetail');e.disDetail=val('f-disdetail');e.arriveTime=val('f-arrive');e.summaryOther=val('f-summaryother');e.initialHelp=val('f-initialhelp'); computeDuration(); }
   else if(page===6){ R.ev.transportComment=val('f-comment'); }
   else if(page===7){ R.ev.wardNurse=val('f-wardnurse'); saveSigs(); computeDuration(); }
+  saveDraft();
 }
 function computeDuration(){ if(R.departER&&R.ev.arriveTime){ const [h1,m1]=R.departER.split(':').map(Number),[h2,m2]=R.ev.arriveTime.split(':').map(Number); if(!isNaN(h1)&&!isNaN(h2)){ let d=(h2*60+m2)-(h1*60+m1); if(d<0)d+=1440; R.durationMin=d; } } }
 
@@ -485,7 +512,7 @@ function pg1(){ return `
   <div class="card c-blue">
     <h3>ผู้นำส่งผู้ป่วย</h3>
     <div class="fld"><label>ชื่อผู้นำส่ง (เลือกจากรายชื่อ หรือเพิ่มใหม่)</label>
-      ${nurseSelect('f-transporter',R.transporter,'nurseChange(this,v=>R.transporter=v)','send')}
+      ${nurseSelect('f-transporter',R.transporter,'nurseChange(this,v=>{R.transporter=v;rememberNurse(\'send\',v);})','send')}
       <div style="margin-top:8px"><button class="mini-btn gray" onclick="openNurseMgr('send')">✏️ จัดการรายชื่อผู้นำส่ง</button></div>
     </div>
     <div class="sublabel">กด "ถัดไป" เพื่อกรอกข้อมูลผู้ป่วย — วันที่/เวลาใส่อัตโนมัติ (แก้ได้)</div>
@@ -501,7 +528,7 @@ function pg2(){ return `
     </div>
     <div class="fld"><label>สถานที่รับผู้ป่วย</label><input class="inp" id="f-location" value="${esc(R.location)}" placeholder="เช่น ER, OPD"></div>
     <div class="row">
-      <div class="fld"><label>HN</label><input class="inp" id="f-hn" value="${esc(R.hn)}" autocomplete="off"></div>
+      <div class="fld"><label>HN</label><input class="inp" id="f-hn" value="${esc(R.hn)}" inputmode="numeric" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'');R.hn=this.value"></div>
       <div class="fld" style="flex:2"><label>ชื่อ-สกุล ผู้ป่วย</label><input class="inp" id="f-name" value="${esc(R.patientName)}"></div>
     </div>
     <div class="fld"><label>Dx</label><input class="inp" id="f-dx" value="${esc(R.dx)}"></div>
@@ -601,7 +628,7 @@ const OE=[['sbp','sbp','SBP'],['dbp','dbp','DBP'],['pr','pr','PR'],['rr','rr','R
 function renderObsCards(){ const c=$('obs-cards'); if(!c)return;
   if(!R.obs.length){ c.innerHTML='<div class="sublabel" style="text-align:center;padding:14px">ยังไม่มีบันทึก — กด "เพิ่มบันทึกสัญญาณชีพ"</div>'; return; }
   c.innerHTML=R.obs.map((o,i)=>`<div class="obs-card" onclick="editObs(${i})">
-    <div class="oc-h"><span class="oc-time">🕐 ${o.time||'—'}</span>${o.recorder?`<span class="oc-rec">${esc(o.recorder)}</span>`:''}</div>
+    <div class="oc-h"><span class="oc-time">🕐 ${o.time||'—'}</span></div>
     <div class="oc-grid">
       <span><b>BP</b> ${o.sbp||'-'}/${o.dbp||'-'}</span><span><b>PR</b> ${o.pr||'-'}</span><span><b>RR</b> ${o.rr||'-'}</span>
       <span><b>SpO₂</b> ${o.spo2||'-'}</span><span><b>T</b> ${o.temp||'-'}</span><span><b>Pain</b> ${o.pain||'-'}</span>
@@ -616,15 +643,14 @@ function editObs(i){ obsEdit=i; openObsEditor(); }
 /* ---- obs editor sheet ---- */
 let obsEdit=-1;
 function openObsEditor(){ renderObsEditor(); $('obs-modal').classList.remove('hide'); }
-function closeObsEditor(){ $('obs-modal').classList.add('hide'); renderObsCards(); }
+function closeObsEditor(){ $('obs-modal').classList.add('hide'); renderObsCards(); saveDraft(); }
 function deleteObsFromEditor(){ if(obsEdit>=0){ R.obs.splice(obsEdit,1); } obsEdit=-1; closeObsEditor(); }
 function renderObsEditor(){ const o=R.obs[obsEdit]||emptyObs();
   $('obs-edit-body').innerHTML=`
     <div class="fld"><label>เวลา</label><input type="time" class="inp" id="oe-time" value="${esc(o.time)}" onchange="R.obs[obsEdit].time=this.value"></div>
     <div class="grp-lbl">สัญญาณชีพ (พิมพ์ตัวเลข)</div>
     <div class="vgrid">${ofld('sbp','SBP','int')}${ofld('dbp','DBP','int')}${ofld('pr','PR','int')}${ofld('rr','RR','int')}${ofld('temp','BT (°C)','dec')}${ofld('spo2','SpO₂','int')}${ofld('pupilRt','Pupil Rt','text')}${ofld('pupilLt','Pupil Lt','text')}${ofld('e','E','int')}${ofld('m','M','int')}${ofld('v','V','text')}${ofld('pain','Pain','int')}</div>
-    <div class="fld" style="margin-top:12px"><label>Assessment / Intervention</label><textarea class="inp" id="oe-note" oninput="R.obs[obsEdit].note=this.value" placeholder="อาการ/การช่วยเหลือ...">${esc(o.note)}</textarea></div>
-    <div class="fld"><label>ผู้บันทึก</label>${nurseSelect('oe-rec',o.recorder,'nurseChangeObs(this)','send')}</div>`;
+    <div class="fld" style="margin-top:12px"><label>Assessment / Intervention</label><textarea class="inp" id="oe-note" oninput="R.obs[obsEdit].note=this.value" placeholder="อาการ/การช่วยเหลือ...">${esc(o.note)}</textarea></div>`;
 }
 function nurseChangeObs(sel){ if(sel.value==='__add__'){ const n=prompt('ชื่อพยาบาลใหม่:'); if(n&&n.trim()){ addNurse('send',n.trim()); R.obs[obsEdit].recorder=n.trim(); } renderObsEditor(); return; } R.obs[obsEdit].recorder=sel.value; }
 
@@ -682,7 +708,7 @@ function pg7(){ const e=R.ev; computeDuration();
   setTimeout(()=>{ try{ renderA4(R); $('a4-preview').innerHTML=$('a4-form').innerHTML; }catch(err){} },20);
   return `
   <div class="card c-teal">
-    <h3>สรุปรายละเอียดการนำส่ง (A4) — ตรวจก่อนเซ็น</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="border:none;margin:0;padding:0">สรุป (A4) — ตรวจก่อนเซ็น</h3><button class="mini-btn gray" onclick="openFsPreview('wiz')">⛶ เต็มจอ</button></div>
     <div class="sublabel">เลื่อนดูให้ครบ แล้วให้พยาบาลปลายทางเซ็นรับทราบการนำส่งร่วมกันด้านล่าง</div>
     <div style="border:1px solid var(--line);border-radius:10px;overflow:auto;background:#fff;max-height:60vh;margin-top:8px">
       <div id="a4-preview" style="zoom:0.52"></div>
@@ -691,7 +717,7 @@ function pg7(){ const e=R.ev; computeDuration();
   <div class="card c-slate">
     <h3>พยาบาลปลายทางเซ็นรับทราบการนำส่ง</h3>
     <div class="fld"><label>ชื่อพยาบาลผู้รับผู้ป่วย (ปลายทาง)</label>
-      ${nurseSelect('f-wardnurse',e.wardNurse,'nurseChange(this,v=>R.ev.wardNurse=v)','recv')}
+      ${nurseSelect('f-wardnurse',e.wardNurse,'nurseChange(this,v=>{R.ev.wardNurse=v;rememberNurse(\'recv\',v);})','recv')}
       <div style="margin-top:8px"><button class="mini-btn gray" onclick="openNurseMgr('recv')">✏️ จัดการรายชื่อปลายทาง</button></div></div>
     <div class="fld"><label>ลายเซ็น</label><div class="sig-wrap"><button class="sig-clear" onclick="clearSig('wardSign')">ล้าง</button><canvas data-sig="wardSign"></canvas></div></div>
     <div class="sublabel">กด "🔒 จบการนำส่ง" ด้านล่างเพื่อบันทึก + สร้าง PDF ขึ้น Drive · หลังจบแล้วแก้ข้อมูลไม่ได้ (ผู้นำส่งเพิ่ม comment ภายหลังได้)</div>
@@ -713,6 +739,7 @@ async function finalize(){
   if(!R.patientName&&!R.hn){ if(!confirm('ยังไม่กรอกชื่อ/HN — จบการนำส่งต่อไหม?')){ page=2; renderWiz(); return; } }
   if(!confirm('จบการนำส่ง? หลังจบแล้วจะย้อนแก้ไม่ได้ (เพิ่ม comment ภายหลังได้)')) return;
   stopAlert(); R.locked=true; R.month=(R.date||'').slice(0,7)||R.month;
+  rememberNurse('send',R.transporter); rememberNurse('recv',R.ev.wardNurse); clearDraft();
   toast('กำลังบันทึก...',6000);
   if(fbRef){ try{ await fbRef.child('cases/'+R.id).set(JSON.parse(JSON.stringify(R))); }catch(e){console.warn(e);} }
   // แสดง PDF สรุปทันที (ใช้ window.print → บันทึก/แชร์เป็น PDF ได้ ไม่ต้องพึ่งเน็ต)
@@ -756,8 +783,8 @@ function renderA4(r){ const p=r.prep,e=r.ev;
   const dis=[]; if(p.splint)dis.push('splint/stab'); if(p.collar)dis.push('Hard/Philadelphia collar'); if(p.scoop)dis.push('Scoop/Spinal board'); if(p.tourniquet)dis.push('Tourniquet'+(p.tourniquetPos?' ('+esc(p.tourniquetPos)+')':''));
   const sumT=e.summary==='same'?'<b>คงเดิม</b>':e.summary==='worse'?'<b>ทรุดลง</b>':e.summary==='other'?('<b>อื่นๆ</b> '+esc(e.summaryOther)):'—';
   const used=o=>['sbp','dbp','pr','rr','temp','spo2','pupilRt','pupilLt','e','m','v','pain','note','recorder','time'].some(f=>o[f]);
-  const rows=r.obs.filter(used).map(o=>`<tr><td>${esc(o.time)}</td><td>${esc(o.sbp)}</td><td>${esc(o.dbp)}</td><td>${esc(o.pr)}</td><td>${esc(o.rr)}</td><td>${esc(o.temp)}</td><td>${esc(o.spo2)}</td><td>${esc(o.pupilRt)}</td><td>${esc(o.pupilLt)}</td><td>${esc(o.e)}</td><td>${esc(o.m)}</td><td>${esc(o.v)}</td><td>${esc(o.pain)}</td><td style="text-align:left">${esc(o.note)}</td><td>${esc(o.recorder)}</td></tr>`).join('');
-  const blanks=Array.from({length:Math.max(0,6-r.obs.filter(used).length)}).map(()=>`<tr>${'<td>&nbsp;</td>'.repeat(15)}</tr>`).join('');
+  const rows=r.obs.filter(used).map(o=>`<tr><td>${esc(o.time)}</td><td>${esc(o.sbp)}</td><td>${esc(o.dbp)}</td><td>${esc(o.pr)}</td><td>${esc(o.rr)}</td><td>${esc(o.temp)}</td><td>${esc(o.spo2)}</td><td>${esc(o.pupilRt)}</td><td>${esc(o.pupilLt)}</td><td>${esc(o.e)}</td><td>${esc(o.m)}</td><td>${esc(o.v)}</td><td>${esc(o.pain)}</td><td style="text-align:left">${esc(o.note)}</td></tr>`).join('');
+  const blanks=Array.from({length:Math.max(0,6-r.obs.filter(used).length)}).map(()=>`<tr>${'<td>&nbsp;</td>'.repeat(14)}</tr>`).join('');
   $('a4-form').innerHTML=`<div class="a4page" id="a4p1">
   <div class="a4-head"><div style="font-size:26px">🏥</div>
     <div style="flex:1"><div class="ht">โรงพยาบาลชัยนาทนเรนทร</div><div class="hs">แบบบันทึกข้อมูลส่งต่อผู้ป่วย หน่วยงานอุบัติเหตุฉุกเฉิน</div></div>
@@ -776,7 +803,7 @@ function renderA4(r){ const p=r.prep,e=r.ev;
   <div class="a4-line">ห้ามเลือด: ${bld.length?bld.join(' · '):'—'}</div>
   <div class="a4-line">Disability: ${dis.length?dis.join(' · '):'—'}</div>
   <div class="a4-sec">บันทึกอาการทุก ${r.alertInterval} นาที (ออกจาก ER ${esc(r.departER)||'....'})</div>
-  <table class="a4-tbl"><thead><tr><th>Time</th><th>SBP</th><th>DBP</th><th>PR</th><th>RR</th><th>Temp</th><th>SPO₂</th><th>Rt</th><th>Lt</th><th>E</th><th>M</th><th>V</th><th>Pain</th><th style="width:150px">Assessment/Intervention</th><th>ผู้บันทึก</th></tr></thead><tbody>${rows}${blanks}</tbody></table>
+  <table class="a4-tbl"><thead><tr><th>Time</th><th>SBP</th><th>DBP</th><th>PR</th><th>RR</th><th>Temp</th><th>SPO₂</th><th>Rt</th><th>Lt</th><th>E</th><th>M</th><th>V</th><th>Pain</th><th style="width:170px">Assessment/Intervention</th></tr></thead><tbody>${rows}${blanks}</tbody></table>
   <div class="a4-sec">การประเมินการนำส่งโดยหอผู้ป่วยใน</div>
   <div class="a4-line">A&B: ${evT(e.ab)} ${e.ab==='inappropriate'?esc(e.abDetail):''}</div>
   <div class="a4-line">Circulation: ${evT(e.circ)} ${e.circ==='inappropriate'?esc(e.circDetail):''}</div>
@@ -798,10 +825,19 @@ function renderA4(r){ const p=r.prep,e=r.ev;
 }
 function printRecord(r){ renderA4(r); setTimeout(()=>window.print(),80); }
 function printSaved(){ if(savedRec) printRecord(savedRec); }
+function openFsPreview(src){ const rec=src==='saved'?savedRec:R; if(!rec)return; renderA4(rec); const fit=Math.min(1,(window.innerWidth-16)/794); const fb=$('fs-body'); fb.style.zoom=fit; fb.innerHTML=$('a4-form').innerHTML; $('fs-modal').classList.remove('hide'); }
 
 /* ============ DASHBOARD / LIST ============ */
-function openDash(){ go('dash'); const m=$('dash-month'); if(!m.value)m.value=new Date().toISOString().slice(0,7); renderDash(); }
-function openList(){ go('list'); const m=$('list-month'); if(!m.value)m.value=new Date().toISOString().slice(0,7); renderList(); }
+const TH_MON=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function thMonth(m){ const a=(m||'').split('-'); if(a.length<2)return m; return TH_MON[parseInt(a[1])]+' '+(parseInt(a[0])+543); }
+function fillMonths(selId){ const set=new Set(); const now=new Date(); set.add(now.getFullYear()+'-'+pad(now.getMonth()+1));
+  Object.values(CASES).forEach(r=>{ const m=r&&(r.month||(r.date||'').slice(0,7)); if(m&&/^\d{4}-\d{2}$/.test(m)) set.add(m); });
+  const arr=[...set].sort().reverse(); const sel=$(selId); if(!sel)return; const cur=sel.value;
+  sel.innerHTML=arr.map(m=>`<option value="${m}">${thMonth(m)}</option>`).join('');
+  sel.value=(cur&&arr.includes(cur))?cur:arr[0];
+}
+function openDash(){ go('dash'); fillMonths('dash-month'); renderDash(); }
+function openList(){ go('list'); fillMonths('list-month'); renderList(); }
 function isBad(r){ return ['ab','circ','bleed','dis'].some(k=>r.ev&&r.ev[k]==='inappropriate'); }
 function isWorse(r){ return r.ev&&r.ev.summary==='worse'; }
 function hasCmt(r){ return r.ev&&(r.ev.transportComment||'').trim(); }
@@ -817,12 +853,12 @@ function recCard(r){ const b=[]; if(isBad(r))b.push('<span class="badge b-bad">�
     ${r.driveUrl?`<a class="mini-btn gray" style="text-decoration:none;text-align:center" href="${esc(r.driveUrl)}" target="_blank">Drive</a>`:''}
   </div></div>`;
 }
-function renderDash(){ const m=$('dash-month').value; const list=monthCases(m); const total=list.length,bad=list.filter(isBad).length,worse=list.filter(isWorse).length,cmt=list.filter(hasCmt).length;
+function renderDash(){ fillMonths('dash-month'); const m=$('dash-month').value; const list=monthCases(m); const total=list.length,bad=list.filter(isBad).length,worse=list.filter(isWorse).length,cmt=list.filter(hasCmt).length;
   $('dash-stats').innerHTML=`<div class="stat"><div class="v">${total}</div><div class="l">เคสนำส่งทั้งหมด</div></div><div class="stat bad"><div class="v">${bad}</div><div class="l">ทำหัตถการไม่เหมาะสม</div></div><div class="stat worse"><div class="v">${worse}</div><div class="l">อาการทรุดลง</div></div><div class="stat cmt"><div class="v">${cmt}</div><div class="l">มี comment จากทีมนำส่ง</div></div>`;
   const rev=list.filter(r=>isBad(r)||hasCmt(r)||isWorse(r)).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   $('dash-list').innerHTML=rev.length?`<h3 style="color:var(--navy)">เคสที่ควรทบทวน (${rev.length})</h3>`+rev.map(recCard).join(''):'<div style="color:var(--muted);text-align:center;padding:20px">— ไม่มีเคสที่ต้องทบทวน —</div>';
 }
-function renderList(){ const m=$('list-month').value,q=($('list-search').value||'').toLowerCase().trim(); let list=monthCases(m); if(q)list=list.filter(r=>((r.patientName||'')+' '+(r.hn||'')).toLowerCase().includes(q)); list.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')); $('list-body').innerHTML=list.length?list.map(recCard).join(''):'<div style="color:var(--muted);text-align:center;padding:20px">— ไม่มีเคส —</div>'; }
+function renderList(){ fillMonths('list-month'); const m=$('list-month').value,q=($('list-search').value||'').toLowerCase().trim(); let list=monthCases(m); if(q)list=list.filter(r=>((r.patientName||'')+' '+(r.hn||'')).toLowerCase().includes(q)); list.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')); $('list-body').innerHTML=list.length?list.map(recCard).join(''):'<div style="color:var(--muted);text-align:center;padding:20px">— ไม่มีเคส —</div>'; }
 function viewRec(id){ const r=CASES[id]; if(r)printRecord(r); }
 
 /* ---- add comment to locked/any record ---- */
@@ -849,6 +885,9 @@ try{ const a=JSON.parse(localStorage.getItem('tf_nursesSend')||'null'); if(Array
 function startFB(){ try{ initFB(); }catch(e){ console.warn('initFB',e); } }
 if(typeof firebase!=='undefined'){ startFB(); }
 else { window.addEventListener('load', startFB); setTimeout(function(){ if(!fbRef) startFB(); }, 2500); }
+/* autosave ร่างทุก 4 วิ ขณะกรอก + แสดงปุ่มทำต่อหน้าแรก */
+setInterval(function(){ if($('s-wiz').classList.contains('active')) saveDraft(); }, 4000);
+renderResume();
 </script>
 </body>
 </html>
