@@ -96,6 +96,10 @@ textarea.inp{min-height:70px;resize:vertical}
 .vmini{margin-bottom:0}
 .vmini label{font-size:12px;margin-bottom:3px}
 .vmini .inp{padding:10px 6px;text-align:center;font-size:18px;font-weight:700}
+.spx{display:flex;gap:4px;align-items:stretch}
+.spx .inp{flex:1;min-width:0}
+.tgx{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:0 10px;font-weight:800;color:#475569;cursor:pointer;font-size:13px;flex:0 0 auto}
+.tgx.on{background:var(--accent);border-color:var(--accent);color:#fff}
 @media(max-width:380px){.vgrid{grid-template-columns:repeat(2,1fr)}}
 .obs-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .obs-tbl{width:100%;border-collapse:collapse;font-size:12px}
@@ -181,10 +185,18 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
       <div class="h2">โรงพยาบาลชัยนาทนเรนทร · หน่วยงานอุบัติเหตุฉุกเฉิน · <span id="home-fb"></span></div>
     </div>
     <div id="resume-banner"></div>
-    <button class="big-btn new" onclick="startNew()">➕ สร้างใบนำส่งใหม่</button>
-    <button class="big-btn dash" onclick="askAdmin('dashboard')">📊 Dashboard รายเดือน</button>
-    <button class="big-btn list" onclick="askAdmin('list')">🗂 รายการเคส / Review (admin)</button>
+    <button class="big-btn new" onclick="startNew()">➕ สร้างใบนำส่ง</button>
+    <button class="big-btn list" onclick="go('hub')">📁 บันทึกการนำส่งทั้งหมด</button>
     <div style="text-align:center"><button class="hdr-btn" style="background:#e2e8f0;color:#334155" onclick="askAdmin('setpass')">🔒 เปลี่ยนรหัส admin</button></div>
+  </div>
+</div>
+
+<div id="s-hub" class="screen">
+  <div class="app-hdr"><button class="hdr-btn" onclick="go('home')">← หน้าแรก</button><div class="ttl">📁 บันทึกการนำส่งทั้งหมด</div></div>
+  <div class="home-wrap" style="min-height:auto;padding-top:24px">
+    <button class="big-btn dash" onclick="openDash()">📊 Dashboard (เดือน/ไตรมาส/ปี)</button>
+    <button class="big-btn" style="background:linear-gradient(145deg,#d97706,#b45309)" onclick="askAdmin('review')">🔎 เคสรอการรีวิว (admin)</button>
+    <button class="big-btn list" onclick="askAdmin('list')">🗂 บันทึกการนำส่งทั้งหมด · ดู PDF (admin)</button>
   </div>
 </div>
 
@@ -203,26 +215,42 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
 </div>
 
 <div id="s-dash" class="screen">
-  <div class="app-hdr"><button class="hdr-btn" onclick="go('home')">← หน้าแรก</button><div class="ttl">📊 Dashboard รายเดือน</div></div>
+  <div class="app-hdr"><button class="hdr-btn" onclick="go('hub')">← กลับ</button><div class="ttl">📊 Dashboard</div></div>
   <div class="wrap">
+    <div class="seg" style="margin-bottom:10px">
+      <button id="dt-month" onclick="setDashType('month')">รายเดือน</button>
+      <button id="dt-quarter" onclick="setDashType('quarter')">รายไตรมาส</button>
+      <button id="dt-year" onclick="setDashType('year')">รายปี</button>
+    </div>
     <div class="month-row">
-      <label style="font-weight:700">เดือน:</label>
-      <select class="inp" id="dash-month" style="max-width:200px" onchange="renderDash()"></select>
-      <button class="mini-btn gray" onclick="reviewPDF()">📄 Review PDF เคสที่ต้องทบทวน</button>
+      <select class="inp" id="dash-period" style="flex:1" onchange="renderDash()"></select>
+      <button class="mini-btn gray" onclick="reviewPDF()">📄 Review PDF</button>
     </div>
     <div class="stat-grid" id="dash-stats"></div>
     <div id="dash-list"></div>
   </div>
 </div>
 
+<div id="s-review" class="screen">
+  <div class="app-hdr"><button class="hdr-btn" onclick="go('hub')">← กลับ</button><div class="ttl">🔎 เคสรอการรีวิว</div></div>
+  <div class="wrap">
+    <div class="month-row">
+      <select class="inp" id="review-month" style="flex:1" onchange="renderReview()"></select>
+      <button class="mini-btn gray" onclick="reviewPDFMonth('review-month')">📄 Review PDF</button>
+    </div>
+    <div class="sublabel" style="margin-bottom:8px">เคสที่: ทำหัตถการไม่เหมาะสม / อาการทรุดลง / มี comment จากทีมนำส่ง</div>
+    <div id="review-body"></div>
+  </div>
+</div>
+
 <div id="s-list" class="screen">
-  <div class="app-hdr"><button class="hdr-btn" onclick="go('home')">← หน้าแรก</button><div class="ttl">🗂 รายการเคสนำส่ง</div></div>
+  <div class="app-hdr"><button class="hdr-btn" onclick="go('hub')">← กลับ</button><div class="ttl">🗂 บันทึกการนำส่งทั้งหมด</div></div>
   <div class="wrap">
     <div class="month-row">
       <select class="inp" id="list-month" style="max-width:200px" onchange="renderList()"></select>
-      <input type="text" class="inp" id="list-search" placeholder="ค้นหา HN / ชื่อ..." oninput="renderList()" style="flex:1;min-width:140px">
+      <input type="text" class="inp" id="list-search" placeholder="ค้นหา HN / ชื่อ / รหัส..." oninput="renderList()" style="flex:1;min-width:140px">
     </div>
-    <div class="sublabel" style="margin-bottom:10px">📄 กด "ดู/พิมพ์" เพื่อเปิด/บันทึกไฟล์ PDF A4 ได้ทุกเมื่อ (ทำงานจากข้อมูลในระบบ ไม่ต้องพึ่ง Drive) · ไฟล์ตอนจบการนำส่งจะอัปโหลดเก็บใน Google Drive โฟลเดอร์เดียวกับแอป "ลิงก์สำคัญ" (ตามที่ตั้งใน Apps Script)</div>
+    <div class="sublabel" style="margin-bottom:10px">📄 กด "ดู/พิมพ์" เพื่อเปิด/บันทึก PDF A4 ได้ทุกเมื่อ · "Drive" = เปิดไฟล์ที่อัปโหลด · 🗑 ลบ ต้องใส่รหัส admin</div>
     <div id="list-body"></div>
   </div>
 </div>
@@ -370,7 +398,7 @@ function initFB(){
   }catch(e){ console.warn(e); setFB('err'); }
 }
 function setFB(st){ const c='fb-dot '+(st==='ok'?'fb-ok':st==='err'?'fb-err':'fb-off'); const w=$('wiz-fb'); if(w){w.className=c;} const h=$('home-fb'); if(h) h.textContent=st==='ok'?'● ออนไลน์':st==='err'?'● ต่อไม่ได้':'● ออฟไลน์'; fbOK=st==='ok'; }
-function liveRefresh(){ if($('s-dash').classList.contains('active'))renderDash(); if($('s-list').classList.contains('active'))renderList(); }
+function liveRefresh(){ if($('s-dash').classList.contains('active'))renderDash(); if($('s-list').classList.contains('active'))renderList(); if($('s-review').classList.contains('active'))renderReview(); }
 
 /* ============ NAV ============ */
 function go(scr){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $('s-'+scr).classList.add('active'); window.scrollTo(0,0); if(scr==='home') renderResume(); }
@@ -402,7 +430,8 @@ function adminOk(){
   if(pass!==cur&&pass!=='1234'){ toast('รหัสไม่ถูกต้อง'); return; }
   if(adminAction==='setpass'){ const nw=($('admin-new').value||'').trim(); if(!nw){toast('ใส่รหัสใหม่');return;} SETTINGS.adminPass=nw; if(fbRef){try{fbRef.child('settings').set(SETTINGS);}catch(e){}} hideEl('admin-modal'); toast('เปลี่ยนรหัสแล้ว ✓'); return; }
   adminOK=true; hideEl('admin-modal');
-  if(adminAction==='dashboard') openDash(); else if(adminAction==='list') openList();
+  if(adminAction==='dashboard') openDash(); else if(adminAction==='list') openList(); else if(adminAction==='review') openReview();
+  else if(adminAction&&adminAction.indexOf('del:')===0){ doDelete(adminAction.slice(4)); }
 }
 
 /* ============ NURSES (2 ชุดแยกกัน: send=ผู้นำส่ง, recv=ปลายทาง) ============ */
@@ -428,7 +457,7 @@ function delNurse(i){ listOf(mgrWhich).splice(i,1); saveNurses(mgrWhich); render
 function blankRecord(){
   const now=new Date();
   return { id:'tf_'+Date.now()+'_'+Math.random().toString(36).slice(2,7), createdAt:now.toISOString(),
-    month:now.getFullYear()+'-'+pad(now.getMonth()+1), locked:false,
+    month:now.getFullYear()+'-'+pad(now.getMonth()+1), no:null, locked:false,
     transporter:(localStorage.getItem('tf_lastSend')||''), date:now.toISOString().slice(0,10), time:hhmm(now), location:'', hn:'', patientName:'', dx:'', firstNurse:'',
     vsSBP:'', vsDBP:'', vsPR:'', vsRR:'', vsT:'', cE:'', cV:'', cM:'', cRt:'', cLt:'', nurseNote:'',
     prep:{ idBand:'', record:'', monitor:'', film:'', belongings:'',
@@ -506,6 +535,20 @@ function ofld(field,label,kind){
   const im = kind==='dec' ? 'decimal':'numeric';
   return `<div class="fld vmini"><label>${esc(label)}</label><input class="inp" value="${esc(v)}" inputmode="${im}" oninput="${filt};R.obs[obsEdit]['${field}']=this.value"></div>`;
 }
+/* ---- special fields: V (ติ๊ก T = ใส่ ETT) · Pupil (ติ๊ก NA = ตาเสีย) ---- */
+function tgSet(btn,setter,token){ const inp=btn.parentElement.querySelector('input'); const on=btn.classList.toggle('on'); if(on){ inp.value=''; inp.disabled=true; setter(token); } else { inp.disabled=false; setter(inp.value); } }
+function fldV(field){ const v=cur(field); const isT=v==='T'; return `<div class="fld vmini"><label>V</label><div class="spx">
+  <input class="inp" value="${isT?'':esc(v)}" inputmode="numeric" ${isT?'disabled':''} oninput="this.value=this.value.replace(/[^0-9]/g,'');setCur('${field}',this.value)">
+  <button type="button" class="tgx ${isT?'on':''}" onclick="tgSet(this,(x)=>setCur('${field}',x),'T')">T</button></div></div>`; }
+function fldPupil(field,label){ const v=cur(field); const na=v==='NA'; return `<div class="fld vmini"><label>${esc(label)}</label><div class="spx">
+  <input class="inp" value="${na?'':esc(v)}" inputmode="numeric" ${na?'disabled':''} oninput="this.value=this.value.replace(/[^0-9]/g,'');setCur('${field}',this.value)">
+  <button type="button" class="tgx ${na?'on':''}" onclick="tgSet(this,(x)=>setCur('${field}',x),'NA')">NA</button></div></div>`; }
+function ofldV(){ const o=R.obs[obsEdit]||{}; const v=o.v||''; const isT=v==='T'; return `<div class="fld vmini"><label>V</label><div class="spx">
+  <input class="inp" value="${isT?'':esc(v)}" inputmode="numeric" ${isT?'disabled':''} oninput="this.value=this.value.replace(/[^0-9]/g,'');R.obs[obsEdit].v=this.value">
+  <button type="button" class="tgx ${isT?'on':''}" onclick="tgSet(this,(x)=>R.obs[obsEdit].v=x,'T')">T</button></div></div>`; }
+function ofldPupil(field,label){ const o=R.obs[obsEdit]||{}; const v=o[field]||''; const na=v==='NA'; return `<div class="fld vmini"><label>${esc(label)}</label><div class="spx">
+  <input class="inp" value="${na?'':esc(v)}" inputmode="numeric" ${na?'disabled':''} oninput="this.value=this.value.replace(/[^0-9]/g,'');R.obs[obsEdit]['${field}']=this.value">
+  <button type="button" class="tgx ${na?'on':''}" onclick="tgSet(this,(x)=>R.obs[obsEdit]['${field}']=x,'NA')">NA</button></div></div>`; }
 
 /* ---- PAGE 1 ---- */
 function pg1(){ return `
@@ -538,7 +581,7 @@ function pg2(){ return `
     <div class="grp-lbl">ความดัน / ชีพจร / หายใจ / อุณหภูมิ</div>
     <div class="vgrid">${vfld('vsSBP','SBP','int')}${vfld('vsDBP','DBP','int')}${vfld('vsPR','PR','int')}${vfld('vsRR','RR','int')}${vfld('vsT','BT (°C)','dec')}</div>
     <div class="grp-lbl">COMA SCORE</div>
-    <div class="vgrid">${vfld('cE','E','int')}${vfld('cV','V','text')}${vfld('cM','M','int')}${vfld('cRt','Pupil Rt','text')}${vfld('cLt','Pupil Lt','text')}</div>
+    <div class="vgrid">${vfld('cE','E','int')}${fldV('cV')}${vfld('cM','M','int')}${fldPupil('cRt','Pupil Rt')}${fldPupil('cLt','Pupil Lt')}</div>
     <div class="fld" style="margin-top:12px"><label>Nurse Note</label><textarea class="inp" id="f-nursenote">${esc(R.nurseNote)}</textarea></div>
   </div>`;}
 
@@ -649,7 +692,7 @@ function renderObsEditor(){ const o=R.obs[obsEdit]||emptyObs();
   $('obs-edit-body').innerHTML=`
     <div class="fld"><label>เวลา</label><input type="time" class="inp" id="oe-time" value="${esc(o.time)}" onchange="R.obs[obsEdit].time=this.value"></div>
     <div class="grp-lbl">สัญญาณชีพ (พิมพ์ตัวเลข)</div>
-    <div class="vgrid">${ofld('sbp','SBP','int')}${ofld('dbp','DBP','int')}${ofld('pr','PR','int')}${ofld('rr','RR','int')}${ofld('temp','BT (°C)','dec')}${ofld('spo2','SpO₂','int')}${ofld('pupilRt','Pupil Rt','text')}${ofld('pupilLt','Pupil Lt','text')}${ofld('e','E','int')}${ofld('m','M','int')}${ofld('v','V','text')}${ofld('pain','Pain','int')}</div>
+    <div class="vgrid">${ofld('sbp','SBP','int')}${ofld('dbp','DBP','int')}${ofld('pr','PR','int')}${ofld('rr','RR','int')}${ofld('temp','BT (°C)','dec')}${ofld('spo2','SpO₂','int')}${ofldPupil('pupilRt','Pupil Rt')}${ofldPupil('pupilLt','Pupil Lt')}${ofld('e','E','int')}${ofld('m','M','int')}${ofldV()}${ofld('pain','Pain','int')}</div>
     <div class="fld" style="margin-top:12px"><label>Assessment / Intervention</label><textarea class="inp" id="oe-note" oninput="R.obs[obsEdit].note=this.value" placeholder="อาการ/การช่วยเหลือ...">${esc(o.note)}</textarea></div>`;
 }
 function nurseChangeObs(sel){ if(sel.value==='__add__'){ const n=prompt('ชื่อพยาบาลใหม่:'); if(n&&n.trim()){ addNurse('send',n.trim()); R.obs[obsEdit].recorder=n.trim(); } renderObsEditor(); return; } R.obs[obsEdit].recorder=sel.value; }
@@ -687,12 +730,13 @@ function pg5(){ const e=R.ev; computeDuration(); return `
       <button class="${e.summary==='other'?'on':''}" onclick="setSummary('other')">อื่นๆ</button></div>
       ${e.summary==='other'?`<input class="inp" id="f-summaryother" value="${esc(e.summaryOther)}" placeholder="ระบุ" style="margin-top:6px">`:''}</div>
     <div class="fld"><label>การช่วยเหลือเบื้องต้น (กรณีทรุดลง)</label><textarea class="inp" id="f-initialhelp">${esc(e.initialHelp)}</textarea></div>
-    <div class="grp-lbl">Vital sign ที่ตึกก่อนลงเตียง</div>
+    <div style="display:flex;justify-content:space-between;align-items:center"><div class="grp-lbl">Vital sign ที่ตึกก่อนลงเตียง</div><button class="mini-btn gray" onclick="pullLatestVS()">⬇ ดึงค่าล่าสุด</button></div>
     <div class="vgrid">${vfld('wSBP','SBP','int')}${vfld('wDBP','DBP','int')}${vfld('wPR','PR','int')}${vfld('wRR','RR','int')}${vfld('wT','BT (°C)','dec')}${vfld('wO2','SpO₂','int')}</div>
     <div class="grp-lbl">COMA SCORE</div>
-    <div class="vgrid">${vfld('wE','E','int')}${vfld('wV','V','text')}${vfld('wM','M','int')}${vfld('wRt','Pupil Rt','text')}${vfld('wLt','Pupil Lt','text')}</div>
+    <div class="vgrid">${vfld('wE','E','int')}${fldV('wV')}${vfld('wM','M','int')}${fldPupil('wRt','Pupil Rt')}${fldPupil('wLt','Pupil Lt')}</div>
   </div>`;}
 function updDur(){ const v=$('dur-val'); if(v)v.textContent=R.durationMin!=null?R.durationMin+' นาที':'—'; }
+function pullLatestVS(){ const o=(R.obs&&R.obs.length)?R.obs[R.obs.length-1]:null; if(!o){toast('ยังไม่มีบันทึกสัญญาณชีพในหน้า 4');return;} const e=R.ev; e.wSBP=o.sbp||'';e.wDBP=o.dbp||'';e.wPR=o.pr||'';e.wRR=o.rr||'';e.wT=o.temp||'';e.wO2=o.spo2||'';e.wE=o.e||'';e.wV=o.v||'';e.wM=o.m||'';e.wRt=o.pupilRt||'';e.wLt=o.pupilLt||''; rr(); toast('ดึงค่าล่าสุด ('+(o.time||'')+') แล้ว — แก้ไขได้'); }
 
 /* ---- PAGE 6 ---- */
 function pg6(){ const e=R.ev; return `
@@ -716,9 +760,8 @@ function pg7(){ const e=R.ev; computeDuration();
   </div>
   <div class="card c-slate">
     <h3>พยาบาลปลายทางเซ็นรับทราบการนำส่ง</h3>
-    <div class="fld"><label>ชื่อพยาบาลผู้รับผู้ป่วย (ปลายทาง)</label>
-      ${nurseSelect('f-wardnurse',e.wardNurse,'nurseChange(this,v=>{R.ev.wardNurse=v;rememberNurse(\'recv\',v);})','recv')}
-      <div style="margin-top:8px"><button class="mini-btn gray" onclick="openNurseMgr('recv')">✏️ จัดการรายชื่อปลายทาง</button></div></div>
+    <div class="fld"><label>ชื่อพยาบาลผู้รับผู้ป่วย (ปลายทาง) — พิมพ์เอง</label>
+      <input class="inp" id="f-wardnurse" value="${esc(e.wardNurse)}" placeholder="ชื่อ-สกุล พยาบาลปลายทาง" oninput="R.ev.wardNurse=this.value"></div>
     <div class="fld"><label>ลายเซ็น</label><div class="sig-wrap"><button class="sig-clear" onclick="clearSig('wardSign')">ล้าง</button><canvas data-sig="wardSign"></canvas></div></div>
     <div class="sublabel">กด "🔒 จบการนำส่ง" ด้านล่างเพื่อบันทึก + สร้าง PDF ขึ้น Drive · หลังจบแล้วแก้ข้อมูลไม่ได้ (ผู้นำส่งเพิ่ม comment ภายหลังได้)</div>
   </div>`;}
@@ -739,6 +782,7 @@ async function finalize(){
   if(!R.patientName&&!R.hn){ if(!confirm('ยังไม่กรอกชื่อ/HN — จบการนำส่งต่อไหม?')){ page=2; renderWiz(); return; } }
   if(!confirm('จบการนำส่ง? หลังจบแล้วจะย้อนแก้ไม่ได้ (เพิ่ม comment ภายหลังได้)')) return;
   stopAlert(); R.locked=true; R.month=(R.date||'').slice(0,7)||R.month;
+  if(!R.no) R.no=nextNo(R.month);   // รหัสใบนำส่ง = ใบที่-เดือน-ปี
   rememberNurse('send',R.transporter); rememberNurse('recv',R.ev.wardNurse); clearDraft();
   toast('กำลังบันทึก...',6000);
   if(fbRef){ try{ await fbRef.child('cases/'+R.id).set(JSON.parse(JSON.stringify(R))); }catch(e){console.warn(e);} }
@@ -788,7 +832,7 @@ function renderA4(r){ const p=r.prep,e=r.ev;
   $('a4-form').innerHTML=`<div class="a4page" id="a4p1">
   <div class="a4-head"><div style="font-size:26px">🏥</div>
     <div style="flex:1"><div class="ht">โรงพยาบาลชัยนาทนเรนทร</div><div class="hs">แบบบันทึกข้อมูลส่งต่อผู้ป่วย หน่วยงานอุบัติเหตุฉุกเฉิน</div></div>
-    <div class="a4-sticker">ชื่อ-สกุล ${esc(r.patientName)||'..........'}<br>HN ${esc(r.hn)||'......'} · AN ....<br>${r.locked?'🔒 จบการนำส่งแล้ว':''}</div></div>
+    <div class="a4-sticker">รหัสใบนำส่ง <b>${caseCode(r)}</b><br>ชื่อ-สกุล ${esc(r.patientName)||'..........'}<br>HN ${esc(r.hn)||'......'}<br>${r.locked?'🔒 จบการนำส่งแล้ว':''}</div></div>
   <div class="a4-line">วันที่ <span class="u">${esc(r.date)}</span> เวลา <span class="u">${esc(r.time)}</span> สถานที่รับผู้ป่วย <span class="u">${esc(r.location)||'......'}</span> · ผู้นำส่ง <span class="u">${esc(r.transporter)||'......'}</span></div>
   <div class="a4-line">Dx <span class="u">${esc(r.dx)||'............................................'}</span></div>
   <div class="a4-line">Vital sign ก่อนนำส่ง BP <span class="u">${esc(r.vsSBP)||'..'}/${esc(r.vsDBP)||'..'}</span> P <span class="u">${esc(r.vsPR)||'..'}</span> R <span class="u">${esc(r.vsRR)||'..'}</span> T <span class="u">${esc(r.vsT)||'..'}</span></div>
@@ -836,30 +880,51 @@ function fillMonths(selId){ const set=new Set(); const now=new Date(); set.add(n
   sel.innerHTML=arr.map(m=>`<option value="${m}">${thMonth(m)}</option>`).join('');
   sel.value=(cur&&arr.includes(cur))?cur:arr[0];
 }
-function openDash(){ go('dash'); fillMonths('dash-month'); renderDash(); }
+function openDash(){ go('dash'); setDashType(dashType||'month'); }
 function openList(){ go('list'); fillMonths('list-month'); renderList(); }
+function openReview(){ go('review'); fillMonths('review-month'); renderReview(); }
 function isBad(r){ return ['ab','circ','bleed','dis'].some(k=>r.ev&&r.ev[k]==='inappropriate'); }
 function isWorse(r){ return r.ev&&r.ev.summary==='worse'; }
 function hasCmt(r){ return r.ev&&(r.ev.transportComment||'').trim(); }
 function monthCases(m){ return Object.values(CASES).filter(r=>r&&(r.month===m||(r.date||'').slice(0,7)===m)); }
-function recCard(r){ const b=[]; if(isBad(r))b.push('<span class="badge b-bad">หัตถการไม่เหมาะสม</span>'); if(isWorse(r))b.push('<span class="badge b-worse">ทรุดลง</span>'); if(hasCmt(r))b.push('<span class="badge b-cmt">มี comment</span>'); if(r.locked)b.push('<span class="badge b-lock">🔒 จบแล้ว</span>');
+function monthOf(r){ return (r&&(r.month||(r.date||'').slice(0,7)))||''; }
+function caseCode(r){ if(!r||!r.no) return '—'; const a=monthOf(r).split('-'); return r.no+'-'+(parseInt(a[1])||'')+'-'+((parseInt(a[0])||0)+543); }
+/* ---- running number ต่อเดือน ---- */
+function nextNo(m){ let mx=0; Object.values(CASES).forEach(r=>{ if(r&&monthOf(r)===m&&typeof r.no==='number'&&r.no>mx)mx=r.no; }); return mx+1; }
+function recCard(r,opts){ opts=opts||{}; const b=[]; if(isBad(r))b.push('<span class="badge b-bad">หัตถการไม่เหมาะสม</span>'); if(isWorse(r))b.push('<span class="badge b-worse">ทรุดลง</span>'); if(hasCmt(r))b.push('<span class="badge b-cmt">มี comment</span>');
   return `<div class="rec-card"><div style="min-width:0">
     <div class="nm">${esc(r.patientName)||'(ไม่ระบุชื่อ)'} ${r.hn?'· HN '+esc(r.hn):''}</div>
-    <div class="mt">${esc(r.date)} ${esc(r.time)} · นำส่งโดย ${esc(r.transporter)||'-'}${r.durationMin!=null?' · '+r.durationMin+' นาที':''}</div>
+    <div class="mt">รหัส <b>${caseCode(r)}</b> · ${esc(r.date)} ${esc(r.time)} · นำส่งโดย ${esc(r.transporter)||'-'}${r.durationMin!=null?' · '+r.durationMin+' นาที':''}</div>
     <div style="margin-top:5px">${b.join('')||'<span class="badge" style="background:#dcfce7;color:#166534">ปกติ</span>'}</div>
   </div><div style="display:flex;flex-direction:column;gap:6px">
-    <button class="mini-btn" onclick="viewRec('${r.id}')">📄 ดู/พิมพ์</button>
-    <button class="mini-btn gray" onclick="openAddComment('${r.id}')">💬 เพิ่ม comment</button>
-    ${r.driveUrl?`<a class="mini-btn gray" style="text-decoration:none;text-align:center" href="${esc(r.driveUrl)}" target="_blank">Drive</a>`:''}
+    <button class="mini-btn" onclick="viewRec('${r.id}')">📄 ดู/พิมพ์ PDF</button>
+    <button class="mini-btn gray" onclick="openAddComment('${r.id}')">💬 comment</button>
+    ${r.driveUrl?`<a class="mini-btn gray" style="text-decoration:none;text-align:center" href="${esc(r.driveUrl)}" target="_blank">☁ Drive</a>`:''}
+    ${opts.del?`<button class="mini-btn" style="background:var(--red)" onclick="askAdmin('del:${r.id}')">🗑 ลบ</button>`:''}
   </div></div>`;
 }
-function renderDash(){ fillMonths('dash-month'); const m=$('dash-month').value; const list=monthCases(m); const total=list.length,bad=list.filter(isBad).length,worse=list.filter(isWorse).length,cmt=list.filter(hasCmt).length;
+/* ---- dashboard: เดือน/ไตรมาส/ปี ---- */
+let dashType='month';
+function periodList(type){ const set=new Set(); const now=new Date();
+  Object.values(CASES).forEach(r=>{ const m=monthOf(r); if(!/^\d{4}-\d{2}$/.test(m))return; const [y,mo]=m.split('-'); if(type==='year')set.add(y); else if(type==='quarter')set.add(y+'-Q'+(Math.floor((parseInt(mo)-1)/3)+1)); else set.add(m); });
+  if(type==='year')set.add(String(now.getFullYear())); else if(type==='quarter')set.add(now.getFullYear()+'-Q'+(Math.floor(now.getMonth()/3)+1)); else set.add(now.getFullYear()+'-'+pad(now.getMonth()+1));
+  return [...set].sort().reverse();
+}
+function periodLabel(type,v){ if(type==='year')return 'ปี '+(parseInt(v)+543); if(type==='quarter'){const[y,q]=v.split('-Q');return 'ไตรมาส '+q+'/'+(parseInt(y)+543);} return thMonth(v); }
+function periodMatch(r,type,v){ const m=monthOf(r); if(!m)return false; if(type==='year')return m.slice(0,4)===v; if(type==='quarter'){const[y,q]=v.split('-Q');const mo=parseInt(m.slice(5,7));return m.slice(0,4)===y&&(Math.floor((mo-1)/3)+1)===parseInt(q);} return m===v; }
+function setDashType(t){ dashType=t; ['month','quarter','year'].forEach(x=>{const el=$('dt-'+x); if(el)el.classList.toggle('on',x===t);});
+  const arr=periodList(t); const sel=$('dash-period'); const cur=sel.value; sel.innerHTML=arr.map(v=>`<option value="${v}">${periodLabel(t,v)}</option>`).join(''); sel.value=(cur&&arr.includes(cur))?cur:arr[0]; renderDash(); }
+function renderDash(){ const type=dashType, v=$('dash-period').value; const list=Object.values(CASES).filter(r=>r&&periodMatch(r,type,v));
+  const total=list.length,bad=list.filter(isBad).length,worse=list.filter(isWorse).length,cmt=list.filter(hasCmt).length;
   $('dash-stats').innerHTML=`<div class="stat"><div class="v">${total}</div><div class="l">เคสนำส่งทั้งหมด</div></div><div class="stat bad"><div class="v">${bad}</div><div class="l">ทำหัตถการไม่เหมาะสม</div></div><div class="stat worse"><div class="v">${worse}</div><div class="l">อาการทรุดลง</div></div><div class="stat cmt"><div class="v">${cmt}</div><div class="l">มี comment จากทีมนำส่ง</div></div>`;
   const rev=list.filter(r=>isBad(r)||hasCmt(r)||isWorse(r)).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
-  $('dash-list').innerHTML=rev.length?`<h3 style="color:var(--navy)">เคสที่ควรทบทวน (${rev.length})</h3>`+rev.map(recCard).join(''):'<div style="color:var(--muted);text-align:center;padding:20px">— ไม่มีเคสที่ต้องทบทวน —</div>';
+  $('dash-list').innerHTML=rev.length?`<h3 style="color:var(--navy)">เคสที่ควรทบทวน (${rev.length})</h3>`+rev.map(r=>recCard(r)).join(''):'<div style="color:var(--muted);text-align:center;padding:20px">— ไม่มีเคสที่ต้องทบทวนในช่วงนี้ —</div>';
 }
-function renderList(){ fillMonths('list-month'); const m=$('list-month').value,q=($('list-search').value||'').toLowerCase().trim(); let list=monthCases(m); if(q)list=list.filter(r=>((r.patientName||'')+' '+(r.hn||'')).toLowerCase().includes(q)); list.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')); $('list-body').innerHTML=list.length?list.map(recCard).join(''):'<div style="color:var(--muted);text-align:center;padding:20px">— ไม่มีเคส —</div>'; }
+function renderReview(){ fillMonths('review-month'); const m=$('review-month').value; const list=monthCases(m).filter(r=>isBad(r)||hasCmt(r)||isWorse(r)).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')); $('review-body').innerHTML=list.length?list.map(r=>recCard(r)).join(''):'<div style="color:var(--muted);text-align:center;padding:20px">— ไม่มีเคสที่ต้องทบทวน —</div>'; }
+function renderList(){ fillMonths('list-month'); const m=$('list-month').value,q=($('list-search').value||'').toLowerCase().trim(); let list=monthCases(m); if(q)list=list.filter(r=>((r.patientName||'')+' '+(r.hn||'')+' '+caseCode(r)).toLowerCase().includes(q)); list.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')); $('list-body').innerHTML=list.length?list.map(r=>recCard(r,{del:true})).join(''):'<div style="color:var(--muted);text-align:center;padding:20px">— ไม่มีเคส —</div>'; }
 function viewRec(id){ const r=CASES[id]; if(r)printRecord(r); }
+/* ---- ลบเคส (admin) ---- */
+function doDelete(id){ const r=CASES[id]; if(!r){return;} if(!confirm('ลบเคส '+(r.patientName||r.hn||caseCode(r))+' ถาวร?')) return; if(fbRef){try{fbRef.child('cases/'+id).remove();}catch(e){}} delete CASES[id]; toast('ลบแล้ว'); liveRefresh(); }
 
 /* ---- add comment to locked/any record ---- */
 function openAddComment(id){ cmtTargetId=id; const r=CASES[id]; $('cmt-existing').textContent=(r&&r.ev&&r.ev.transportComment)?('เดิม: '+r.ev.transportComment):''; $('cmt-text').value=''; $('cmt-modal').classList.remove('hide'); }
@@ -873,9 +938,11 @@ async function submitComment(){ const r=CASES[cmtTargetId]; if(!r){hideEl('cmt-m
 }
 
 /* ---- monthly review PDF ---- */
-function reviewPDF(){ const m=$('dash-month').value; const list=monthCases(m).filter(r=>isBad(r)||hasCmt(r)||isWorse(r)); if(!list.length){toast('ไม่มีเคสที่ต้องทบทวน');return;}
-  const rows=list.map((r,i)=>`<tr><td>${i+1}</td><td style="text-align:left">${esc(r.patientName)||'-'}<br><small>${esc(r.hn)}</small></td><td>${esc(r.date)}<br>${esc(r.time)}</td><td>${esc(r.transporter)||'-'}</td><td style="text-align:left">${['ab','circ','bleed','dis'].filter(k=>r.ev[k]==='inappropriate').map(k=>({ab:'A&B',circ:'Circ',bleed:'ห้ามเลือด',dis:'Disab'}[k])+': '+esc(r.ev[k+'Detail']||'')).join('<br>')||'-'}</td><td>${isWorse(r)?'ทรุดลง':'-'}</td><td style="text-align:left">${esc((r.ev.transportComment||'').trim())||'-'}</td></tr>`).join('');
-  const el=$('a4-form'); el.innerHTML=`<div class="a4page"><div class="a4-head"><div style="font-size:24px">🏥</div><div style="flex:1"><div class="ht">สรุปเคสนำส่งที่ต้องทบทวน — ${m}</div><div class="hs">โรงพยาบาลชัยนาทนเรนทร · หน่วยงานอุบัติเหตุฉุกเฉิน</div></div></div><div class="a4-line">รวม ${list.length} เคส</div><table class="a4-tbl" style="font-size:10px"><thead><tr><th>#</th><th>ผู้ป่วย</th><th>วันเวลา</th><th>ผู้นำส่ง</th><th style="width:190px">หัตถการไม่เหมาะสม</th><th>อาการ</th><th style="width:210px">Comment</th></tr></thead><tbody>${rows}</tbody></table><div class="a4-foot">ทบทวนคุณภาพการนำส่ง · ${new Date().toLocaleString('th-TH')}</div></div>`;
+function reviewPDF(){ const type=dashType, v=$('dash-period').value; const list=Object.values(CASES).filter(r=>r&&periodMatch(r,type,v)&&(isBad(r)||hasCmt(r)||isWorse(r))); reviewPrint(list, periodLabel(type,v)); }
+function reviewPDFMonth(selId){ const m=$(selId).value; const list=monthCases(m).filter(r=>isBad(r)||hasCmt(r)||isWorse(r)); reviewPrint(list, thMonth(m)); }
+function reviewPrint(list,label){ if(!list.length){toast('ไม่มีเคสที่ต้องทบทวน');return;}
+  const rows=list.map((r,i)=>`<tr><td>${i+1}</td><td>${caseCode(r)}</td><td style="text-align:left">${esc(r.patientName)||'-'}<br><small>${esc(r.hn)}</small></td><td>${esc(r.date)}<br>${esc(r.time)}</td><td>${esc(r.transporter)||'-'}</td><td style="text-align:left">${['ab','circ','bleed','dis'].filter(k=>r.ev[k]==='inappropriate').map(k=>({ab:'A&B',circ:'Circ',bleed:'ห้ามเลือด',dis:'Disab'}[k])+': '+esc(r.ev[k+'Detail']||'')).join('<br>')||'-'}</td><td>${isWorse(r)?'ทรุดลง':'-'}</td><td style="text-align:left">${esc((r.ev.transportComment||'').trim())||'-'}</td></tr>`).join('');
+  const el=$('a4-form'); el.innerHTML=`<div class="a4page"><div class="a4-head"><div style="font-size:24px">🏥</div><div style="flex:1"><div class="ht">สรุปเคสนำส่งที่ต้องทบทวน — ${esc(label)}</div><div class="hs">โรงพยาบาลชัยนาทนเรนทร · หน่วยงานอุบัติเหตุฉุกเฉิน</div></div></div><div class="a4-line">รวม ${list.length} เคส</div><table class="a4-tbl" style="font-size:10px"><thead><tr><th>#</th><th>รหัส</th><th>ผู้ป่วย</th><th>วันเวลา</th><th>ผู้นำส่ง</th><th style="width:170px">หัตถการไม่เหมาะสม</th><th>อาการ</th><th style="width:190px">Comment</th></tr></thead><tbody>${rows}</tbody></table><div class="a4-foot">ทบทวนคุณภาพการนำส่ง · ${new Date().toLocaleString('th-TH')}</div></div>`;
   el.classList.add('showprint'); window.print(); setTimeout(()=>el.classList.remove('showprint'),500);
 }
 
