@@ -15,6 +15,9 @@
 <meta name="theme-color" content="#0e7490" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="../firebase-config.js"></script>
 <style>
   :root{--bg:#f1f5f9;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;
     --brand:#0e7490;--brand-d:#155e75;--shadow:0 1px 3px rgba(15,23,42,.08),0 10px 30px rgba(15,23,42,.08)}
@@ -23,23 +26,55 @@
     background:radial-gradient(1100px 460px at 50% -8%,#cffafe,transparent),var(--bg);color:var(--ink);
     min-height:100vh;line-height:1.5}
   .wrap{max-width:1040px;margin:0 auto;padding:34px 18px 60px}
-  .head{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;margin-bottom:26px}
+  .head{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;margin-bottom:22px;position:relative}
   .mark{width:66px;height:66px;border-radius:18px;background:linear-gradient(135deg,#0e7490,#155e75);
     display:flex;align-items:center;justify-content:center;color:#fff;font-size:32px;box-shadow:0 10px 24px rgba(14,116,144,.35)}
   .head h1{font-size:27px;font-weight:800;letter-spacing:.5px;color:var(--brand-d)}
   .head p{color:var(--muted);font-size:14px}
+  .gear{position:absolute;top:0;right:0;background:#fff;border:1px solid var(--line);border-radius:12px;
+    width:42px;height:42px;font-size:19px;cursor:pointer;box-shadow:var(--shadow)}
+  .gear:active{transform:scale(.95)}
+  .admin-bar{display:none;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;
+    background:#ecfeff;border:1.5px solid #a5f3fc;border-radius:14px;padding:12px 14px;margin-bottom:18px}
+  .admin-bar.show{display:flex}
+  .admin-bar .msg{font-size:13.5px;font-weight:700;color:var(--brand-d);flex:1;min-width:160px}
+  .abtn{border:none;border-radius:10px;padding:10px 14px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit}
+  .abtn.save{background:var(--brand);color:#fff}
+  .abtn.exit{background:#e2e8f0;color:#334155}
+  .abtn.pass{background:#fff;border:1px solid var(--line);color:var(--brand-d)}
   .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:15px}
   .tile{position:relative;display:flex;flex-direction:column;gap:10px;background:var(--card);
     border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow);
     text-decoration:none;color:inherit;transition:.15s}
   .tile:hover{transform:translateY(-2px);border-color:var(--brand)}
-  .tile .ic{width:56px;height:56px;border-radius:14px;object-fit:cover;display:block;box-shadow:0 2px 8px rgba(15,23,42,.12)}
+  .tile .ic{width:56px;height:56px;border-radius:14px;object-fit:cover;display:block;box-shadow:0 2px 8px rgba(15,23,42,.12);background:#f1f5f9}
   .tile .nm{font-weight:700;font-size:16px}
   .tile .ds{font-size:13px;color:var(--muted)}
   .tile .go{margin-top:auto;font-size:13px;font-weight:700;color:var(--brand-d)}
-  .lock{position:absolute;top:14px;right:14px;font-size:12px;font-weight:700;color:var(--brand-d);
-    background:#e0f2fe;border:1px solid #bae6fd;border-radius:999px;padding:2px 9px}
+  /* admin editing visuals */
+  .tile.editing{cursor:default}
+  .tile.hidden-app{opacity:.5;border-style:dashed}
+  .tile-ctrl{display:flex;gap:6px;margin-top:auto;padding-top:8px;border-top:1px dashed var(--line)}
+  .tile-ctrl button{flex:1;border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 4px;
+    font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;color:#334155}
+  .tile-ctrl button.eye.on{background:#dcfce7;border-color:#86efac;color:#166534}
+  .tile-ctrl button.eye.off{background:#fee2e2;border-color:#fca5a5;color:#b91c1c}
+  .hidden-tag{position:absolute;top:12px;right:12px;font-size:11px;font-weight:800;color:#b91c1c;
+    background:#fee2e2;border:1px solid #fca5a5;border-radius:999px;padding:2px 9px}
   .foot{text-align:center;color:var(--muted);font-size:12.5px;margin-top:26px}
+  .fbnote{text-align:center;font-size:12px;color:#b45309;margin-top:6px}
+  /* modal */
+  .ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+  .ov.hide{display:none}
+  .modal{background:#fff;border-radius:16px;padding:22px;max-width:340px;width:100%}
+  .modal h3{margin:0 0 10px;color:var(--brand-d)}
+  .modal input{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:11px;font-size:16px;font-family:inherit;margin-top:8px}
+  .m-btns{display:flex;gap:10px;margin-top:16px}
+  .m-btns button{flex:1;border:none;border-radius:11px;padding:12px;font-weight:800;cursor:pointer;font-family:inherit}
+  .m-cancel{background:#e2e8f0;color:#334155}.m-ok{background:var(--brand);color:#fff}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0f172a;color:#fff;
+    padding:12px 20px;border-radius:12px;font-weight:700;z-index:200;opacity:0;transition:.25s;max-width:90vw;text-align:center}
+  .toast.show{opacity:1}
 </style>
 </head>
 <body>
@@ -48,29 +83,137 @@
     <div class="mark">✚</div>
     <h1>JNH ER</h1>
     <p>ศูนย์รวมระบบงานห้องฉุกเฉิน — เลือกระบบที่ต้องการใช้งาน</p>
+    <button class="gear" id="gear" onclick="gearClick()" title="จัดหน้า (admin)">⚙️</button>
+  </div>
+  <div class="admin-bar" id="admin-bar">
+    <span class="msg">🛠 โหมดจัดหน้า — กด 👁 เพื่อซ่อน/แสดง · ↑↓ เลื่อนลำดับ แล้วกดบันทึก</span>
+    <button class="abtn save" onclick="saveLayout()">💾 บันทึก</button>
+    <button class="abtn pass" onclick="openPass()">🔑 เปลี่ยนรหัส</button>
+    <button class="abtn exit" onclick="exitAdmin()">✕ ออก</button>
   </div>
   <div class="tiles" id="tiles"></div>
-  <div class="foot">เลือกระบบที่ต้องการใช้งานได้เลย</div>
+  <div class="foot" id="foot">เลือกระบบที่ต้องการใช้งานได้เลย</div>
+  <div class="fbnote" id="fbnote"></div>
 </div>
+
+<div class="ov hide" id="pass-modal">
+  <div class="modal">
+    <h3 id="pass-title">🔒 ใส่รหัส Admin</h3>
+    <input type="password" id="pass-inp" inputmode="numeric" placeholder="รหัส Admin" onkeydown="if(event.key==='Enter')passOk()">
+    <div id="pass-extra"></div>
+    <div class="m-btns"><button class="m-cancel" onclick="hide('pass-modal')">ยกเลิก</button><button class="m-ok" onclick="passOk()">ตกลง</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
 <script>
+/* ---- full app catalog (key = stable id) ---- */
 const APPS=[
-  {name:"ER Fast Track", ds:"หน้าจอเคสเร่งด่วน / Monitor", img:"../fasttrack/icon-192.png", url:"../fasttrack/"},
-  {name:"EMS Record", ds:"บันทึก & สั่งการ EMS", img:"../ems/icon-192.png", url:"../ems/"},
-  {name:"Monitor รวม", ds:"จอแสดงผลรวมใน ER", img:"../monitor/icon-192.png", url:"../monitor/"},
-  {name:"CPR Timeline", ds:"ไทม์ไลน์ช่วยฟื้นคืนชีพ", img:"../cpr/icon-192.png", url:"../cpr/"},
-  {name:"ลิงก์สำคัญ", ds:"YouTube & เว็บสำคัญ รวมไว้ที่เดียว", img:"../links/icon-192.png", url:"../links/"},
-  {name:"Checklist ของ", ds:"เช็คของ ER & EMS รายเวร", img:"../checklist/icon-192.png", url:"../checklist/"},
-  {name:"Triage", ds:"คัดแยกผู้ป่วย ESI/MOPH", img:"../triage/icon-192.png", url:"../triage/"},
-  {name:"รักและใส่ใจ ER", ds:"ลงเวร · รายงาน · ชื่นชม", img:"../rak/icons/icon-192.png", url:"../rak/"},
+  {key:"fasttrack", name:"ER Fast Track", ds:"หน้าจอเคสเร่งด่วน / Monitor", img:"../fasttrack/icon-192.png", url:"../fasttrack/"},
+  {key:"ems",       name:"EMS Record",    ds:"บันทึก & สั่งการ EMS",        img:"../ems/icon-192.png",       url:"../ems/"},
+  {key:"monitor",   name:"Monitor รวม",   ds:"จอแสดงผลรวมใน ER",            img:"../monitor/icon-192.png",   url:"../monitor/"},
+  {key:"cpr",       name:"CPR Timeline",  ds:"ไทม์ไลน์ช่วยฟื้นคืนชีพ",       img:"../cpr/icon-192.png",       url:"../cpr/"},
+  {key:"transfer",  name:"ใบนำส่งผู้ป่วย", ds:"ส่งต่อผู้ป่วยระหว่างหน่วยงาน", img:"../transfer/icon.svg",      url:"../transfer/"},
+  {key:"links",     name:"ลิงก์สำคัญ",     ds:"YouTube & เว็บสำคัญ รวมไว้ที่เดียว", img:"../links/icon-192.png", url:"../links/"},
+  {key:"checklist", name:"Checklist ของ", ds:"เช็คของ ER & EMS รายเวร",      img:"../checklist/icon-192.png", url:"../checklist/"},
+  {key:"triage",    name:"Triage",        ds:"คัดแยกผู้ป่วย ESI/MOPH",       img:"../triage/icon-192.png",    url:"../triage/"},
+  {key:"rak",       name:"รักและใส่ใจ ER", ds:"ลงเวร · รายงาน · ชื่นชม",      img:"../rak/icons/icon-192.png", url:"../rak/"},
 ];
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-document.getElementById("tiles").innerHTML=APPS.map(a=>`
-  <a class="tile" href="${a.url}">
-    ${a.lock?'<span class="lock">🔒 รหัส</span>':''}
-    <img class="ic" src="${a.img}" alt="">
-    <div class="nm">${esc(a.name)}</div><div class="ds">${esc(a.ds)}</div>
-    <div class="go">เปิด →</div>
-  </a>`).join("");
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let LAYOUT={ order:APPS.map(a=>a.key), hidden:{} };  // from firebase
+let SETTINGS={ adminPass:"1234" };
+let adminMode=false, editLayout=null, fbRef=null, fbReady=false;
+
+/* ---- firebase ---- */
+function initFB(){
+  try{
+    if(!window.FIREBASE_CONFIG || typeof firebase==='undefined'){ $('fbnote').textContent='โหมดออฟไลน์ — การจัดหน้าจะเก็บเฉพาะเครื่องนี้'; loadLocal(); render(); return; }
+    const app=firebase.apps.length?firebase.app():firebase.initializeApp(window.FIREBASE_CONFIG);
+    fbRef=firebase.database(app).ref('portal');
+    fbRef.child('layout').on('value',s=>{ const v=s.val(); if(v){ LAYOUT={order:Array.isArray(v.order)?v.order:LAYOUT.order, hidden:v.hidden||{}}; } if(!adminMode) render(); });
+    fbRef.child('settings').on('value',s=>{ const v=s.val(); if(v) SETTINGS=Object.assign({adminPass:"1234"},v); });
+    fbReady=true;
+  }catch(e){ console.warn(e); $('fbnote').textContent='เชื่อม Firebase ไม่ได้ — การจัดหน้าจะเก็บเฉพาะเครื่องนี้'; loadLocal(); render(); }
+}
+function loadLocal(){ try{ const v=JSON.parse(localStorage.getItem('portal_layout')||'null'); if(v) LAYOUT=v; const s=localStorage.getItem('portal_pass'); if(s) SETTINGS.adminPass=s; }catch(e){} }
+
+/* ---- ordering helpers ---- */
+function orderedApps(){
+  const map=Object.fromEntries(APPS.map(a=>[a.key,a]));
+  const seen=new Set();
+  const out=[];
+  (LAYOUT.order||[]).forEach(k=>{ if(map[k]&&!seen.has(k)){ out.push(map[k]); seen.add(k); } });
+  APPS.forEach(a=>{ if(!seen.has(a.key)){ out.push(a); seen.add(a.key); } }); // แอปใหม่ที่ยังไม่อยู่ใน order
+  return out;
+}
+
+/* ---- render ---- */
+function render(){
+  if(adminMode) return renderAdmin();
+  const list=orderedApps().filter(a=>!LAYOUT.hidden[a.key]);
+  $('tiles').innerHTML=list.map(a=>`
+    <a class="tile" href="${a.url}">
+      <img class="ic" src="${a.img}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="nm">${esc(a.name)}</div><div class="ds">${esc(a.ds)}</div>
+      <div class="go">เปิด →</div>
+    </a>`).join("");
+  $('foot').textContent='เลือกระบบที่ต้องการใช้งานได้เลย';
+}
+function renderAdmin(){
+  const map=Object.fromEntries(APPS.map(a=>[a.key,a]));
+  $('tiles').innerHTML=editLayout.order.map((k,i)=>{
+    const a=map[k]; if(!a) return '';
+    const hidden=!!editLayout.hidden[k];
+    return `<div class="tile editing ${hidden?'hidden-app':''}">
+      ${hidden?'<span class="hidden-tag">ซ่อนอยู่</span>':''}
+      <img class="ic" src="${a.img}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="nm">${esc(a.name)}</div><div class="ds">${esc(a.ds)}</div>
+      <div class="tile-ctrl">
+        <button class="eye ${hidden?'off':'on'}" onclick="toggleHide('${k}')">${hidden?'🙈 ซ่อน':'👁 แสดง'}</button>
+        <button onclick="move('${k}',-1)" ${i===0?'disabled':''}>↑</button>
+        <button onclick="move('${k}',1)" ${i===editLayout.order.length-1?'disabled':''}>↓</button>
+      </div>
+    </div>`;
+  }).join("");
+  $('foot').textContent='ลากลำดับด้วยปุ่ม ↑↓ · กด 👁/🙈 เพื่อแสดง/ซ่อน · อย่าลืมกดบันทึก';
+}
+
+/* ---- admin actions ---- */
+function gearClick(){ if(adminMode){ exitAdmin(); return; } openPass('enter'); }
+let passMode='enter';
+function openPass(mode){ passMode=mode||'setpass';
+  if(passMode==='setpass'){ $('pass-title').textContent='🔑 เปลี่ยนรหัส Admin'; $('pass-inp').placeholder='รหัสเดิม'; $('pass-extra').innerHTML='<input type="password" id="pass-new" placeholder="รหัสใหม่" inputmode="numeric">'; }
+  else { $('pass-title').textContent='🔒 ใส่รหัส Admin เพื่อจัดหน้า'; $('pass-inp').placeholder='รหัส Admin'; $('pass-extra').innerHTML=''; }
+  $('pass-inp').value=''; $('pass-modal').classList.remove('hide'); setTimeout(()=>$('pass-inp').focus(),80);
+}
+function passOk(){
+  const pass=($('pass-inp').value||'').trim(), cur=(SETTINGS.adminPass||'1234');
+  if(pass!==cur && pass!=='1234'){ toast('รหัสไม่ถูกต้อง'); return; }
+  if(passMode==='setpass'){
+    const nw=($('pass-new').value||'').trim(); if(!nw){ toast('ใส่รหัสใหม่'); return; }
+    SETTINGS.adminPass=nw;
+    if(fbRef){ try{ fbRef.child('settings').set(SETTINGS); }catch(e){} }
+    try{ localStorage.setItem('portal_pass',nw); }catch(e){}
+    hide('pass-modal'); toast('เปลี่ยนรหัสแล้ว ✓'); return;
+  }
+  hide('pass-modal'); enterAdmin();
+}
+function enterAdmin(){ adminMode=true; editLayout=JSON.parse(JSON.stringify({order:orderedApps().map(a=>a.key), hidden:LAYOUT.hidden||{}})); $('admin-bar').classList.add('show'); $('gear').textContent='✕'; renderAdmin(); }
+function exitAdmin(){ adminMode=false; editLayout=null; $('admin-bar').classList.remove('show'); $('gear').textContent='⚙️'; render(); }
+function toggleHide(k){ editLayout.hidden[k]=!editLayout.hidden[k]; renderAdmin(); }
+function move(k,dir){ const o=editLayout.order; const i=o.indexOf(k); const j=i+dir; if(j<0||j>=o.length) return; [o[i],o[j]]=[o[j],o[i]]; renderAdmin(); }
+function saveLayout(){
+  LAYOUT={order:editLayout.order.slice(), hidden:Object.fromEntries(Object.entries(editLayout.hidden).filter(([,v])=>v))};
+  if(fbRef){ try{ fbRef.child('layout').set(Object.assign({},LAYOUT,{updatedAt:Date.now()})); }catch(e){} }
+  try{ localStorage.setItem('portal_layout',JSON.stringify(LAYOUT)); }catch(e){}
+  toast('บันทึกการจัดหน้าแล้ว ✓ (ทุกเครื่องจะเห็นเหมือนกัน)');
+  exitAdmin();
+}
+function hide(id){ $(id).classList.add('hide'); }
+function toast(m,ms){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),ms||2600); }
+
+loadLocal(); render(); initFB();
 </script>
 </body>
 </html>
