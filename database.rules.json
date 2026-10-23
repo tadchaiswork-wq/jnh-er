@@ -21,6 +21,14 @@
     "links": {
       ".read": true,
       ".write": true
+    },
+    "transfer": {
+      ".read": true,
+      ".write": true
+    },
+    "monitorPresence": {
+      ".read": true,
+      ".write": true
     }
   }
 }
