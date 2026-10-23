@@ -823,6 +823,8 @@ function renderCaseRow(id,c,seq){
    TV MONITOR
    ============================================================ */
 let tvTimer=null, audioCtx=null, alarmedIds={}, soundOn=true, tvSeen={}, tvPrimed=false;
+// ระดับเสียง alarm (ALS/ILS): จอรวม (whole monitor) ส่ง ?vol=0.7 มา = เบาลง 30% · หน้า EMS เดี่ยว = 1 (เต็ม)
+const ALARM_VOL=(()=>{ const v=parseFloat(new URLSearchParams(location.search).get("vol")); return (isFinite(v)&&v>0&&v<=1)?v:1; })();
 function stopTV(){ if(tvTimer){clearInterval(tvTimer);tvTimer=null;} }
 
 function ensureAudio(){
@@ -875,7 +877,7 @@ function speakVehicle(v){
 function playAlarm(vehicle){
   if(!soundOn) return;
   ensureAudio();
-  if(audioCtx) playBeep(1000, 0.18, 0.4);   // beep เล็กๆ ตอนเริ่ม (ถ้าเปิดเสียงได้)
+  if(audioCtx) playBeep(1000, 0.18, 0.4*ALARM_VOL);   // beep เล็กๆ ตอนเริ่ม (ถ้าเปิดเสียงได้)
   speakVehicle(vehicle);                      // ประกาศก่อน
   setTimeout(()=>{ if(soundOn) speakVehicle(vehicle); }, 11000);   // ประกาศอีกครั้งหลังเสียงเตือน 10 วิ
   if(!audioCtx) return;
@@ -883,7 +885,7 @@ function playAlarm(vehicle){
   const pat = vehicle==="ALS"
     ? { notes:[1047,1319,1568,1319], type:"square",   step:0.30 }   // Advance: สูง–เร็ว–เร่งด่วน
     : { notes:[622,740],             type:"triangle", step:0.55 };  // ILS: ต่ำ–ช้า–นุ่มกว่า
-  const master=audioCtx.createGain(); master.gain.value=0.9; master.connect(audioCtx.destination);
+  const master=audioCtx.createGain(); master.gain.value=0.9*ALARM_VOL; master.connect(audioCtx.destination);
   let t=audioCtx.currentTime+0.35;    // เริ่มเสียงยาวหลัง beep เล็กน้อย
   const total=10;
   const reps=Math.ceil(total/(pat.notes.length*pat.step));
