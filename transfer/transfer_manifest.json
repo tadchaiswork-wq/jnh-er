@@ -1,0 +1,9 @@
+{
+  "name": "ใบนำส่งผู้ป่วยระหว่างหน่วยงาน — JNH ER",
+  "short_name": "ใบนำส่งผู้ป่วย",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0e2a47",
+  "theme_color": "#0e2a47",
+  "icons": [{"src":"icon.svg","sizes":"any","type":"image/svg+xml"}]
+}
