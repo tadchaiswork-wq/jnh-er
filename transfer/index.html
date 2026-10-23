@@ -92,6 +92,11 @@ textarea.inp{min-height:70px;resize:vertical}
 .oc-edit{margin-top:6px;font-size:12px;color:var(--accent);font-weight:700;text-align:right}
 .oe-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .oe-chips .vchip{min-width:0}
+.vgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.vmini{margin-bottom:0}
+.vmini label{font-size:12px;margin-bottom:3px}
+.vmini .inp{padding:10px 6px;text-align:center;font-size:18px;font-weight:700}
+@media(max-width:380px){.vgrid{grid-template-columns:repeat(2,1fr)}}
 .obs-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .obs-tbl{width:100%;border-collapse:collapse;font-size:12px}
 .obs-tbl th{background:#1a3a5c;color:#fff;font-size:10.5px;padding:6px 3px;font-weight:700;white-space:nowrap}
@@ -221,6 +226,20 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
   </div>
 </div>
 
+<div id="s-saved" class="screen">
+  <div class="app-hdr"><div class="ttl">✅ บันทึกการนำส่งแล้ว</div></div>
+  <div class="wrap">
+    <div class="card c-green">
+      <h3>บันทึกเรียบร้อย — PDF พร้อมแล้ว</h3>
+      <div class="sublabel">กดปุ่มด้านล่างเพื่อพิมพ์ หรือบันทึกเป็นไฟล์ PDF (ในหน้าต่างพิมพ์ เลือกปลายทางเป็น "บันทึกเป็น PDF")</div>
+      <button class="big-add" style="background:linear-gradient(145deg,#2563eb,#1d4ed8)" onclick="printSaved()">🖨 พิมพ์ / บันทึก PDF</button>
+      <div class="sublabel" id="saved-drive" style="margin-top:8px">☁ กำลังอัปโหลดขึ้น Google Drive...</div>
+      <button class="mini-btn gray" style="margin-top:10px;width:100%;padding:14px;font-size:16px" onclick="go('home')">เสร็จ — กลับหน้าแรก</button>
+      <div style="border:1px solid var(--line);border-radius:10px;overflow:auto;background:#fff;max-height:60vh;margin-top:12px"><div id="saved-preview" style="zoom:0.5"></div></div>
+    </div>
+  </div>
+</div>
+
 <div id="a4-form"></div>
 
 <div class="ov hide" id="admin-modal">
@@ -272,7 +291,7 @@ let CASES={}, SETTINGS={adminPass:'1234'}, NURSES_SEND=[], NURSES_RECV=[];
 let adminOK=false, adminAction=null;
 let R=null, page=1; const PAGES=7;
 let alertTimer=null, audioCtx=null, sigPads={};
-let cmtTargetId=null;
+let cmtTargetId=null, savedRec=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const ej=s=>String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -442,16 +461,24 @@ function savecurrent(){
 }
 function computeDuration(){ if(R.departER&&R.ev.arriveTime){ const [h1,m1]=R.departER.split(':').map(Number),[h2,m2]=R.ev.arriveTime.split(':').map(Number); if(!isNaN(h1)&&!isNaN(h2)){ let d=(h2*60+m2)-(h1*60+m1); if(d<0)d+=1440; R.durationMin=d; } } }
 
-/* ---- value chip helper ---- */
-function chip(field,label,value){ return `<button class="vchip" onclick="pick('${field}','${field}')"><span class="vl">${esc(label)}</span><span class="vv" id="chip-${field}">${value||'—'}</span></button>`; }
-function rangeKeyFor(field){
-  const map={vsSBP:'sbp',vsDBP:'dbp',vsPR:'pr',vsRR:'rr',vsT:'temp',cE:'e',cV:'v',cM:'m',cRt:'pupil',cLt:'pupil',
-    wSBP:'sbp',wDBP:'dbp',wPR:'pr',wRR:'rr',wT:'temp',wO2:'spo2',wE:'e',wV:'v',wM:'m',wRt:'pupil',wLt:'pupil'};
-  return map[field];
-}
+/* ---- typed input helper (พิมพ์เอง) · kind: 'int' ตัวเลข, 'dec' เลขทศนิยม 1 ตำแหน่ง (BT), 'text' พิมพ์ได้ทั้งตัวเลข/ตัวอักษร (V, Pupil) ---- */
 function cur(field){ return field in R ? R[field] : (R.ev&&field in R.ev ? R.ev[field] : ''); }
 function setCur(field,v){ if(field in R) R[field]=v; else if(R.ev) R.ev[field]=v; }
-function pick(field,label){ const rk=rangeKeyFor(field); const r=RANGES[rk]; openPicker(label, [{label:r.label,items:r.items,value:cur(field),def:r.def}], vv=>{ setCur(field,vv[0]); const el=$('chip-'+field); if(el)el.textContent=vv[0]; }); }
+function vfld(field,label,kind){
+  const v=cur(field);
+  if(kind==='text') return `<div class="fld vmini"><label>${esc(label)}</label><input class="inp" value="${esc(v)}" oninput="setCur('${field}',this.value)" placeholder="${field==='cV'||field==='wV'?'T/5':'2/Blind'}"></div>`;
+  const filt = kind==='dec' ? "this.value=this.value.replace(/[^0-9.]/g,'').replace(/(\\..*)\\./g,'$1').replace(/(\\.[0-9]).*/,'$1')" : "this.value=this.value.replace(/[^0-9]/g,'')";
+  const im = kind==='dec' ? 'decimal':'numeric';
+  return `<div class="fld vmini"><label>${esc(label)}</label><input class="inp" value="${esc(v)}" inputmode="${im}" oninput="${filt};setCur('${field}',this.value)"></div>`;
+}
+/* obs editor typed input (ผูกกับ R.obs[obsEdit]) */
+function ofld(field,label,kind){
+  const o=R.obs[obsEdit]||{}; const v=o[field]||'';
+  if(kind==='text') return `<div class="fld vmini"><label>${esc(label)}</label><input class="inp" value="${esc(v)}" oninput="R.obs[obsEdit]['${field}']=this.value" placeholder="${field==='v'?'T/5':'2/Blind'}"></div>`;
+  const filt = kind==='dec' ? "this.value=this.value.replace(/[^0-9.]/g,'').replace(/(\\..*)\\./g,'$1').replace(/(\\.[0-9]).*/,'$1')" : "this.value=this.value.replace(/[^0-9]/g,'')";
+  const im = kind==='dec' ? 'decimal':'numeric';
+  return `<div class="fld vmini"><label>${esc(label)}</label><input class="inp" value="${esc(v)}" inputmode="${im}" oninput="${filt};R.obs[obsEdit]['${field}']=this.value"></div>`;
+}
 
 /* ---- PAGE 1 ---- */
 function pg1(){ return `
@@ -480,11 +507,11 @@ function pg2(){ return `
     <div class="fld"><label>Dx</label><input class="inp" id="f-dx" value="${esc(R.dx)}"></div>
   </div>
   <div class="card c-teal">
-    <h3>Vital sign ก่อนนำส่ง <span style="font-size:12px;font-weight:400;color:var(--muted)">(แตะเพื่อเลื่อนเลือก)</span></h3>
+    <h3>Vital sign ก่อนนำส่ง</h3>
     <div class="grp-lbl">ความดัน / ชีพจร / หายใจ / อุณหภูมิ</div>
-    <div class="chips">${chip('vsSBP','SBP',R.vsSBP)}${chip('vsDBP','DBP',R.vsDBP)}${chip('vsPR','PR',R.vsPR)}${chip('vsRR','RR',R.vsRR)}${chip('vsT','Temp',R.vsT)}</div>
+    <div class="vgrid">${vfld('vsSBP','SBP','int')}${vfld('vsDBP','DBP','int')}${vfld('vsPR','PR','int')}${vfld('vsRR','RR','int')}${vfld('vsT','BT (°C)','dec')}</div>
     <div class="grp-lbl">COMA SCORE</div>
-    <div class="chips">${chip('cE','E',R.cE)}${chip('cV','V',R.cV)}${chip('cM','M',R.cM)}${chip('cRt','Pupil Rt',R.cRt)}${chip('cLt','Pupil Lt',R.cLt)}</div>
+    <div class="vgrid">${vfld('cE','E','int')}${vfld('cV','V','text')}${vfld('cM','M','int')}${vfld('cRt','Pupil Rt','text')}${vfld('cLt','Pupil Lt','text')}</div>
     <div class="fld" style="margin-top:12px"><label>Nurse Note</label><textarea class="inp" id="f-nursenote">${esc(R.nurseNote)}</textarea></div>
   </div>`;}
 
@@ -594,12 +621,11 @@ function deleteObsFromEditor(){ if(obsEdit>=0){ R.obs.splice(obsEdit,1); } obsEd
 function renderObsEditor(){ const o=R.obs[obsEdit]||emptyObs();
   $('obs-edit-body').innerHTML=`
     <div class="fld"><label>เวลา</label><input type="time" class="inp" id="oe-time" value="${esc(o.time)}" onchange="R.obs[obsEdit].time=this.value"></div>
-    <div class="grp-lbl">สัญญาณชีพ (แตะเพื่อเลื่อนเลือก)</div>
-    <div class="oe-chips">${OE.map(([f,rk,lb])=>`<button class="vchip" onclick="pickObsF('${f}','${rk}','${lb}')"><span class="vl">${lb}</span><span class="vv" id="oe-${f}">${o[f]||'—'}</span></button>`).join('')}</div>
+    <div class="grp-lbl">สัญญาณชีพ (พิมพ์ตัวเลข)</div>
+    <div class="vgrid">${ofld('sbp','SBP','int')}${ofld('dbp','DBP','int')}${ofld('pr','PR','int')}${ofld('rr','RR','int')}${ofld('temp','BT (°C)','dec')}${ofld('spo2','SpO₂','int')}${ofld('pupilRt','Pupil Rt','text')}${ofld('pupilLt','Pupil Lt','text')}${ofld('e','E','int')}${ofld('m','M','int')}${ofld('v','V','text')}${ofld('pain','Pain','int')}</div>
     <div class="fld" style="margin-top:12px"><label>Assessment / Intervention</label><textarea class="inp" id="oe-note" oninput="R.obs[obsEdit].note=this.value" placeholder="อาการ/การช่วยเหลือ...">${esc(o.note)}</textarea></div>
     <div class="fld"><label>ผู้บันทึก</label>${nurseSelect('oe-rec',o.recorder,'nurseChangeObs(this)','send')}</div>`;
 }
-function pickObsF(f,rk,lb){ const r=RANGES[rk]; const o=R.obs[obsEdit]; openPicker(lb,[{label:r.label,items:r.items,value:o[f],def:r.def}],vv=>{ o[f]=vv[0]; const el=$('oe-'+f); if(el)el.textContent=vv[0]; }); }
 function nurseChangeObs(sel){ if(sel.value==='__add__'){ const n=prompt('ชื่อพยาบาลใหม่:'); if(n&&n.trim()){ addNurse('send',n.trim()); R.obs[obsEdit].recorder=n.trim(); } renderObsEditor(); return; } R.obs[obsEdit].recorder=sel.value; }
 
 /* alert */
@@ -635,10 +661,10 @@ function pg5(){ const e=R.ev; computeDuration(); return `
       <button class="${e.summary==='other'?'on':''}" onclick="setSummary('other')">อื่นๆ</button></div>
       ${e.summary==='other'?`<input class="inp" id="f-summaryother" value="${esc(e.summaryOther)}" placeholder="ระบุ" style="margin-top:6px">`:''}</div>
     <div class="fld"><label>การช่วยเหลือเบื้องต้น (กรณีทรุดลง)</label><textarea class="inp" id="f-initialhelp">${esc(e.initialHelp)}</textarea></div>
-    <div class="grp-lbl">Vital sign ที่ตึกก่อนลงเตียง (แตะเพื่อเลือก)</div>
-    <div class="chips">${chip('wSBP','SBP',e.wSBP)}${chip('wDBP','DBP',e.wDBP)}${chip('wPR','PR',e.wPR)}${chip('wRR','RR',e.wRR)}${chip('wT','Temp',e.wT)}${chip('wO2','SpO₂',e.wO2)}</div>
+    <div class="grp-lbl">Vital sign ที่ตึกก่อนลงเตียง</div>
+    <div class="vgrid">${vfld('wSBP','SBP','int')}${vfld('wDBP','DBP','int')}${vfld('wPR','PR','int')}${vfld('wRR','RR','int')}${vfld('wT','BT (°C)','dec')}${vfld('wO2','SpO₂','int')}</div>
     <div class="grp-lbl">COMA SCORE</div>
-    <div class="chips">${chip('wE','E',e.wE)}${chip('wV','V',e.wV)}${chip('wM','M',e.wM)}${chip('wRt','Pupil Rt',e.wRt)}${chip('wLt','Pupil Lt',e.wLt)}</div>
+    <div class="vgrid">${vfld('wE','E','int')}${vfld('wV','V','text')}${vfld('wM','M','int')}${vfld('wRt','Pupil Rt','text')}${vfld('wLt','Pupil Lt','text')}</div>
   </div>`;}
 function updDur(){ const v=$('dur-val'); if(v)v.textContent=R.durationMin!=null?R.durationMin+' นาที':'—'; }
 
@@ -689,10 +715,10 @@ async function finalize(){
   stopAlert(); R.locked=true; R.month=(R.date||'').slice(0,7)||R.month;
   toast('กำลังบันทึก...',6000);
   if(fbRef){ try{ await fbRef.child('cases/'+R.id).set(JSON.parse(JSON.stringify(R))); }catch(e){console.warn(e);} }
-  let up=false;
-  try{ const blob=await buildPdfBlob(R); if(blob&&DRIVE_URL){ const res=await driveUploadPdf(blob,pdfName(R)); if(res&&res.ok){ R.driveUrl=res.url||''; R.driveId=res.id||''; up=true; if(fbRef){try{fbRef.child('cases/'+R.id).update({driveUrl:R.driveUrl,driveId:R.driveId});}catch(e){}} } } }catch(e){console.warn('pdf',e);}
-  toast(up?'จบการนำส่ง ✓ อัปโหลด PDF ขึ้น Drive แล้ว':'บันทึกแล้ว ✓'+(DRIVE_URL?' (PDF อัปโหลดไม่สำเร็จ)':''),4200);
-  go('home');
+  // แสดง PDF สรุปทันที (ใช้ window.print → บันทึก/แชร์เป็น PDF ได้ ไม่ต้องพึ่งเน็ต)
+  savedRec=R; renderA4(R); $('saved-preview').innerHTML=$('a4-form').innerHTML; go('saved');
+  // อัปโหลดขึ้น Drive เป็น best-effort (ถ้าเน็ต/สคริปต์พร้อม)
+  try{ const blob=await buildPdfBlob(R); if(blob&&DRIVE_URL){ const res=await driveUploadPdf(blob,pdfName(R)); if(res&&res.ok){ R.driveUrl=res.url||''; R.driveId=res.id||''; if(fbRef){try{fbRef.child('cases/'+R.id).update({driveUrl:R.driveUrl,driveId:R.driveId});}catch(e){}} const sd=$('saved-drive'); if(sd){ sd.innerHTML='☁ อัปโหลดขึ้น Google Drive แล้ว · <a href="'+esc(R.driveUrl)+'" target="_blank">เปิดไฟล์ Drive</a>'; } } } }catch(e){console.warn('pdf',e);}
 }
 function pdfName(r){ return `ใบนำส่ง_${(r.hn||'noHN')}_${(r.patientName||'').replace(/\s+/g,'')}_${r.date}_${(r.time||'').replace(':','')}.pdf`; }
 async function buildPdfBlob(rec){
@@ -719,11 +745,16 @@ async function driveUploadPdf(blob,name){ const dataBase64=await blobToB64(blob)
 
 /* ============ A4 ============ */
 function bx(on){return `<span class="a4-box">${on?'✓':''}</span>`;}
-function ynT(v){return `${bx(v==='yes')}มี ${bx(v==='no')}ไม่มี`;}
-function evT(v){const o=k=>bx(v===k);return `${o('appropriate')}ทำและเหมาะสม ${o('notdone')}ไม่ทำ ${o('unnecessary')}ไม่จำเป็น ${o('inappropriate')}ทำแต่ไม่เหมาะสม`;}
+function ynT(v){ return v==='yes'?'<b>✓ มี</b>':v==='no'?'<b>✓ ไม่มี</b>':'—'; }
+function evT(v){ const m={appropriate:'ทำและเหมาะสม',notdone:'ไม่ทำ',unnecessary:'ไม่จำเป็น',inappropriate:'ทำแต่ไม่เหมาะสม'}; return v?('<b>✓ '+m[v]+'</b>'):'—'; }
 function renderA4(r){ const p=r.prep,e=r.ev;
   const o2=[]; if(p.o2type&&p.o2type.includes('cannula'))o2.push('Cannula'); if(p.o2type&&p.o2type.includes('maskbag'))o2.push('Mask c bag'); if(p.o2type&&p.o2type.includes('neb'))o2.push('พ่นยา');
   const iv=(p.ivLines||[]).map(l=>`${esc(l.fluid)} ${esc(l.rate)}ml/hr`).join(', ');
+  const ab=[]; if(p.oralAirway)ab.push('Oral airway'); if(p.nasalAirway)ab.push('Nasal airway'); if(p.ettOn)ab.push('ET-tube'+((p.ettSize||p.ettDepth)?` (${esc(p.ettSize)}${p.ettDepth?', ลึก '+esc(p.ettDepth)+'cm':''})`:'')); if(p.ambubag)ab.push('บีบ Ambubag'); if(p.o2on)ab.push('O₂'+(o2.length?' ('+o2.join(', ')+(p.o2note?' · '+esc(p.o2note):'')+')':'')); if(p.airwayOther)ab.push(esc(p.airwayOther));
+  const circ=[]; if(p.iv)circ.push('IV '+esc(iv)); if(p.blood)circ.push('Blood'+(p.bloodText?' '+esc(p.bloodText):''));
+  const bld=[]; if(p.suture)bld.push('Suture'); if(p.pressure)bld.push('Pressure wound');
+  const dis=[]; if(p.splint)dis.push('splint/stab'); if(p.collar)dis.push('Hard/Philadelphia collar'); if(p.scoop)dis.push('Scoop/Spinal board'); if(p.tourniquet)dis.push('Tourniquet'+(p.tourniquetPos?' ('+esc(p.tourniquetPos)+')':''));
+  const sumT=e.summary==='same'?'<b>คงเดิม</b>':e.summary==='worse'?'<b>ทรุดลง</b>':e.summary==='other'?('<b>อื่นๆ</b> '+esc(e.summaryOther)):'—';
   const used=o=>['sbp','dbp','pr','rr','temp','spo2','pupilRt','pupilLt','e','m','v','pain','note','recorder','time'].some(f=>o[f]);
   const rows=r.obs.filter(used).map(o=>`<tr><td>${esc(o.time)}</td><td>${esc(o.sbp)}</td><td>${esc(o.dbp)}</td><td>${esc(o.pr)}</td><td>${esc(o.rr)}</td><td>${esc(o.temp)}</td><td>${esc(o.spo2)}</td><td>${esc(o.pupilRt)}</td><td>${esc(o.pupilLt)}</td><td>${esc(o.e)}</td><td>${esc(o.m)}</td><td>${esc(o.v)}</td><td>${esc(o.pain)}</td><td style="text-align:left">${esc(o.note)}</td><td>${esc(o.recorder)}</td></tr>`).join('');
   const blanks=Array.from({length:Math.max(0,6-r.obs.filter(used).length)}).map(()=>`<tr>${'<td>&nbsp;</td>'.repeat(15)}</tr>`).join('');
@@ -740,10 +771,10 @@ function renderA4(r){ const p=r.prep,e=r.ev;
   <div class="a4-line">ป้ายข้อมือ ${ynT(p.idBand)} &nbsp; เวชระเบียน ${ynT(p.record)} &nbsp; Patient monitor ${ynT(p.monitor)}</div>
   <div class="a4-line">Film X-ray/CT/CD ${ynT(p.film)} &nbsp; ทรัพย์สินผู้ป่วย ${ynT(p.belongings)}</div>
   <div class="a4-sec">การรักษาพยาบาลระหว่างนำส่ง</div>
-  <div class="a4-line">A&B: ${bx(p.oralAirway)}Oral airway ${bx(p.nasalAirway)}Nasal airway ${bx(p.ettOn)}ET-tube ${p.ettOn?`(${esc(p.ettSize)}, ลึก ${esc(p.ettDepth)}cm)`:''} ${bx(p.ambubag)}Ambubag ${bx(p.o2on)}O₂ ${o2.length?'('+o2.join(', ')+(p.o2note?' · '+esc(p.o2note):'')+')':''} ${p.airwayOther?'· '+esc(p.airwayOther):''}</div>
-  <div class="a4-line">Circulation: ${bx(p.iv)}IV ${esc(iv)} &nbsp; ${bx(p.blood)}Blood ${esc(p.bloodText)}</div>
-  <div class="a4-line">ห้ามเลือด: ${bx(p.suture)}Suture ${bx(p.pressure)}Pressure wound</div>
-  <div class="a4-line">Disability: ${bx(p.splint)}splint/stab ${bx(p.collar)}collar ${bx(p.scoop)}Scoop/Spinal ${bx(p.tourniquet)}Tourniquet ${p.tourniquet?'('+esc(p.tourniquetPos)+')':''}</div>
+  <div class="a4-line">A&B: ${ab.length?ab.join(' · '):'—'}</div>
+  <div class="a4-line">Circulation: ${circ.length?circ.join(' · '):'—'}</div>
+  <div class="a4-line">ห้ามเลือด: ${bld.length?bld.join(' · '):'—'}</div>
+  <div class="a4-line">Disability: ${dis.length?dis.join(' · '):'—'}</div>
   <div class="a4-sec">บันทึกอาการทุก ${r.alertInterval} นาที (ออกจาก ER ${esc(r.departER)||'....'})</div>
   <table class="a4-tbl"><thead><tr><th>Time</th><th>SBP</th><th>DBP</th><th>PR</th><th>RR</th><th>Temp</th><th>SPO₂</th><th>Rt</th><th>Lt</th><th>E</th><th>M</th><th>V</th><th>Pain</th><th style="width:150px">Assessment/Intervention</th><th>ผู้บันทึก</th></tr></thead><tbody>${rows}${blanks}</tbody></table>
   <div class="a4-sec">การประเมินการนำส่งโดยหอผู้ป่วยใน</div>
@@ -751,8 +782,8 @@ function renderA4(r){ const p=r.prep,e=r.ev;
   <div class="a4-line">Circulation: ${evT(e.circ)} ${e.circ==='inappropriate'?esc(e.circDetail):''}</div>
   <div class="a4-line">ห้ามเลือด: ${evT(e.bleed)} ${e.bleed==='inappropriate'?esc(e.bleedDetail):''}</div>
   <div class="a4-line">Disability: ${evT(e.dis)} ${e.dis==='inappropriate'?esc(e.disDetail):''}</div>
-  <div class="a4-line">การส่งต่อข้อมูล ${bx(e.handover==='yes')}มี ${bx(e.handover==='no')}ไม่มี · ถึงหอผู้ป่วยเวลา <span class="u">${esc(e.arriveTime)||'....'}</span> · ระยะเวลานำส่ง <b>${r.durationMin!=null?r.durationMin+' นาที':'....'}</b></div>
-  <div class="a4-line">สรุปอาการ ${bx(e.summary==='same')}คงเดิม ${bx(e.summary==='worse')}ทรุดลง ${bx(e.summary==='other')}อื่นๆ ${esc(e.summaryOther)} · ช่วยเหลือเบื้องต้น <span class="u">${esc(e.initialHelp)||'......'}</span></div>
+  <div class="a4-line">การส่งต่อข้อมูล ${e.handover==='yes'?'<b>✓ มี</b>':e.handover==='no'?'<b>✓ ไม่มี</b>':'—'} · ถึงหอผู้ป่วยเวลา <span class="u">${esc(e.arriveTime)||'....'}</span> · ระยะเวลานำส่ง <b>${r.durationMin!=null?r.durationMin+' นาที':'....'}</b></div>
+  <div class="a4-line">สรุปอาการ ${sumT} · ช่วยเหลือเบื้องต้น <span class="u">${esc(e.initialHelp)||'......'}</span></div>
   <div class="a4-line">V/S ที่ตึก BP <span class="u">${esc(e.wSBP)||'..'}/${esc(e.wDBP)||'..'}</span> P <span class="u">${esc(e.wPR)||'..'}</span> R <span class="u">${esc(e.wRR)||'..'}</span> T <span class="u">${esc(e.wT)||'..'}</span> SpO₂ <span class="u">${esc(e.wO2)||'..'}</span>% · COMA E <span class="u">${esc(e.wE)||'.'}</span> V <span class="u">${esc(e.wV)||'.'}</span> M <span class="u">${esc(e.wM)||'.'}</span> Pupil Rt <span class="u">${esc(e.wRt)||'..'}</span> Lt <span class="u">${esc(e.wLt)||'..'}</span></div>
   <div class="a4-line" style="margin-top:18px;text-align:right">
     ${e.wardSign?`<img class="sig-img" src="${e.wardSign}">`:'<br>'}<div style="display:inline-block;border-top:1px dotted #000;width:270px;text-align:center">พยาบาลปลายทางเซ็นรับทราบการนำส่ง (${esc(e.wardNurse)})</div></div>
@@ -765,7 +796,8 @@ function renderA4(r){ const p=r.prep,e=r.ev;
   <div class="a4-foot">FM-CHN-IM/ER-09 · JNH ER webapp · หน้า 2/2</div>
   </div>`;
 }
-function printRecord(r){ renderA4(r); window.print(); }
+function printRecord(r){ renderA4(r); setTimeout(()=>window.print(),80); }
+function printSaved(){ if(savedRec) printRecord(savedRec); }
 
 /* ============ DASHBOARD / LIST ============ */
 function openDash(){ go('dash'); const m=$('dash-month'); if(!m.value)m.value=new Date().toISOString().slice(0,7); renderDash(); }
