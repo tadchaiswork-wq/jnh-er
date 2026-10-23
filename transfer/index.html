@@ -6,12 +6,12 @@
 <title>ใบนำส่งผู้ป่วยระหว่างหน่วยงาน — JNH ER</title>
 <link rel="icon" href="icon.svg">
 <link rel="manifest" href="manifest.json">
-<script src="../time-sync.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="../firebase-config.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script defer src="../time-sync.js"></script>
 <style>
 :root{--navy:#0e2a47;--accent:#2563eb;--ok:#15803d;--warn:#d97706;--red:#dc2626;--line:#e2e8f0;--muted:#64748b;--bg:#f1f5f9;--panel:#fff;--text:#0f172a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -79,6 +79,19 @@ textarea.inp{min-height:70px;resize:vertical}
 .chk.on .bx{background:var(--accent);border-color:var(--accent);color:#fff}
 .subpanel{background:#f8fafc;border-radius:10px;padding:10px;margin:0 0 10px}
 
+.big-add{width:100%;border:none;border-radius:12px;padding:16px;font-size:17px;font-weight:800;color:#fff;background:linear-gradient(145deg,#15803d,#166534);cursor:pointer;margin-top:4px}
+.big-add:active{filter:brightness(.93)}
+.obs-card{border:1.5px solid var(--line);border-left:5px solid var(--ok);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fff;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.obs-card:active{background:#f8fafc}
+.oc-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.oc-time{font-size:17px;font-weight:800;color:var(--navy)}
+.oc-rec{font-size:12.5px;color:var(--muted);font-weight:700}
+.oc-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;font-size:14px}
+.oc-grid b{color:#475569;font-weight:700}
+.oc-note{margin-top:6px;font-size:13px;color:#334155;background:#f1f5f9;border-radius:8px;padding:6px 8px}
+.oc-edit{margin-top:6px;font-size:12px;color:var(--accent);font-weight:700;text-align:right}
+.oe-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.oe-chips .vchip{min-width:0}
 .obs-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .obs-tbl{width:100%;border-collapse:collapse;font-size:12px}
 .obs-tbl th{background:#1a3a5c;color:#fff;font-size:10.5px;padding:6px 3px;font-weight:700;white-space:nowrap}
@@ -128,16 +141,19 @@ textarea.inp{min-height:70px;resize:vertical}
 .pk-wheels{display:flex;gap:12px;justify-content:center;position:relative}
 .pk-band{position:absolute;left:0;right:0;top:50%;height:44px;transform:translateY(-50%);background:rgba(37,99,235,.08);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);pointer-events:none;border-radius:8px}
 .pk-col .lbl{text-align:center;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:4px}
-.pk-scroll{height:220px;overflow-y:scroll;scroll-snap-type:y mandatory;width:90px;scrollbar-width:none}
+.pk-scroll{height:220px;overflow-y:scroll;scroll-snap-type:y mandatory;width:100px;scrollbar-width:none;scroll-behavior:auto;-webkit-overflow-scrolling:touch;
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 32%,#000 68%,transparent);mask-image:linear-gradient(180deg,transparent,#000 32%,#000 68%,transparent)}
 .pk-scroll::-webkit-scrollbar{display:none}
-.pk-item{height:44px;line-height:44px;text-align:center;scroll-snap-align:center;font-size:21px;font-weight:700;color:var(--navy)}
+.pk-item{height:44px;line-height:44px;text-align:center;scroll-snap-align:center;font-size:24px;font-weight:700;color:var(--navy);transition:transform .08s ease-out,opacity .08s ease-out;will-change:transform,opacity}
 .pk-pad{height:88px}
 .pk-btns{display:flex;gap:10px;margin-top:12px}
 .pk-btns button{flex:1;border:none;border-radius:11px;padding:13px;font-weight:800;cursor:pointer}
 
 /* A4 */
-#a4-form{display:none;position:absolute;left:-9999px;top:0;width:794px;background:#fff;color:#000;padding:26px 30px;font-size:12px;line-height:1.45}
+#a4-form{display:none;position:absolute;left:-9999px;top:0;width:794px;background:#fff;color:#000;font-size:12px;line-height:1.45}
 #a4-form.showprint{display:block;position:static;left:0;margin:0 auto}
+.a4page{width:794px;background:#fff;color:#000;padding:26px 30px;box-sizing:border-box}
+#a4-preview .a4page{border-bottom:3px dashed #cbd5e1;margin-bottom:6px}
 .a4-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}
 .a4-head .ht{font-size:15px;font-weight:800;text-align:center;flex:1}
 .a4-head .hs{font-size:12px;font-weight:600;text-align:center}
@@ -148,7 +164,7 @@ table.a4-tbl{width:100%;border-collapse:collapse;font-size:10px;margin-top:3px}
 table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align:center}
 .a4-foot{font-size:9px;margin-top:8px;color:#333}
 .u{border-bottom:1px dotted #000;padding:0 4px}.sig-img{max-height:46px}
-@media print{body{background:#fff}.screen,.app-hdr,.wiz-steps,.wiz-nav,.toast{display:none!important}#a4-form{display:block!important;position:static;left:0;width:100%;padding:0}@page{size:A4;margin:12mm}}
+@media print{body{background:#fff}.screen,.app-hdr,.wiz-steps,.wiz-nav,.toast{display:none!important}#a4-form{display:block!important;position:static;left:0;width:100%}.a4page{width:100%;padding:0;page-break-after:always}.a4page:last-child{page-break-after:auto}@page{size:A4;margin:12mm}}
 </style>
 </head>
 <body>
@@ -200,6 +216,7 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
       <input type="month" class="inp" id="list-month" style="max-width:200px" onchange="renderList()">
       <input type="text" class="inp" id="list-search" placeholder="ค้นหา HN / ชื่อ..." oninput="renderList()" style="flex:1;min-width:140px">
     </div>
+    <div class="sublabel" style="margin-bottom:10px">📄 กด "ดู/พิมพ์" เพื่อเปิด/บันทึกไฟล์ PDF A4 ได้ทุกเมื่อ (ทำงานจากข้อมูลในระบบ ไม่ต้องพึ่ง Drive) · ไฟล์ตอนจบการนำส่งจะอัปโหลดเก็บใน Google Drive โฟลเดอร์เดียวกับแอป "ลิงก์สำคัญ" (ตามที่ตั้งใน Apps Script)</div>
     <div id="list-body"></div>
   </div>
 </div>
@@ -217,11 +234,19 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
 
 <div class="ov hide" id="nurse-modal">
   <div class="modal">
-    <h3>✏️ จัดการรายชื่อพยาบาล/เจ้าหน้าที่</h3>
-    <div class="sublabel">เพิ่ม/ลบได้ ใช้ร่วมทุกเครื่อง</div>
+    <h3 id="nurse-mgr-title">✏️ จัดการรายชื่อพยาบาล</h3>
+    <div class="sublabel">เพิ่ม/ลบได้ · ใช้ร่วมทุกเครื่อง (sync อัตโนมัติ)</div>
     <div id="nurse-list"></div>
     <div class="row" style="margin-top:8px"><input class="inp" id="nurse-new" placeholder="ชื่อใหม่..." style="flex:1"><button class="mini-btn" onclick="addNurseFromInput()">➕ เพิ่ม</button></div>
     <div class="m-btns"><button class="m-ok" onclick="hideEl('nurse-modal')">เสร็จ</button></div>
+  </div>
+</div>
+
+<div class="ov hide" id="obs-modal">
+  <div class="modal" style="max-width:460px">
+    <h3>📝 บันทึกสัญญาณชีพ</h3>
+    <div id="obs-edit-body"></div>
+    <div class="m-btns"><button class="m-cancel" onclick="deleteObsFromEditor()">🗑 ลบ</button><button class="m-ok" onclick="closeObsEditor()">✓ เสร็จ</button></div>
   </div>
 </div>
 
@@ -243,9 +268,9 @@ const FB=window.FIREBASE_CONFIG||null;
 const DRIVE_URL=(window.LINKS_DRIVE_URL||'').trim();
 const PATH='transfer';
 let fbRef=null, fbOK=false;
-let CASES={}, SETTINGS={adminPass:'1234'}, NURSES=[];
+let CASES={}, SETTINGS={adminPass:'1234'}, NURSES_SEND=[], NURSES_RECV=[];
 let adminOK=false, adminAction=null;
-let R=null, page=1; const PAGES=6;
+let R=null, page=1; const PAGES=7;
 let alertTimer=null, audioCtx=null, sigPads={};
 let cmtTargetId=null;
 const $=id=>document.getElementById(id);
@@ -256,8 +281,8 @@ const ej=s=>String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 function rng(a,b,s){const o=[];for(let i=a;i<=b;i+=s)o.push(String(i));return o;}
 function rngF(a,b,s){const o=[];for(let i=a;i<=b+1e-9;i+=s)o.push(i.toFixed(1));return o;}
 const RANGES={
-  sbp:{items:rng(40,260,5),def:'120',label:'SBP'},
-  dbp:{items:rng(20,180,5),def:'80',label:'DBP'},
+  sbp:{items:rng(40,260,1),def:'120',label:'SBP'},
+  dbp:{items:rng(20,180,1),def:'80',label:'DBP'},
   pr:{items:rng(20,220,1),def:'80',label:'PR'},
   rr:{items:rng(4,70,1),def:'18',label:'RR'},
   spo2:{items:rng(50,100,1),def:'95',label:'SpO₂'},
@@ -279,7 +304,7 @@ function openPicker(title, wheels, onOk){
     <div class="pk-wheels"><div class="pk-band"></div>
     ${wheels.map((w,wi)=>`<div class="pk-col"><div class="lbl">${esc(w.label||'')}</div>
       <div class="pk-scroll" id="pk-sc-${wi}"><div class="pk-pad"></div>
-      ${w.items.map(it=>`<div class="pk-item">${esc(it)}</div>`).join('')}
+      ${w.items.map(it=>`<div class="pk-item" onclick="pkTap(this)">${esc(it)}</div>`).join('')}
       <div class="pk-pad"></div></div></div>`).join('')}
     </div>
     <div class="pk-btns"><button class="m-cancel" onclick="closePicker()">ยกเลิก</button><button class="m-ok" onclick="pickerConfirm()">ตกลง</button></div>`;
@@ -287,9 +312,13 @@ function openPicker(title, wheels, onOk){
   requestAnimationFrame(()=>wheels.forEach((w,wi)=>{
     const sc=$('pk-sc-'+wi); let idx=w.items.indexOf(String(w.value));
     if(idx<0) idx=w.items.indexOf(String(w.def)); if(idx<0) idx=0;
-    sc.scrollTop=idx*ITEM_H;
+    sc.scrollTop=idx*ITEM_H; stylePk(sc);
+    sc.addEventListener('scroll',()=>{ if(sc._raf)cancelAnimationFrame(sc._raf); sc._raf=requestAnimationFrame(()=>stylePk(sc)); });
   }));
 }
+function stylePk(sc){ const items=sc.querySelectorAll('.pk-item'); const center=sc.scrollTop+sc.clientHeight/2;
+  items.forEach(it=>{ const mid=it.offsetTop+it.offsetHeight/2; const d=Math.abs(mid-center)/ITEM_H; it.style.transform='scale('+Math.max(0.6,1-d*0.17)+')'; it.style.opacity=String(Math.max(0.28,1-d*0.32)); }); }
+function pkTap(it){ const sc=it.parentElement; sc.scrollTo({top:it.offsetTop-88, behavior:'smooth'}); }
 function pickerConfirm(){
   const vals=pickerWheels.map((w,wi)=>{ const sc=$('pk-sc-'+wi); const idx=Math.min(w.items.length-1,Math.max(0,Math.round(sc.scrollTop/ITEM_H))); return w.items[idx]; });
   const cb=pickerOk; closePicker(); if(cb) cb(vals);
@@ -304,7 +333,8 @@ function initFB(){
     fbRef=firebase.database(app).ref(PATH);
     fbRef.child('cases').on('value',s=>{ CASES=s.val()||{}; setFB('ok'); liveRefresh(); },()=>setFB('err'));
     fbRef.child('settings').on('value',s=>{ const v=s.val(); if(v) SETTINGS=Object.assign({adminPass:'1234'},v); });
-    fbRef.child('nurses').on('value',s=>{ const v=s.val(); NURSES=Array.isArray(v)?v:(v?Object.values(v):[]); });
+    fbRef.child('nursesSend').on('value',s=>{ const v=s.val(); NURSES_SEND=Array.isArray(v)?v:(v?Object.values(v):[]); });
+    fbRef.child('nursesRecv').on('value',s=>{ const v=s.val(); NURSES_RECV=Array.isArray(v)?v:(v?Object.values(v):[]); });
     firebase.database(app).ref('.info/connected').on('value',s=>setFB(s.val()?'ok':'off'));
   }catch(e){ console.warn(e); setFB('err'); }
 }
@@ -330,21 +360,24 @@ function adminOk(){
   if(adminAction==='dashboard') openDash(); else if(adminAction==='list') openList();
 }
 
-/* ============ NURSES ============ */
-function saveNurses(){ if(fbRef){try{fbRef.child('nurses').set(NURSES);}catch(e){}} try{localStorage.setItem('tf_nurses',JSON.stringify(NURSES));}catch(e){} }
-function addNurse(n){ n=(n||'').trim(); if(n&&!NURSES.includes(n)){ NURSES.push(n); saveNurses(); } return n; }
-function nurseSelect(id,value,onchange){
+/* ============ NURSES (2 ชุดแยกกัน: send=ผู้นำส่ง, recv=ปลายทาง) ============ */
+let mgrWhich='send';
+function listOf(w){ return w==='recv'?NURSES_RECV:NURSES_SEND; }
+function saveNurses(w){ const arr=listOf(w); const key=w==='recv'?'nursesRecv':'nursesSend'; if(fbRef){try{fbRef.child(key).set(arr);}catch(e){}} try{localStorage.setItem('tf_'+key,JSON.stringify(arr));}catch(e){} }
+function addNurse(w,n){ n=(n||'').trim(); const arr=listOf(w); if(n&&!arr.includes(n)){ arr.push(n); saveNurses(w); } return n; }
+function nurseSelect(id,value,onchange,w){
+  const arr=listOf(w);
   const opts=['<option value="">— เลือกพยาบาล —</option>']
-    .concat(NURSES.map(n=>`<option ${n===value?'selected':''}>${esc(n)}</option>`));
-  if(value&&!NURSES.includes(value)) opts.push(`<option selected>${esc(value)}</option>`);
+    .concat(arr.map(n=>`<option ${n===value?'selected':''}>${esc(n)}</option>`));
+  if(value&&!arr.includes(value)) opts.push(`<option selected>${esc(value)}</option>`);
   opts.push('<option value="__add__">➕ เพิ่มชื่อใหม่…</option>');
-  return `<select class="inp" id="${id}" onchange="${onchange}">${opts.join('')}</select>`;
+  return `<select class="inp" id="${id}" data-w="${w}" onchange="${onchange}">${opts.join('')}</select>`;
 }
-function nurseChange(sel,cb){ if(sel.value==='__add__'){ const n=prompt('ชื่อพยาบาล/เจ้าหน้าที่ใหม่:'); if(n&&n.trim()){ addNurse(n.trim()); cb(n.trim()); } rr(); return; } cb(sel.value); }
-function openNurseMgr(){ renderNurseList(); $('nurse-modal').classList.remove('hide'); }
-function renderNurseList(){ $('nurse-list').innerHTML=NURSES.length?NURSES.map((n,i)=>`<div class="row" style="align-items:center;margin-bottom:5px"><div style="flex:1;font-weight:600">${esc(n)}</div><button class="obs-del" onclick="delNurse(${i})">ลบ</button></div>`).join(''):'<div class="sublabel">ยังไม่มีรายชื่อ</div>'; }
-function addNurseFromInput(){ const v=$('nurse-new').value; if(addNurse(v)){ $('nurse-new').value=''; renderNurseList(); } }
-function delNurse(i){ NURSES.splice(i,1); saveNurses(); renderNurseList(); }
+function nurseChange(sel,cb){ const w=sel.dataset.w||'send'; if(sel.value==='__add__'){ const n=prompt('ชื่อพยาบาล/เจ้าหน้าที่ใหม่:'); if(n&&n.trim()){ addNurse(w,n.trim()); cb(n.trim()); } rr(); return; } cb(sel.value); }
+function openNurseMgr(w){ mgrWhich=w||'send'; $('nurse-mgr-title').textContent=mgrWhich==='recv'?'✏️ รายชื่อพยาบาลปลายทาง (ผู้รับ)':'✏️ รายชื่อพยาบาลนำส่ง'; renderNurseList(); $('nurse-modal').classList.remove('hide'); }
+function renderNurseList(){ const arr=listOf(mgrWhich); $('nurse-list').innerHTML=arr.length?arr.map((n,i)=>`<div class="row" style="align-items:center;margin-bottom:5px"><div style="flex:1;font-weight:600">${esc(n)}</div><button class="obs-del" onclick="delNurse(${i})">ลบ</button></div>`).join(''):'<div class="sublabel">ยังไม่มีรายชื่อ</div>'; }
+function addNurseFromInput(){ const v=$('nurse-new').value; if(addNurse(mgrWhich,v)){ $('nurse-new').value=''; renderNurseList(); } }
+function delNurse(i){ listOf(mgrWhich).splice(i,1); saveNurses(mgrWhich); renderNurseList(); }
 
 /* ============ RECORD ============ */
 function blankRecord(){
@@ -358,7 +391,7 @@ function blankRecord(){
       o2on:false, o2type:[], o2note:'', airwayOther:'',
       iv:false, ivLines:[], blood:false, bloodText:'',
       suture:false, pressure:false, splint:false, collar:false, scoop:false, tourniquet:false, tourniquetPos:'' },
-    alertInterval:5, departER:hhmm(now), obs:[emptyObs()],
+    alertInterval:5, departER:hhmm(now), obs:[],
     ev:{ ab:'',abDetail:'',circ:'',circDetail:'',bleed:'',bleedDetail:'',dis:'',disDetail:'',handover:'',arriveTime:'',summary:'',summaryOther:'',initialHelp:'',wardNurse:'',
       wSBP:'',wDBP:'',wPR:'',wRR:'',wT:'',wE:'',wV:'',wM:'',wRt:'',wLt:'',wO2:'', transportComment:'', wardSign:'' },
     durationMin:null, driveUrl:'', driveId:'' };
@@ -368,7 +401,7 @@ function pad(n){return String(n).padStart(2,'0');}
 function hhmm(d){return pad(d.getHours())+':'+pad(d.getMinutes());}
 
 /* ============ WIZARD ============ */
-const STEP_NAMES=['ผู้นำส่ง','ผู้ป่วย+V/S','เตรียมย้าย','บันทึกพยาบาล','ประเมิน','Comment'];
+const STEP_NAMES=['ผู้นำส่ง','ผู้ป่วย+V/S','เตรียมย้าย','บันทึกพยาบาล','ประเมิน','Comment','สรุป+เซ็น'];
 function startNew(){ R=blankRecord(); page=1; go('wiz'); renderWiz(); }
 function confirmExitWiz(){ if(confirm('ออกจากการกรอก? ข้อมูลที่ยังไม่บันทึกจะหาย')){ stopAlert(); go('home'); } }
 function renderSteps(){ $('wiz-steps').innerHTML=STEP_NAMES.map((n,i)=>{const k=i+1;const cls=k===page?'on':(k<page?'done':'');return `<div class="wiz-step ${cls}" onclick="gotoPage(${k})">${k}.${n}</div>`;}).join(''); $('wiz-pt').textContent=R.patientName?('· '+R.patientName+(R.hn?' ('+R.hn+')':'')):''; }
@@ -387,9 +420,10 @@ function renderWiz(keep){
   if(page===1) b.innerHTML=pg1();
   else if(page===2) b.innerHTML=pg2();
   else if(page===3) b.innerHTML=pg3();
-  else if(page===4){ b.innerHTML=pg4(); renderObs(); startAlert(); }
+  else if(page===4){ b.innerHTML=pg4(); renderObsCards(); startAlert(); }
   else if(page===5) b.innerHTML=pg5();
   else if(page===6) b.innerHTML=pg6();
+  else if(page===7) b.innerHTML=pg7();
   if(page!==4) stopAlert();
   setTimeout(()=>document.querySelectorAll('canvas[data-sig]').forEach(c=>initSig(c)),30);
   if(!keep) window.scrollTo(0,0);
@@ -398,12 +432,13 @@ function renderWiz(keep){
 function val(id){const e=$(id);return e?e.value:'';}
 function savecurrent(){
   if(page===1){ /* transporter saved on change */ }
-  else if(page===2){ R.date=val('f-date');R.time=val('f-time');R.location=val('f-location');R.hn=val('f-hn');R.patientName=val('f-name');R.dx=val('f-dx');R.firstNurse=val('f-firstnurse');R.nurseNote=val('f-nursenote'); }
+  else if(page===2){ R.date=val('f-date');R.time=val('f-time');R.location=val('f-location');R.hn=val('f-hn');R.patientName=val('f-name');R.dx=val('f-dx');R.nurseNote=val('f-nursenote'); }
   else if(page===3){ const p=R.prep; p.ettSize=val('f-ettsize');p.ettDepth=val('f-ettdepth');p.o2note=val('f-o2note');p.airwayOther=val('f-airwayother');p.bloodText=val('f-bloodtext');p.tourniquetPos=val('f-tqpos');
     (p.ivLines||[]).forEach((ln,i)=>{ const sel=$('iv-fluid-'+i); if(sel) ln.fluid=sel.value; }); }
-  else if(page===4){ R.departER=val('f-departer'); (R.obs||[]).forEach((o,i)=>{ const nt=$('obs-note-'+i); if(nt)o.note=nt.value; const rc=$('obs-rec-'+i); if(rc&&rc.value!=='__add__')o.recorder=rc.value; const tm=$('obs-time-'+i); if(tm)o.time=tm.value; }); }
-  else if(page===5){ const e=R.ev; e.abDetail=val('f-abdetail');e.circDetail=val('f-circdetail');e.bleedDetail=val('f-bleeddetail');e.disDetail=val('f-disdetail');e.arriveTime=val('f-arrive');e.summaryOther=val('f-summaryother');e.initialHelp=val('f-initialhelp');e.wardNurse=val('f-wardnurse'); saveSigs(); computeDuration(); }
+  else if(page===4){ const d=$('f-departer'); if(d)R.departER=d.value; }
+  else if(page===5){ const e=R.ev; e.abDetail=val('f-abdetail');e.circDetail=val('f-circdetail');e.bleedDetail=val('f-bleeddetail');e.disDetail=val('f-disdetail');e.arriveTime=val('f-arrive');e.summaryOther=val('f-summaryother');e.initialHelp=val('f-initialhelp'); computeDuration(); }
   else if(page===6){ R.ev.transportComment=val('f-comment'); }
+  else if(page===7){ R.ev.wardNurse=val('f-wardnurse'); saveSigs(); computeDuration(); }
 }
 function computeDuration(){ if(R.departER&&R.ev.arriveTime){ const [h1,m1]=R.departER.split(':').map(Number),[h2,m2]=R.ev.arriveTime.split(':').map(Number); if(!isNaN(h1)&&!isNaN(h2)){ let d=(h2*60+m2)-(h1*60+m1); if(d<0)d+=1440; R.durationMin=d; } } }
 
@@ -423,8 +458,8 @@ function pg1(){ return `
   <div class="card c-blue">
     <h3>ผู้นำส่งผู้ป่วย</h3>
     <div class="fld"><label>ชื่อผู้นำส่ง (เลือกจากรายชื่อ หรือเพิ่มใหม่)</label>
-      ${nurseSelect('f-transporter',R.transporter,'nurseChange(this,v=>R.transporter=v)')}
-      <div style="margin-top:8px"><button class="mini-btn gray" onclick="openNurseMgr()">✏️ จัดการรายชื่อ</button></div>
+      ${nurseSelect('f-transporter',R.transporter,'nurseChange(this,v=>R.transporter=v)','send')}
+      <div style="margin-top:8px"><button class="mini-btn gray" onclick="openNurseMgr('send')">✏️ จัดการรายชื่อผู้นำส่ง</button></div>
     </div>
     <div class="sublabel">กด "ถัดไป" เพื่อกรอกข้อมูลผู้ป่วย — วันที่/เวลาใส่อัตโนมัติ (แก้ได้)</div>
   </div>`;}
@@ -443,7 +478,6 @@ function pg2(){ return `
       <div class="fld" style="flex:2"><label>ชื่อ-สกุล ผู้ป่วย</label><input class="inp" id="f-name" value="${esc(R.patientName)}"></div>
     </div>
     <div class="fld"><label>Dx</label><input class="inp" id="f-dx" value="${esc(R.dx)}"></div>
-    <div class="fld"><label>พยาบาลผู้ดูแลแรกรับ</label><input class="inp" id="f-firstnurse" value="${esc(R.firstNurse)}"></div>
   </div>
   <div class="card c-teal">
     <h3>Vital sign ก่อนนำส่ง <span style="font-size:12px;font-weight:400;color:var(--muted)">(แตะเพื่อเลื่อนเลือก)</span></h3>
@@ -531,27 +565,42 @@ function pg4(){ return `
         <button class="${R.alertInterval===15?'on':''}" onclick="setInt(15)">15 นาที</button></div></div>
     </div>
     <div class="alert-bar" id="alert-bar">⏱ <span id="alert-txt">ระบบจะเตือนให้บันทึกทุก ${R.alertInterval} นาที</span></div>
-    <div class="sublabel">แตะช่องตัวเลขเพื่อเลื่อนเลือก (ไม่ต้องพิมพ์)</div>
-    <div class="obs-scroll"><table class="obs-tbl"><thead><tr>
-      <th>Time</th><th>SBP</th><th>DBP</th><th>PR</th><th>RR</th><th>Temp</th><th>SPO₂</th><th>Rt</th><th>Lt</th><th>E</th><th>M</th><th>V</th><th>Pain</th><th style="min-width:130px">Assessment / Intervention</th><th>ผู้บันทึก</th><th></th>
-    </tr></thead><tbody id="obs-body"></tbody></table></div>
-    <button class="mini-btn" style="margin-top:10px" onclick="addObs()">➕ เพิ่มแถวบันทึก</button>
+    <button class="big-add" onclick="addObs()">➕ เพิ่มบันทึกสัญญาณชีพ</button>
+    <div id="obs-cards" style="margin-top:12px"></div>
   </div>`;}
 function setInt(n){ savecurrent(); R.alertInterval=n; rr(); }
-const OCELL=[['sbp','sbp'],['dbp','dbp'],['pr','pr'],['rr','rr'],['temp','temp'],['spo2','spo2'],['pupilRt','pupil'],['pupilLt','pupil'],['e','e'],['m','m'],['v','v'],['pain','pain']];
-function renderObs(){ const tb=$('obs-body'); if(!tb)return;
-  tb.innerHTML=R.obs.map((o,i)=>`<tr>
-    <td><input type="time" class="ocell" id="obs-time-${i}" value="${esc(o.time)}" onchange="R.obs[${i}].time=this.value" style="min-width:92px"></td>
-    ${OCELL.map(([f,rk])=>`<td><button class="ocell ${o[f]?'':'empty'}" id="obs-${i}-${f}" onclick="pickObs(${i},'${f}','${rk}')">${o[f]||'—'}</button></td>`).join('')}
-    <td><input class="onote" id="obs-note-${i}" value="${esc(o.note)}" placeholder="..." oninput="R.obs[${i}].note=this.value"></td>
-    <td>${nurseSelect('obs-rec-'+i,o.recorder,'nurseChangeObs(this,'+i+')')}</td>
-    <td><button class="obs-del" onclick="delObs(${i})">✕</button></td>
-  </tr>`).join('');
+const OE=[['sbp','sbp','SBP'],['dbp','dbp','DBP'],['pr','pr','PR'],['rr','rr','RR'],['temp','temp','Temp'],['spo2','spo2','SpO₂'],['pupilRt','pupil','Pupil Rt'],['pupilLt','pupil','Pupil Lt'],['e','e','E'],['m','m','M'],['v','v','V'],['pain','pain','Pain']];
+/* ---- cards (อ่านง่ายบนมือถือ) ---- */
+function renderObsCards(){ const c=$('obs-cards'); if(!c)return;
+  if(!R.obs.length){ c.innerHTML='<div class="sublabel" style="text-align:center;padding:14px">ยังไม่มีบันทึก — กด "เพิ่มบันทึกสัญญาณชีพ"</div>'; return; }
+  c.innerHTML=R.obs.map((o,i)=>`<div class="obs-card" onclick="editObs(${i})">
+    <div class="oc-h"><span class="oc-time">🕐 ${o.time||'—'}</span>${o.recorder?`<span class="oc-rec">${esc(o.recorder)}</span>`:''}</div>
+    <div class="oc-grid">
+      <span><b>BP</b> ${o.sbp||'-'}/${o.dbp||'-'}</span><span><b>PR</b> ${o.pr||'-'}</span><span><b>RR</b> ${o.rr||'-'}</span>
+      <span><b>SpO₂</b> ${o.spo2||'-'}</span><span><b>T</b> ${o.temp||'-'}</span><span><b>Pain</b> ${o.pain||'-'}</span>
+      <span><b>Pupil</b> ${o.pupilRt||'-'}/${o.pupilLt||'-'}</span><span><b>GCS</b> E${o.e||'-'}M${o.m||'-'}V${o.v||'-'}</span>
+    </div>${o.note?`<div class="oc-note">📝 ${esc(o.note)}</div>`:''}
+    <div class="oc-edit">แตะเพื่อแก้ไข ✎</div>
+  </div>`).join('');
 }
-function nurseChangeObs(sel,i){ if(sel.value==='__add__'){ const n=prompt('ชื่อพยาบาลใหม่:'); if(n&&n.trim()){ addNurse(n.trim()); R.obs[i].recorder=n.trim(); } renderObs(); return; } R.obs[i].recorder=sel.value; }
-function pickObs(i,f,rk){ const r=RANGES[rk]; openPicker(r.label+' (แถว '+(i+1)+')', [{label:r.label,items:r.items,value:R.obs[i][f],def:r.def}], vv=>{ R.obs[i][f]=vv[0]; const el=$('obs-'+i+'-'+f); if(el){ el.textContent=vv[0]; el.classList.remove('empty'); } }); }
-function addObs(){ savecurrent(); const o=emptyObs(); const last=R.obs[R.obs.length-1]; const base=(last&&last.time)||R.departER; if(base){ const [h,m]=base.split(':').map(Number); if(!isNaN(h)){ let t=h*60+m+R.alertInterval; t%=1440; o.time=pad(Math.floor(t/60))+':'+pad(t%60); } } R.obs.push(o); renderObs(); }
-function delObs(i){ savecurrent(); if(R.obs.length<=1) R.obs=[emptyObs()]; else R.obs.splice(i,1); renderObs(); }
+function emptyObsTime(){ const last=R.obs[R.obs.length-1]; const base=(last&&last.time)||R.departER; if(base){ const [h,m]=base.split(':').map(Number); if(!isNaN(h)){ let t=h*60+m+R.alertInterval; t%=1440; return pad(Math.floor(t/60))+':'+pad(t%60); } } return ''; }
+function addObs(){ const o=emptyObs(); o.time=emptyObsTime(); R.obs.push(o); obsEdit=R.obs.length-1; openObsEditor(); }
+function editObs(i){ obsEdit=i; openObsEditor(); }
+/* ---- obs editor sheet ---- */
+let obsEdit=-1;
+function openObsEditor(){ renderObsEditor(); $('obs-modal').classList.remove('hide'); }
+function closeObsEditor(){ $('obs-modal').classList.add('hide'); renderObsCards(); }
+function deleteObsFromEditor(){ if(obsEdit>=0){ R.obs.splice(obsEdit,1); } obsEdit=-1; closeObsEditor(); }
+function renderObsEditor(){ const o=R.obs[obsEdit]||emptyObs();
+  $('obs-edit-body').innerHTML=`
+    <div class="fld"><label>เวลา</label><input type="time" class="inp" id="oe-time" value="${esc(o.time)}" onchange="R.obs[obsEdit].time=this.value"></div>
+    <div class="grp-lbl">สัญญาณชีพ (แตะเพื่อเลื่อนเลือก)</div>
+    <div class="oe-chips">${OE.map(([f,rk,lb])=>`<button class="vchip" onclick="pickObsF('${f}','${rk}','${lb}')"><span class="vl">${lb}</span><span class="vv" id="oe-${f}">${o[f]||'—'}</span></button>`).join('')}</div>
+    <div class="fld" style="margin-top:12px"><label>Assessment / Intervention</label><textarea class="inp" id="oe-note" oninput="R.obs[obsEdit].note=this.value" placeholder="อาการ/การช่วยเหลือ...">${esc(o.note)}</textarea></div>
+    <div class="fld"><label>ผู้บันทึก</label>${nurseSelect('oe-rec',o.recorder,'nurseChangeObs(this)','send')}</div>`;
+}
+function pickObsF(f,rk,lb){ const r=RANGES[rk]; const o=R.obs[obsEdit]; openPicker(lb,[{label:r.label,items:r.items,value:o[f],def:r.def}],vv=>{ o[f]=vv[0]; const el=$('oe-'+f); if(el)el.textContent=vv[0]; }); }
+function nurseChangeObs(sel){ if(sel.value==='__add__'){ const n=prompt('ชื่อพยาบาลใหม่:'); if(n&&n.trim()){ addNurse('send',n.trim()); R.obs[obsEdit].recorder=n.trim(); } renderObsEditor(); return; } R.obs[obsEdit].recorder=sel.value; }
 
 /* alert */
 function beep(){ try{ if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)(); const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.connect(g);g.connect(audioCtx.destination); o.frequency.value=880; g.gain.setValueAtTime(.001,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(.4,audioCtx.currentTime+.02); g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.5); o.start();o.stop(audioCtx.currentTime+.55);}catch(e){} try{navigator.vibrate&&navigator.vibrate(400);}catch(e){} }
@@ -590,11 +639,6 @@ function pg5(){ const e=R.ev; computeDuration(); return `
     <div class="chips">${chip('wSBP','SBP',e.wSBP)}${chip('wDBP','DBP',e.wDBP)}${chip('wPR','PR',e.wPR)}${chip('wRR','RR',e.wRR)}${chip('wT','Temp',e.wT)}${chip('wO2','SpO₂',e.wO2)}</div>
     <div class="grp-lbl">COMA SCORE</div>
     <div class="chips">${chip('wE','E',e.wE)}${chip('wV','V',e.wV)}${chip('wM','M',e.wM)}${chip('wRt','Pupil Rt',e.wRt)}${chip('wLt','Pupil Lt',e.wLt)}</div>
-  </div>
-  <div class="card c-slate">
-    <h3>ลายเซ็นพยาบาลผู้รับผู้ป่วย (ward)</h3>
-    <div class="sig-wrap"><button class="sig-clear" onclick="clearSig('wardSign')">ล้าง</button><canvas data-sig="wardSign"></canvas></div>
-    <div class="fld" style="margin-top:10px"><label>ชื่อพยาบาลผู้รับผู้ป่วย</label>${nurseSelect('f-wardnurse',e.wardNurse,'nurseChange(this,v=>R.ev.wardNurse=v)')}</div>
   </div>`;}
 function updDur(){ const v=$('dur-val'); if(v)v.textContent=R.durationMin!=null?R.durationMin+' นาที':'—'; }
 
@@ -603,11 +647,28 @@ function pg6(){ const e=R.ev; return `
   <div class="card c-slate">
     <h3>Comment จากทีมนำส่ง</h3>
     <div class="sublabel">ข้อเสนอแนะ / ปัญหาที่พบระหว่างนำส่ง (เพิ่มภายหลังได้แม้จบการนำส่งแล้ว)</div>
-    <textarea class="inp" id="f-comment" style="min-height:120px" placeholder="พิมพ์ comment...">${esc(e.transportComment)}</textarea>
+    <textarea class="inp" id="f-comment" style="min-height:140px" placeholder="พิมพ์ comment...">${esc(e.transportComment)}</textarea>
+    <div class="sublabel">* comment นี้จะถูกบันทึกเป็น "หน้า 2" ของไฟล์ PDF A4</div>
+  </div>`;}
+
+/* ---- PAGE 7: สรุป A4 + พยาบาลปลายทางเซ็นรับทราบ ---- */
+function pg7(){ const e=R.ev; computeDuration();
+  setTimeout(()=>{ try{ renderA4(R); $('a4-preview').innerHTML=$('a4-form').innerHTML; }catch(err){} },20);
+  return `
+  <div class="card c-teal">
+    <h3>สรุปรายละเอียดการนำส่ง (A4) — ตรวจก่อนเซ็น</h3>
+    <div class="sublabel">เลื่อนดูให้ครบ แล้วให้พยาบาลปลายทางเซ็นรับทราบการนำส่งร่วมกันด้านล่าง</div>
+    <div style="border:1px solid var(--line);border-radius:10px;overflow:auto;background:#fff;max-height:60vh;margin-top:8px">
+      <div id="a4-preview" style="zoom:0.52"></div>
+    </div>
   </div>
-  <div class="card c-red">
-    <h3>จบการนำส่ง</h3>
-    <div class="sublabel">กด "🔒 จบการนำส่ง" ด้านล่างเพื่อบันทึก + สร้าง PDF ขึ้น Drive · หลังจบแล้วจะแก้ข้อมูลไม่ได้ (ยกเว้นผู้นำส่งเพิ่ม comment ตามหลังได้)</div>
+  <div class="card c-slate">
+    <h3>พยาบาลปลายทางเซ็นรับทราบการนำส่ง</h3>
+    <div class="fld"><label>ชื่อพยาบาลผู้รับผู้ป่วย (ปลายทาง)</label>
+      ${nurseSelect('f-wardnurse',e.wardNurse,'nurseChange(this,v=>R.ev.wardNurse=v)','recv')}
+      <div style="margin-top:8px"><button class="mini-btn gray" onclick="openNurseMgr('recv')">✏️ จัดการรายชื่อปลายทาง</button></div></div>
+    <div class="fld"><label>ลายเซ็น</label><div class="sig-wrap"><button class="sig-clear" onclick="clearSig('wardSign')">ล้าง</button><canvas data-sig="wardSign"></canvas></div></div>
+    <div class="sublabel">กด "🔒 จบการนำส่ง" ด้านล่างเพื่อบันทึก + สร้าง PDF ขึ้น Drive · หลังจบแล้วแก้ข้อมูลไม่ได้ (ผู้นำส่งเพิ่ม comment ภายหลังได้)</div>
   </div>`;}
 
 /* ---- signatures ---- */
@@ -637,10 +698,17 @@ function pdfName(r){ return `ใบนำส่ง_${(r.hn||'noHN')}_${(r.patien
 async function buildPdfBlob(rec){
   if(typeof html2canvas==='undefined'||!window.jspdf) return null;
   renderA4(rec); const el=$('a4-form'); el.classList.add('showprint'); await new Promise(r=>setTimeout(r,60));
-  const canvas=await html2canvas(el,{scale:2,backgroundColor:'#fff',windowWidth:794}); el.classList.remove('showprint');
-  const {jsPDF}=window.jspdf; const pdf=new jsPDF('p','mm','a4'); const pw=210,ph=297; const imgH=canvas.height*pw/canvas.width;
-  const img=canvas.toDataURL('image/jpeg',0.9); pdf.addImage(img,'JPEG',0,0,pw,imgH); let left=imgH-ph,pos=0;
-  while(left>0){ pos-=ph; pdf.addPage(); pdf.addImage(img,'JPEG',0,pos,pw,imgH); left-=ph; }
+  const {jsPDF}=window.jspdf; const pdf=new jsPDF('p','mm','a4'); const pw=210,ph=297;
+  const pages=[$('a4p1'),$('a4p2')].filter(Boolean);
+  for(let i=0;i<pages.length;i++){
+    const canvas=await html2canvas(pages[i],{scale:2,backgroundColor:'#fff',windowWidth:794});
+    const img=canvas.toDataURL('image/jpeg',0.9); const imgH=canvas.height*pw/canvas.width;
+    if(i>0) pdf.addPage();
+    // ถ้าหน้ายาวเกิน A4 ให้ตัดเป็นหลายหน้า
+    if(imgH<=ph){ pdf.addImage(img,'JPEG',0,0,pw,imgH); }
+    else { let left=imgH,pos=0,first=true; while(left>0){ if(!first) pdf.addPage(); pdf.addImage(img,'JPEG',0,pos,pw,imgH); pos-=ph; left-=ph; first=false; } }
+  }
+  el.classList.remove('showprint');
   return pdf.output('blob');
 }
 function blobToB64(b){ return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(b);}); }
@@ -659,12 +727,12 @@ function renderA4(r){ const p=r.prep,e=r.ev;
   const used=o=>['sbp','dbp','pr','rr','temp','spo2','pupilRt','pupilLt','e','m','v','pain','note','recorder','time'].some(f=>o[f]);
   const rows=r.obs.filter(used).map(o=>`<tr><td>${esc(o.time)}</td><td>${esc(o.sbp)}</td><td>${esc(o.dbp)}</td><td>${esc(o.pr)}</td><td>${esc(o.rr)}</td><td>${esc(o.temp)}</td><td>${esc(o.spo2)}</td><td>${esc(o.pupilRt)}</td><td>${esc(o.pupilLt)}</td><td>${esc(o.e)}</td><td>${esc(o.m)}</td><td>${esc(o.v)}</td><td>${esc(o.pain)}</td><td style="text-align:left">${esc(o.note)}</td><td>${esc(o.recorder)}</td></tr>`).join('');
   const blanks=Array.from({length:Math.max(0,6-r.obs.filter(used).length)}).map(()=>`<tr>${'<td>&nbsp;</td>'.repeat(15)}</tr>`).join('');
-  $('a4-form').innerHTML=`
+  $('a4-form').innerHTML=`<div class="a4page" id="a4p1">
   <div class="a4-head"><div style="font-size:26px">🏥</div>
     <div style="flex:1"><div class="ht">โรงพยาบาลชัยนาทนเรนทร</div><div class="hs">แบบบันทึกข้อมูลส่งต่อผู้ป่วย หน่วยงานอุบัติเหตุฉุกเฉิน</div></div>
     <div class="a4-sticker">ชื่อ-สกุล ${esc(r.patientName)||'..........'}<br>HN ${esc(r.hn)||'......'} · AN ....<br>${r.locked?'🔒 จบการนำส่งแล้ว':''}</div></div>
   <div class="a4-line">วันที่ <span class="u">${esc(r.date)}</span> เวลา <span class="u">${esc(r.time)}</span> สถานที่รับผู้ป่วย <span class="u">${esc(r.location)||'......'}</span> · ผู้นำส่ง <span class="u">${esc(r.transporter)||'......'}</span></div>
-  <div class="a4-line">Dx <span class="u">${esc(r.dx)||'................'}</span> พยาบาลผู้ดูแลแรกรับ <span class="u">${esc(r.firstNurse)||'......'}</span></div>
+  <div class="a4-line">Dx <span class="u">${esc(r.dx)||'............................................'}</span></div>
   <div class="a4-line">Vital sign ก่อนนำส่ง BP <span class="u">${esc(r.vsSBP)||'..'}/${esc(r.vsDBP)||'..'}</span> P <span class="u">${esc(r.vsPR)||'..'}</span> R <span class="u">${esc(r.vsRR)||'..'}</span> T <span class="u">${esc(r.vsT)||'..'}</span></div>
   <div class="a4-line">COMA E <span class="u">${esc(r.cE)||'.'}</span> V <span class="u">${esc(r.cV)||'.'}</span> M <span class="u">${esc(r.cM)||'.'}</span> · Pupil Rt <span class="u">${esc(r.cRt)||'..'}</span> Lt <span class="u">${esc(r.cLt)||'..'}</span></div>
   <div class="a4-line">Nurse Note <span class="u">${esc(r.nurseNote)||'............................................'}</span></div>
@@ -686,10 +754,16 @@ function renderA4(r){ const p=r.prep,e=r.ev;
   <div class="a4-line">การส่งต่อข้อมูล ${bx(e.handover==='yes')}มี ${bx(e.handover==='no')}ไม่มี · ถึงหอผู้ป่วยเวลา <span class="u">${esc(e.arriveTime)||'....'}</span> · ระยะเวลานำส่ง <b>${r.durationMin!=null?r.durationMin+' นาที':'....'}</b></div>
   <div class="a4-line">สรุปอาการ ${bx(e.summary==='same')}คงเดิม ${bx(e.summary==='worse')}ทรุดลง ${bx(e.summary==='other')}อื่นๆ ${esc(e.summaryOther)} · ช่วยเหลือเบื้องต้น <span class="u">${esc(e.initialHelp)||'......'}</span></div>
   <div class="a4-line">V/S ที่ตึก BP <span class="u">${esc(e.wSBP)||'..'}/${esc(e.wDBP)||'..'}</span> P <span class="u">${esc(e.wPR)||'..'}</span> R <span class="u">${esc(e.wRR)||'..'}</span> T <span class="u">${esc(e.wT)||'..'}</span> SpO₂ <span class="u">${esc(e.wO2)||'..'}</span>% · COMA E <span class="u">${esc(e.wE)||'.'}</span> V <span class="u">${esc(e.wV)||'.'}</span> M <span class="u">${esc(e.wM)||'.'}</span> Pupil Rt <span class="u">${esc(e.wRt)||'..'}</span> Lt <span class="u">${esc(e.wLt)||'..'}</span></div>
-  <div class="a4-line" style="margin-top:4px"><b>Comment จากทีมนำส่ง:</b> <span class="u">${esc(e.transportComment)||'....................................................'}</span></div>
-  <div class="a4-line" style="margin-top:16px;text-align:right">
-    ${e.wardSign?`<img class="sig-img" src="${e.wardSign}">`:'<br>'}<div style="display:inline-block;border-top:1px dotted #000;width:240px;text-align:center">พยาบาลผู้รับผู้ป่วย (${esc(e.wardNurse)})</div></div>
-  <div class="a4-foot">FM-CHN-IM/ER-09 · บันทึกผ่านระบบ JNH ER webapp · ${esc(r.date)} ${esc(r.time)}</div>`;
+  <div class="a4-line" style="margin-top:18px;text-align:right">
+    ${e.wardSign?`<img class="sig-img" src="${e.wardSign}">`:'<br>'}<div style="display:inline-block;border-top:1px dotted #000;width:270px;text-align:center">พยาบาลปลายทางเซ็นรับทราบการนำส่ง (${esc(e.wardNurse)})</div></div>
+  <div class="a4-foot">FM-CHN-IM/ER-09 · บันทึกผ่านระบบ JNH ER webapp · ${esc(r.date)} ${esc(r.time)} · หน้า 1/2</div>
+  </div>
+  <div class="a4page" id="a4p2">
+  <div class="a4-head"><div style="font-size:22px">🏥</div><div style="flex:1"><div class="ht">Comment จากทีมนำส่ง</div><div class="hs">${esc(r.patientName)||''} · HN ${esc(r.hn)||''} · ${esc(r.date)} ${esc(r.time)}</div></div></div>
+  <div class="a4-sec">ความเห็น / ปัญหาที่พบระหว่างนำส่ง</div>
+  <div style="white-space:pre-wrap;border:1px solid #000;border-radius:6px;padding:10px;min-height:280px;font-size:12px">${esc(e.transportComment)||'(ไม่มี comment)'}</div>
+  <div class="a4-foot">FM-CHN-IM/ER-09 · JNH ER webapp · หน้า 2/2</div>
+  </div>`;
 }
 function printRecord(r){ renderA4(r); window.print(); }
 
@@ -733,13 +807,16 @@ async function submitComment(){ const r=CASES[cmtTargetId]; if(!r){hideEl('cmt-m
 /* ---- monthly review PDF ---- */
 function reviewPDF(){ const m=$('dash-month').value; const list=monthCases(m).filter(r=>isBad(r)||hasCmt(r)||isWorse(r)); if(!list.length){toast('ไม่มีเคสที่ต้องทบทวน');return;}
   const rows=list.map((r,i)=>`<tr><td>${i+1}</td><td style="text-align:left">${esc(r.patientName)||'-'}<br><small>${esc(r.hn)}</small></td><td>${esc(r.date)}<br>${esc(r.time)}</td><td>${esc(r.transporter)||'-'}</td><td style="text-align:left">${['ab','circ','bleed','dis'].filter(k=>r.ev[k]==='inappropriate').map(k=>({ab:'A&B',circ:'Circ',bleed:'ห้ามเลือด',dis:'Disab'}[k])+': '+esc(r.ev[k+'Detail']||'')).join('<br>')||'-'}</td><td>${isWorse(r)?'ทรุดลง':'-'}</td><td style="text-align:left">${esc((r.ev.transportComment||'').trim())||'-'}</td></tr>`).join('');
-  const el=$('a4-form'); el.innerHTML=`<div class="a4-head"><div style="font-size:24px">🏥</div><div style="flex:1"><div class="ht">สรุปเคสนำส่งที่ต้องทบทวน — ${m}</div><div class="hs">โรงพยาบาลชัยนาทนเรนทร · หน่วยงานอุบัติเหตุฉุกเฉิน</div></div></div><div class="a4-line">รวม ${list.length} เคส</div><table class="a4-tbl" style="font-size:10px"><thead><tr><th>#</th><th>ผู้ป่วย</th><th>วันเวลา</th><th>ผู้นำส่ง</th><th style="width:190px">หัตถการไม่เหมาะสม</th><th>อาการ</th><th style="width:210px">Comment</th></tr></thead><tbody>${rows}</tbody></table><div class="a4-foot">ทบทวนคุณภาพการนำส่ง · ${new Date().toLocaleString('th-TH')}</div>`;
+  const el=$('a4-form'); el.innerHTML=`<div class="a4page"><div class="a4-head"><div style="font-size:24px">🏥</div><div style="flex:1"><div class="ht">สรุปเคสนำส่งที่ต้องทบทวน — ${m}</div><div class="hs">โรงพยาบาลชัยนาทนเรนทร · หน่วยงานอุบัติเหตุฉุกเฉิน</div></div></div><div class="a4-line">รวม ${list.length} เคส</div><table class="a4-tbl" style="font-size:10px"><thead><tr><th>#</th><th>ผู้ป่วย</th><th>วันเวลา</th><th>ผู้นำส่ง</th><th style="width:190px">หัตถการไม่เหมาะสม</th><th>อาการ</th><th style="width:210px">Comment</th></tr></thead><tbody>${rows}</tbody></table><div class="a4-foot">ทบทวนคุณภาพการนำส่ง · ${new Date().toLocaleString('th-TH')}</div></div>`;
   el.classList.add('showprint'); window.print(); setTimeout(()=>el.classList.remove('showprint'),500);
 }
 
 /* ============ INIT ============ */
-try{ const ln=JSON.parse(localStorage.getItem('tf_nurses')||'null'); if(Array.isArray(ln))NURSES=ln; }catch(e){}
-initFB();
+try{ const a=JSON.parse(localStorage.getItem('tf_nursesSend')||'null'); if(Array.isArray(a))NURSES_SEND=a; const b2=JSON.parse(localStorage.getItem('tf_nursesRecv')||'null'); if(Array.isArray(b2))NURSES_RECV=b2; }catch(e){}
+/* firebase สคริปต์โหลดแบบ defer — เริ่มต่อหลังโหลดเสร็จ (หน้า home แสดงได้ทันทีโดยไม่รอ) */
+function startFB(){ try{ initFB(); }catch(e){ console.warn('initFB',e); } }
+if(typeof firebase!=='undefined'){ startFB(); }
+else { window.addEventListener('load', startFB); setTimeout(function(){ if(!fbRef) startFB(); }, 2500); }
 </script>
 </body>
 </html>
