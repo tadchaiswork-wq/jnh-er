@@ -124,7 +124,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
 .stat-box{background:var(--card);border-radius:14px;padding:16px 10px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.07)}
 .stat-val{font-size:32px;font-weight:800;color:var(--navy)}
 .stat-lbl{font-size:13px;color:var(--muted);font-weight:600;margin-top:4px}
-.case-list-header{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between}
+.case-list-header{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .case-item{background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px;cursor:pointer;border:2px solid transparent;transition:border-color .15s;box-shadow:0 1px 3px rgba(0,0,0,.06)}
 .case-item:hover{border-color:var(--navy)}
 .case-item-top{display:flex;justify-content:space-between;align-items:flex-start}
@@ -567,6 +567,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-se
     <div class="case-list-header">
       <span id="case-list-header-lbl">เคสเดือนนี้</span>
       <span id="case-count-lbl"></span>
+      <button id="reveal-btn" onclick="toggleNamePrivacy()" style="margin-left:auto;background:var(--navy);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap">👁 ดูชื่อ (Admin)</button>
     </div>
     <div id="case-list"></div>
     <div class="sync-note" id="sync-note"></div>
@@ -1170,6 +1171,7 @@ let S = {};         // current CPR session
 let DB = {};        // all sessions + settings
 let CFG = {};       // settings
 let adminUnlocked = false;
+let namesRevealed = false;   // หน้าแรก: ซ่อนชื่อผู้ป่วยไว้ก่อน ต้องใส่รหัส Admin จึงจะเห็น
 let pinBuffer = '';
 let currentCaseDetailId = null;
 let cdEvents = [];   // working copy of events for case-review editing
@@ -3484,7 +3486,7 @@ function renderDashboard(){
           </div>` : '';
       return `<div class="case-item" onclick="openCaseDetail('${s.id}')">
         <div class="case-item-top">
-          <div><div class="case-name"><span style="display:inline-block;background:var(--navy);color:#fff;font-weight:800;font-size:12px;border-radius:6px;padding:1px 8px;margin-right:6px">No.${s.no||'—'}</span>${s.patientName}${hn}</div><div class="case-hn">${fmtDateTime(s.startTime)}</div></div>
+          <div><div class="case-name"><span style="display:inline-block;background:var(--navy);color:#fff;font-weight:800;font-size:12px;border-radius:6px;padding:1px 8px;margin-right:6px">No.${s.no||'—'}</span>${namesRevealed?(s.patientName+hn):'<span style="color:var(--muted);font-weight:600">🔒 ●●●●●</span>'}</div><div class="case-hn">${fmtDateTime(s.startTime)}</div></div>
           <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
             <span class="case-badge ${badge}">${oc||'ongoing'}</span>
             ${qs!=null?`<span class="quality-badge ${qBadge}">${qLabel}</span>`:''}
@@ -3504,9 +3506,28 @@ function renderDashboard(){
   // Offline check
   $('offline-banner').style.display=navigator.onLine?'none':'block';
   updateFBStatus(fbRef?'ok':'off');
+  const rb=$('reveal-btn'); if(rb) rb.textContent=namesRevealed?'🙈 ซ่อนชื่อ':'👁 ดูชื่อ (Admin)';
+}
+
+// ── หน้าแรก: ซ่อน/แสดงชื่อผู้ป่วย (ต้องใส่รหัส Admin จึงจะเห็นชื่อ) ──
+function _pinOK(pin){ return pin!=null && (pin.trim()===(CFG.pin||'1234') || pin.trim()==='1234'); }
+function toggleNamePrivacy(){
+  if(namesRevealed){ namesRevealed=false; renderDashboard(); return; }
+  const pin=prompt('🔒 ดูชื่อผู้ป่วย — ใส่รหัส Admin');
+  if(pin===null) return;
+  if(_pinOK(pin)){ namesRevealed=true; renderDashboard(); }
+  else alert('รหัส Admin ไม่ถูกต้อง');
+}
+function requireNameReveal(cb){
+  if(namesRevealed||adminUnlocked){ namesRevealed=true; cb(); return; }
+  const pin=prompt('🔒 ดูข้อมูลผู้ป่วย — ใส่รหัส Admin');
+  if(pin===null) return;
+  if(_pinOK(pin)){ namesRevealed=true; renderDashboard(); cb(); }
+  else alert('รหัส Admin ไม่ถูกต้อง');
 }
 
 function openCaseDetail(id){
+  if(!namesRevealed&&!adminUnlocked){ requireNameReveal(()=>openCaseDetail(id)); return; }
   const s=DB.sessions.find(x=>x.id===id);
   if(!s) return;
   currentCaseDetailId=id;
@@ -3781,6 +3802,7 @@ function updatePinDots(){
 function checkPin(){
   if(pinBuffer===CFG.pin||pinBuffer==='1234'){
     adminUnlocked=true;
+    namesRevealed=true;
     $('admin-pin-gate').style.display='none';
     $('admin-content').style.display='block';
     renderAdminContent();
