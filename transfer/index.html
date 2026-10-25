@@ -328,7 +328,7 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
 const FB=window.FIREBASE_CONFIG||null;
 const DRIVE_URL=(window.LINKS_DRIVE_URL||'').trim();
 const PATH='transfer';
-const BUILD='2026-10-23c';
+const BUILD='2026-10-25a';
 let fbRef=null, fbOK=false;
 let CASES={}, SETTINGS={adminPass:'1234'}, NURSES_SEND=[], NURSES_RECV=[];
 let adminOK=false, adminAction=null;
@@ -513,7 +513,7 @@ function savecurrent(){
   if(page===1){ /* transporter saved on change */ }
   else if(page===2){ R.date=val('f-date');R.time=val('f-time');R.location=val('f-location');R.hn=val('f-hn');R.patientName=val('f-name');R.dx=val('f-dx');R.nurseNote=val('f-nursenote'); }
   else if(page===3){ const p=R.prep; p.ettSize=val('f-ettsize');p.ettDepth=val('f-ettdepth');p.o2note=val('f-o2note');p.airwayOther=val('f-airwayother');p.bloodText=val('f-bloodtext');p.tourniquetPos=val('f-tqpos');
-    (p.ivLines||[]).forEach((ln,i)=>{ const sel=$('iv-fluid-'+i); if(sel) ln.fluid=sel.value; }); }
+    (p.ivLines||[]).forEach((ln,i)=>{ const sel=$('iv-fluid-'+i); if(sel) ln.fluid=sel.value; const dg=$('iv-drug-'+i); if(dg) ln.drug=dg.value; }); }
   else if(page===4){ const d=$('f-departer'); if(d)R.departER=d.value; }
   else if(page===5){ const e=R.ev; e.abDetail=val('f-abdetail');e.circDetail=val('f-circdetail');e.bleedDetail=val('f-bleeddetail');e.disDetail=val('f-disdetail');e.arriveTime=val('f-arrive');e.summaryOther=val('f-summaryother');e.initialHelp=val('f-initialhelp'); computeDuration(); }
   else if(page===6){ R.ev.wardNurse=val('f-wardnurse'); saveSigs(); computeDuration(); }
@@ -595,9 +595,9 @@ function ynRow(field,label){ const v=R.prep[field]; return `<div class="fld"><la
   <button class="${v==='yes'?'on ok':''}" onclick="setPrepYN('${field}','yes')">มี</button>
   <button class="${v==='no'?'on no':''}" onclick="setPrepYN('${field}','no')">ไม่มี</button></div></div>`; }
 function setPrepYN(f,v){ R.prep[f]=v; rr(); }
-function togglePrep(f){ savecurrent(); R.prep[f]=!R.prep[f]; if(f==='iv'){ if(R.prep.iv&&(!R.prep.ivLines||!R.prep.ivLines.length)) R.prep.ivLines=[{fluid:'NSS',rate:'80'}]; if(!R.prep.iv) R.prep.ivLines=[]; } rr(); }
+function togglePrep(f){ savecurrent(); R.prep[f]=!R.prep[f]; if(f==='iv'){ if(R.prep.iv&&(!R.prep.ivLines||!R.prep.ivLines.length)) R.prep.ivLines=[{fluid:'NSS',rate:'80',drug:''}]; if(!R.prep.iv) R.prep.ivLines=[]; } rr(); }
 function toggleO2(t){ savecurrent(); const a=R.prep.o2type; const i=a.indexOf(t); if(i<0)a.push(t);else a.splice(i,1); rr(); }
-function addIV(){ savecurrent(); R.prep.ivLines.push({fluid:'NSS',rate:'80'}); rr(); }
+function addIV(){ savecurrent(); R.prep.ivLines.push({fluid:'NSS',rate:'80',drug:''}); rr(); }
 function delIV(i){ savecurrent(); R.prep.ivLines.splice(i,1); if(!R.prep.ivLines.length)R.prep.iv=false; rr(); }
 function pickIVrate(i){ const r=RANGES.ivrate; openPicker('Rate IV เส้นที่ '+(i+1), [{label:'ml/hr',items:r.items,value:R.prep.ivLines[i].rate,def:r.def}], vv=>{ R.prep.ivLines[i].rate=vv[0]; const el=$('iv-rate-'+i); if(el)el.textContent=vv[0]+' ml/hr'; }); }
 function pg3(){ const p=R.prep; return `
@@ -634,11 +634,15 @@ function pg3(){ const p=R.prep; return `
     <span class="chk ${p.iv?'on':''}" onclick="togglePrep('iv')"><span class="bx">${p.iv?'✓':''}</span>IV</span>
     <span class="chk ${p.blood?'on':''}" onclick="togglePrep('blood')"><span class="bx">${p.blood?'✓':''}</span>Blood</span>
     ${p.iv?`<div class="subpanel">${(p.ivLines||[]).map((ln,i)=>`
-      <div class="row" style="align-items:flex-end;margin-bottom:8px">
-        <div class="fld" style="margin:0;flex:2"><label>IV เส้นที่ ${i+1}</label>
+      <div style="border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px;background:#fff">
+      <div class="row" style="align-items:flex-end">
+        <div class="fld" style="margin:0;flex:2"><label>สารน้ำ IV เส้นที่ ${i+1}</label>
           <select class="inp" id="iv-fluid-${i}">${IV_FLUIDS.map(f=>`<option ${ln.fluid===f?'selected':''}>${f}</option>`).join('')}</select></div>
         <div class="fld" style="margin:0"><label>Rate</label><button class="vchip" style="width:100%" onclick="pickIVrate(${i})"><span class="vv" id="iv-rate-${i}">${esc(ln.rate||'80')} ml/hr</span></button></div>
         <button class="obs-del" onclick="delIV(${i})">ลบ</button>
+      </div>
+      <div class="fld" style="margin:6px 0 0"><label>ยาที่ผสม/ห้อยไปในเส้นนี้ (ชื่อยา · ขนาด · rate)</label>
+        <input class="inp" id="iv-drug-${i}" value="${esc(ln.drug||'')}" placeholder="เช่น Dopamine (2:1) 10 ml/hr, KCl 20 mEq ห้อยไป"></div>
       </div>`).join('')}
       <button class="mini-btn" onclick="addIV()">➕ เพิ่มเส้น IV</button></div>`:''}
     ${p.blood?`<div class="fld"><label>รายละเอียด Blood</label><input class="inp" id="f-bloodtext" value="${esc(p.bloodText)}"></div>`:''}
@@ -729,16 +733,17 @@ function pg5(){ const e=R.ev; computeDuration(); return `
       <div class="fld"><label>ถึงหอผู้ป่วยเวลา</label><input type="time" class="inp" id="f-arrive" value="${esc(e.arriveTime)}" onchange="R.ev.arriveTime=this.value;computeDuration();updDur()"></div>
     </div>
     <div class="alert-bar" style="background:#eff6ff;border-color:#bfdbfe;color:#1e40af">⏱ ระยะเวลาการนำส่ง: <b id="dur-val" style="margin-left:6px">${R.durationMin!=null?R.durationMin+' นาที':'—'}</b></div>
-    <div class="fld"><label>สรุปอาการเมื่อถึงหอผู้ป่วยใน</label><div class="seg">
+    <div style="display:flex;justify-content:space-between;align-items:center"><div class="grp-lbl">Vital sign ที่ตึกก่อนลงเตียง</div><button class="mini-btn gray" onclick="pullLatestVS()">⬇ ดึงค่าล่าสุด</button></div>
+    <div class="vgrid">${vfld('wSBP','SBP','int')}${vfld('wDBP','DBP','int')}${vfld('wPR','PR','int')}${vfld('wRR','RR','int')}${vfld('wT','BT (°C)','dec')}${vfld('wO2','SpO₂','int')}</div>
+    <div class="grp-lbl">COMA SCORE</div>
+    <div class="vgrid">${vfld('wE','E','int')}${fldV('wV')}${vfld('wM','M','int')}${fldPupil('wRt','Pupil Rt')}${fldPupil('wLt','Pupil Lt')}</div>
+    <div class="grp-lbl" style="margin-top:14px;border-top:2px dashed var(--line);padding-top:12px">สรุปอาการเมื่อถึงหอผู้ป่วยใน (หลังดูสัญญาณชีพข้างบน)</div>
+    <div class="fld" style="margin-top:4px"><div class="seg">
       <button class="${e.summary==='same'?'on ok':''}" onclick="setSummary('same')">คงเดิม</button>
       <button class="${e.summary==='worse'?'on warn':''}" onclick="setSummary('worse')">ทรุดลง</button>
       <button class="${e.summary==='other'?'on':''}" onclick="setSummary('other')">อื่นๆ</button></div>
       ${e.summary==='other'?`<input class="inp" id="f-summaryother" value="${esc(e.summaryOther)}" placeholder="ระบุ" style="margin-top:6px">`:''}</div>
     <div class="fld"><label>การช่วยเหลือเบื้องต้น (กรณีทรุดลง)</label><textarea class="inp" id="f-initialhelp">${esc(e.initialHelp)}</textarea></div>
-    <div style="display:flex;justify-content:space-between;align-items:center"><div class="grp-lbl">Vital sign ที่ตึกก่อนลงเตียง</div><button class="mini-btn gray" onclick="pullLatestVS()">⬇ ดึงค่าล่าสุด</button></div>
-    <div class="vgrid">${vfld('wSBP','SBP','int')}${vfld('wDBP','DBP','int')}${vfld('wPR','PR','int')}${vfld('wRR','RR','int')}${vfld('wT','BT (°C)','dec')}${vfld('wO2','SpO₂','int')}</div>
-    <div class="grp-lbl">COMA SCORE</div>
-    <div class="vgrid">${vfld('wE','E','int')}${fldV('wV')}${vfld('wM','M','int')}${fldPupil('wRt','Pupil Rt')}${fldPupil('wLt','Pupil Lt')}</div>
   </div>`;}
 function updDur(){ const v=$('dur-val'); if(v)v.textContent=R.durationMin!=null?R.durationMin+' นาที':'—'; }
 function pullLatestVS(){ const o=(R.obs&&R.obs.length)?R.obs[R.obs.length-1]:null; if(!o){toast('ยังไม่มีบันทึกสัญญาณชีพในหน้า 4');return;} const e=R.ev; e.wSBP=o.sbp||'';e.wDBP=o.dbp||'';e.wPR=o.pr||'';e.wRR=o.rr||'';e.wT=o.temp||'';e.wO2=o.spo2||'';e.wE=o.e||'';e.wV=o.v||'';e.wM=o.m||'';e.wRt=o.pupilRt||'';e.wLt=o.pupilLt||''; rr(); toast('ดึงค่าล่าสุด ('+(o.time||'')+') แล้ว — แก้ไขได้'); }
@@ -826,7 +831,7 @@ function ynT(v){ return v==='yes'?'<b>✓ มี</b>':v==='no'?'<b>✓ ไม่
 function evT(v){ const m={appropriate:'ทำและเหมาะสม',notdone:'ไม่ทำ',unnecessary:'ไม่จำเป็น',inappropriate:'ทำแต่ไม่เหมาะสม'}; return v?('<b>✓ '+m[v]+'</b>'):'—'; }
 function renderA4(r){ const p=r.prep,e=r.ev;
   const o2=[]; if(p.o2type&&p.o2type.includes('cannula'))o2.push('Cannula'); if(p.o2type&&p.o2type.includes('maskbag'))o2.push('Mask c bag'); if(p.o2type&&p.o2type.includes('neb'))o2.push('พ่นยา');
-  const iv=(p.ivLines||[]).map(l=>`${esc(l.fluid)} ${esc(l.rate)}ml/hr`).join(', ');
+  const iv=(p.ivLines||[]).map(l=>`${esc(l.fluid)} ${esc(l.rate)}ml/hr${l.drug?(' + '+esc(l.drug)):''}`).join('; ');
   const ab=[]; if(p.oralAirway)ab.push('Oral airway'); if(p.nasalAirway)ab.push('Nasal airway'); if(p.ettOn)ab.push('ET-tube'+((p.ettSize||p.ettDepth)?` (${esc(p.ettSize)}${p.ettDepth?', ลึก '+esc(p.ettDepth)+'cm':''})`:'')); if(p.ambubag)ab.push('บีบ Ambubag'); if(p.o2on)ab.push('O₂'+(o2.length?' ('+o2.join(', ')+(p.o2note?' · '+esc(p.o2note):'')+')':'')); if(p.airwayOther)ab.push(esc(p.airwayOther));
   const circ=[]; if(p.iv)circ.push('IV '+esc(iv)); if(p.blood)circ.push('Blood'+(p.bloodText?' '+esc(p.bloodText):''));
   const bld=[]; if(p.suture)bld.push('Suture'); if(p.pressure)bld.push('Pressure wound');
