@@ -164,6 +164,32 @@
   details.hd{margin:0}
   details.hd summary{cursor:pointer;color:var(--brand-d);font-size:11px;font-weight:600;list-style:none}
   details.hd summary::-webkit-details-marker{display:none}
+
+  /* monthly print report */
+  #histPrint{display:none}
+  @media print{
+    html,body{height:auto;background:#fff}
+    body > *{display:none!important}
+    #histPrint{display:block!important}
+    .rpt-head{text-align:center;margin-bottom:10px}
+    .rpt-head .t1{font-size:17px;font-weight:700}
+    .rpt-head .t2{font-size:12px;color:#334155}
+    .rpt-head .t3{font-size:15px;font-weight:700;margin-top:6px}
+    table.rpt{width:100%;border-collapse:collapse;font-size:9.5px;table-layout:fixed;margin-top:6px}
+    table.rpt th,table.rpt td{border:1px solid #334155;padding:3px 2px;text-align:center;word-break:break-word;vertical-align:middle}
+    table.rpt th{background:#e5e7eb!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    table.rpt td.d{font-weight:700;white-space:nowrap} table.rpt td.s{white-space:nowrap}
+    .rc{font-weight:700}
+    .rc .ck{font-size:8px;font-weight:400;color:#475569;display:block;margin-top:1px}
+    .rg{background:#dcfce7!important} .rp{background:#fef3c7!important} .rz{background:#f1f5f9!important;color:#94a3b8}
+    table.rpt .rg,table.rpt .rp,table.rpt .rz{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .rpt-issues{margin-top:14px;font-size:11px}
+    .rpt-issues h4{font-size:13px;margin:10px 0 5px;color:#b91c1c}
+    .rpt-issues .iss{margin-bottom:4px;padding:3px 0;border-bottom:1px dotted #cbd5e1}
+    .rpt-issues .iss b{color:#0f172a}
+    .rpt-foot{margin-top:14px;font-size:10px;color:#64748b;display:flex;justify-content:space-between}
+    @page{size:A4 landscape;margin:9mm}
+  }
 </style>
 </head>
 <body>
@@ -256,6 +282,7 @@
     <button class="btn ghost sm" id="histPrev">‹ เดือนก่อน</button>
     <b id="histMonth" style="min-width:130px;text-align:center"></b>
     <button class="btn ghost sm" id="histNext">เดือนถัดไป ›</button>
+    <button class="btn sm" id="histPrintBtn" style="width:auto">🖨 Print PDF เดือนนี้</button>
     <span style="flex:1"></span>
     <span class="hleg"><i class="hg"></i> ครบ</span>
     <span class="hleg"><i class="hp"></i> ไม่ครบ</span>
@@ -265,6 +292,7 @@
 </div></div>
 
 <div id="toast" class="toast"></div>
+<div id="histPrint"></div>
 
 <!-- Firebase compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -433,8 +461,7 @@ function openPosition(posKey){
   $("who3").textContent=checker;
   renderChecklist();
   show("page3");
-  // record checker name for this position/shift
-  DB.update(`checklist/records/${S.recKey}/${posKey}`, {checker:checker, updatedAt:Date.now()});
+  // ไม่เขียนชื่อผู้ตรวจตอนเปิดดูเฉย ๆ — จะบันทึกชื่อก็ต่อเมื่อมีการติ๊ก/ใส่หมายเหตุจริง (ดู saveCheck)
 }
 function renderChecklist(){
   const items=templates[curPos]||[];
@@ -586,6 +613,7 @@ $("back2").onclick=()=>{ renderPositions(); show("page2"); };
 
 /* ---------- HISTORY (ย้อนหลัง 1 เดือน) ---------- */
 let histRef = bkkNow();
+let histAll = {};   // records ของเดือนที่กำลังดู (ใช้ซ้ำตอน print)
 function monthKeyOf(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; }
 const SHIFT_TH={morning:"เช้า",afternoon:"บ่าย",night:"ดึก"};
 const SHIFT_ORD={morning:0,afternoon:1,night:2};
@@ -595,6 +623,7 @@ async function renderHistory(){
   $("histMonth").textContent = histRef.toLocaleDateString("th-TH",{month:"long",year:"numeric"});
   const mk = monthKeyOf(histRef);
   const all = (await DB.once("checklist/records")) || {};
+  histAll = all;
   const keys = Object.keys(all).filter(rk=>{ const m=rk.match(/^(\d{4}-\d{2})-\d{2}_/); return m && m[1]===mk; });
   if(!keys.length){ $("histBody").innerHTML=`<div class="hempty">— ไม่มีข้อมูลในเดือนนี้ —</div>`; return; }
   keys.sort((a,b)=>{ const da=a.slice(0,10),db=b.slice(0,10); if(da!==db)return db.localeCompare(da); return (SHIFT_ORD[a.split("_")[1]]||0)-(SHIFT_ORD[b.split("_")[1]]||0); });
@@ -630,7 +659,60 @@ function showHistDetail(all, rk, posKey){
     <table class="chk"><thead><tr><th class="cel-no">#</th><th>รายการ</th><th style="text-align:center">สถานะ</th><th>หมายเหตุ</th></tr></thead><tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:#94a3b8">— ไม่มีรายการ —</td></tr>'}</tbody></table>`;
   $("histDetail").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
+/* ---- Print PDF รายเดือน ---- */
+function printHistory(){
+  const mk = monthKeyOf(histRef);
+  const monthLabel = histRef.toLocaleDateString("th-TH",{month:"long",year:"numeric"});
+  const all = histAll || {};
+  const keys = Object.keys(all).filter(rk=>{ const m=rk.match(/^(\d{4}-\d{2})-\d{2}_/); return m && m[1]===mk; });
+  if(!keys.length){ toast("เดือนนี้ยังไม่มีข้อมูลให้พิมพ์"); return; }
+  keys.sort((a,b)=>{ const da=a.slice(0,10),db=b.slice(0,10); if(da!==db)return da.localeCompare(db); return (SHIFT_ORD[a.split("_")[1]]||0)-(SHIFT_ORD[b.split("_")[1]]||0); });
+  let grid=`<table class="rpt"><thead><tr><th style="width:42px">วันที่</th><th style="width:38px">เวร</th>${POSITIONS.map(p=>`<th>${esc(p.name)}</th>`).join("")}</tr></thead><tbody>`;
+  const issues=[];
+  let lastDate="", shiftCount=0, fullShiftCount=0;
+  keys.forEach(rk=>{
+    const date=rk.slice(0,10), shiftKey=rk.split("_")[1];
+    const [y,mo,dd]=date.split("-");
+    const dayTH=(date!==lastDate)?`${dd}/${mo}`:""; lastDate=date;
+    shiftCount++;
+    let shiftFull=true, shiftHasAny=false;
+    grid+=`<tr><td class="d">${dayTH}</td><td class="s">${SHIFT_TH[shiftKey]||shiftKey}</td>`;
+    POSITIONS.forEach(p=>{
+      const rec=(all[rk]||{})[p.key]; const items=templates[p.key]||[];
+      if(!rec || !items.length){ grid+=`<td class="rz">—</td>`; shiftFull=false; return; }
+      shiftHasAny=true;
+      const checks=rec.checks||{}; let done=0; const missing=[]; const notes=[];
+      items.forEach(it=>{ const c=checks[it.id]; if(c&&c.checked)done++; else missing.push(it.item); if(c&&c.note)notes.push(it.item+" ("+c.note+")"); });
+      const total=items.length, pct=Math.round(done/total*100);
+      const cls=pct===100?"rg":(done>0?"rp":"rz");
+      if(pct<100) shiftFull=false;
+      grid+=`<td class="rc ${cls}">${pct}%<span class="ck">${esc(rec.checker||"")}</span></td>`;
+      if(missing.length||notes.length){
+        issues.push(`<div class="iss"><b>${dd}/${mo} เวร${SHIFT_TH[shiftKey]||shiftKey} · ${esc(p.name)}</b> (ผู้เช็ค: ${esc(rec.checker||"-")}, ครบ ${done}/${total})`
+          +(missing.length?` — <span style="color:#b91c1c">ขาด:</span> ${esc(missing.join(", "))}`:"")
+          +(notes.length?` — <span style="color:#92400e">หมายเหตุ:</span> ${esc(notes.join("; "))}`:"")+`</div>`);
+      }
+    });
+    grid+=`</tr>`;
+    if(shiftHasAny && shiftFull) fullShiftCount++;
+  });
+  grid+=`</tbody></table>`;
+  const issuesHTML = issues.length
+    ? `<div class="rpt-issues"><h4>⚠️ ประเด็นที่พบ (รายการที่ขาด / ชำรุด / มีหมายเหตุ)</h4>${issues.join("")}</div>`
+    : `<div class="rpt-issues"><h4 style="color:#16a34a">✓ เดือนนี้ไม่พบรายการที่ขาดหรือมีหมายเหตุ</h4></div>`;
+  $("histPrint").innerHTML =
+    `<div class="rpt-head">
+       <div class="t1">โรงพยาบาลชัยนาทนเรนทร · หน่วยงานอุบัติเหตุฉุกเฉิน &amp; EMS</div>
+       <div class="t2">รายงานการตรวจเช็คความพร้อมอุปกรณ์ (รายเวร)</div>
+       <div class="t3">ประจำเดือน ${esc(monthLabel)}</div>
+     </div>
+     ${grid}
+     ${issuesHTML}
+     <div class="rpt-foot"><span>รวม ${shiftCount} เวรที่มีการบันทึก · เช็คครบทุกตำแหน่ง ${fullShiftCount} เวร</span><span>พิมพ์เมื่อ ${S.dateTH} ${bkkNow().toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})} น.</span></div>`;
+  window.print();
+}
 $("histBtn").onclick=openHistory;
+$("histPrintBtn").onclick=printHistory;
 $("histPrev").onclick=()=>{ histRef.setMonth(histRef.getMonth()-1); renderHistory(); };
 $("histNext").onclick=()=>{ histRef.setMonth(histRef.getMonth()+1); renderHistory(); };
 document.querySelectorAll("[data-closehist]").forEach(b=>b.onclick=closeHistory);
