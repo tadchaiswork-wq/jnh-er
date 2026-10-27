@@ -73,6 +73,7 @@ textarea.inp{min-height:70px;resize:vertical}
 .seg button.on.ok{background:var(--ok);border-color:var(--ok)}
 .seg button.on.no{background:var(--red);border-color:var(--red)}
 .seg button.on.warn{background:var(--warn);border-color:var(--warn)}
+.seg button.on.muted{background:#e2e8f0;color:#334155;border-color:#cbd5e1}
 .chk{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--line);border-radius:9px;padding:8px 12px;font-size:14px;font-weight:600;cursor:pointer;background:#fff;user-select:none;margin:0 6px 6px 0}
 .chk.on{background:#dbeafe;border-color:var(--accent);color:#1d4ed8}
 .chk .bx{width:18px;height:18px;border:2px solid #94a3b8;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:900}
@@ -342,7 +343,7 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
 const FB=window.FIREBASE_CONFIG||null;
 const DRIVE_URL=(window.LINKS_DRIVE_URL||'').trim();
 const PATH='transfer';
-const BUILD='2026-10-27a';
+const BUILD='2026-10-27b';
 let fbRef=null, fbOK=false;
 let CASES={}, SETTINGS={adminPass:'1234'}, NURSES_SEND=[], NURSES_RECV=[];
 let adminOK=false, adminAction=null;
@@ -525,10 +526,10 @@ function renderWiz(keep){
 function val(id){const e=$(id);return e?e.value:'';}
 function savecurrent(){
   if(page===1){ /* transporter saved on change */ }
-  else if(page===2){ R.date=val('f-date');R.time=val('f-time');R.location=val('f-location');R.hn=val('f-hn');R.patientName=val('f-name');R.dx=val('f-dx');R.nurseNote=val('f-nursenote'); }
+  else if(page===2){ R.date=val('f-date');R.location=val('f-location');R.hn=val('f-hn');R.patientName=val('f-name');R.dx=val('f-dx');R.nurseNote=val('f-nursenote'); }
   else if(page===3){ const p=R.prep; p.ettSize=val('f-ettsize');p.ettDepth=val('f-ettdepth');p.o2note=val('f-o2note');p.airwayOther=val('f-airwayother');p.bloodText=val('f-bloodtext');p.tourniquetPos=val('f-tqpos');
     (p.ivLines||[]).forEach((ln,i)=>{ const sel=$('iv-fluid-'+i); if(sel) ln.fluid=sel.value; const dg=$('iv-drug-'+i); if(dg) ln.drug=dg.value; }); }
-  else if(page===4){ const d=$('f-departer'); if(d)R.departER=d.value; }
+  else if(page===4){ const d=$('f-departer'); if(d)R.departER=d.value; R.time=R.departER||R.time; }
   else if(page===5){ const e=R.ev; e.abDetail=val('f-abdetail');e.circDetail=val('f-circdetail');e.bleedDetail=val('f-bleeddetail');e.disDetail=val('f-disdetail');e.arriveTime=val('f-arrive');e.summaryOther=val('f-summaryother');e.initialHelp=val('f-initialhelp'); computeDuration(); }
   else if(page===6){ R.ev.wardNurse=val('f-wardnurse'); saveSigs(); computeDuration(); }
   else if(page===7){ R.ev.transportComment=val('f-comment'); }
@@ -584,10 +585,7 @@ function pg1(){ return `
 function pg2(){ return `
   <div class="card c-blue">
     <h3>ข้อมูลผู้ป่วย</h3>
-    <div class="row">
-      <div class="fld"><label>วันที่</label><input type="date" class="inp" id="f-date" value="${esc(R.date)}"></div>
-      <div class="fld"><label>เวลา</label><input type="time" class="inp" id="f-time" value="${esc(R.time)}"></div>
-    </div>
+    <div class="fld"><label>วันที่ (ตั้งอัตโนมัติ · แก้ได้)</label><input type="date" class="inp" id="f-date" value="${esc(R.date)}"></div>
     <div class="fld"><label>สถานที่รับผู้ป่วย</label><input class="inp" id="f-location" value="${esc(R.location)}" placeholder="เช่น ER, OPD"></div>
     <div class="row">
       <div class="fld"><label>HN</label><input class="inp" id="f-hn" value="${esc(R.hn)}" inputmode="numeric" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'');R.hn=this.value"></div>
@@ -664,13 +662,13 @@ function pg3(){ const p=R.prep; return `
     <div class="grp-lbl">การห้ามเลือด</div>
     <span class="chk ${p.suture?'on':''}" onclick="togglePrep('suture')"><span class="bx">${p.suture?'✓':''}</span>Suture</span>
     <span class="chk ${p.pressure?'on':''}" onclick="togglePrep('pressure')"><span class="bx">${p.pressure?'✓':''}</span>Pressure wound</span>
+    <span class="chk ${p.tourniquet?'on':''}" onclick="togglePrep('tourniquet')"><span class="bx">${p.tourniquet?'✓':''}</span>Tourniquet</span>
+    ${p.tourniquet?`<div class="subpanel"><div class="fld" style="margin:0"><label>ตำแหน่ง Tourniquet</label><input class="inp" id="f-tqpos" value="${esc(p.tourniquetPos)}" placeholder="เช่น ต้นแขนขวา เวลา..."></div></div>`:''}
 
     <div class="grp-lbl">DISABILITY</div>
     <span class="chk ${p.splint?'on':''}" onclick="togglePrep('splint')"><span class="bx">${p.splint?'✓':''}</span>splint/stab</span>
     <span class="chk ${p.collar?'on':''}" onclick="togglePrep('collar')"><span class="bx">${p.collar?'✓':''}</span>Hard/Philadelphia collar</span>
     <span class="chk ${p.scoop?'on':''}" onclick="togglePrep('scoop')"><span class="bx">${p.scoop?'✓':''}</span>Scoop/Spinal board</span>
-    <span class="chk ${p.tourniquet?'on':''}" onclick="togglePrep('tourniquet')"><span class="bx">${p.tourniquet?'✓':''}</span>Tourniquet</span>
-    ${p.tourniquet?`<div class="subpanel"><div class="fld" style="margin:0"><label>ตำแหน่ง Tourniquet</label><input class="inp" id="f-tqpos" value="${esc(p.tourniquetPos)}" placeholder="เช่น ต้นแขนขวา เวลา..."></div></div>`:''}
   </div>`;}
 
 /* ---- PAGE 4 ---- */
@@ -727,7 +725,7 @@ function stopAlert(){ if(alertTimer){clearInterval(alertTimer);alertTimer=null;}
 
 /* ---- PAGE 5 ---- */
 function evSeg(field,label){ const v=R.ev[field]; const o=(k,t,cls)=>`<button class="${v===k?'on '+cls:''}" onclick="setEv('${field}','${k}')">${t}</button>`;
-  return `<div class="fld"><label>${label}</label><div class="seg">${o('appropriate','ทำและเหมาะสม','ok')}${o('notdone','ไม่ทำ','')}${o('unnecessary','ไม่จำเป็น','')}${o('inappropriate','ทำแต่ไม่เหมาะสม','warn')}</div>
+  return `<div class="fld"><label>${label}</label><div class="seg">${o('appropriate','ทำและเหมาะสม','ok')}${o('inappropriate','ทำแต่ไม่เหมาะสม','warn')}${o('notdone','ไม่ทำ','no')}${o('unnecessary','ไม่จำเป็น','muted')}</div>
   ${v==='inappropriate'?`<input class="inp" id="f-${field}detail" value="${esc(R.ev[field+'Detail'])}" placeholder="ระบุรายละเอียด" style="margin-top:6px">`:''}</div>`; }
 function setEv(f,v){ savecurrent(); R.ev[f]=v; rr(); }
 function setSummary(v){ savecurrent(); R.ev.summary=v; rr(); }
@@ -765,14 +763,11 @@ function pullLatestVS(){ const o=(R.obs&&R.obs.length)?R.obs[R.obs.length-1]:nul
 /* ---- PAGE 6 ---- */
 /* ---- PAGE 6: สรุป A4 + พยาบาลปลายทางเซ็นรับทราบ ---- */
 function pg6(){ const e=R.ev; computeDuration();
-  setTimeout(()=>{ try{ renderA4(R); $('a4-preview').innerHTML=$('a4-form').innerHTML; }catch(err){} },20);
   return `
   <div class="card c-teal">
-    <div style="display:flex;justify-content:space-between;align-items:center"><h3 style="border:none;margin:0;padding:0">สรุป (A4) — ตรวจก่อนเซ็น</h3><button class="mini-btn gray" onclick="openFsPreview('wiz')">⛶ เต็มจอ</button></div>
-    <div class="sublabel">เลื่อนดูให้ครบ แล้วให้พยาบาลปลายทางเซ็นรับทราบการนำส่งร่วมกันด้านล่าง</div>
-    <div style="border:1px solid var(--line);border-radius:10px;overflow:auto;background:#fff;max-height:60vh;margin-top:8px">
-      <div id="a4-preview" style="zoom:0.52"></div>
-    </div>
+    <h3 style="border:none;margin:0 0 6px;padding:0">สรุป (A4) — ตรวจก่อนเซ็น</h3>
+    <div class="sublabel">กดปุ่มด้านล่างเพื่อดูสรุป A4 ก่อนให้พยาบาลปลายทางเซ็นรับทราบการนำส่ง</div>
+    <button onclick="openFsPreview('wiz')" style="width:100%;margin-top:10px;padding:12px;border:1.5px solid var(--accent);background:#fff;color:var(--accent);border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit">👁 ดู/ตรวจ PDF ก่อนเซ็น</button>
   </div>
   <div class="card c-slate">
     <h3>พยาบาลปลายทางเซ็นรับทราบการนำส่ง</h3>
@@ -806,7 +801,7 @@ async function finalize(){
   savecurrent();
   if(!R.patientName&&!R.hn){ if(!confirm('ยังไม่กรอกชื่อ/HN — จบการนำส่งต่อไหม?')){ page=2; renderWiz(); return; } }
   if(!confirm('จบการนำส่ง? หลังจบแล้วจะย้อนแก้ไม่ได้ (เพิ่ม comment ภายหลังได้)')) return;
-  stopAlert(); R.locked=true; R.month=(R.date||'').slice(0,7)||R.month;
+  stopAlert(); R.locked=true; R.time=R.departER||R.time; R.month=(R.date||'').slice(0,7)||R.month;
   if(!R.no) R.no=nextNo(R.month);   // รหัสใบนำส่ง = ใบที่-เดือน-ปี
   rememberNurse('send',R.transporter); rememberNurse('recv',R.ev.wardNurse); clearDraft();
   toast('กำลังบันทึก...',6000);
@@ -848,8 +843,8 @@ function renderA4(r){ const p=r.prep||{},e=r.ev||{}; const OBS=Array.isArray(r.o
   const iv=(p.ivLines||[]).map(l=>`${esc(l.fluid)} ${esc(l.rate)}ml/hr${l.drug?(' + '+esc(l.drug)):''}`).join('; ');
   const ab=[]; if(p.oralAirway)ab.push('Oral airway'); if(p.nasalAirway)ab.push('Nasal airway'); if(p.ettOn)ab.push('ET-tube'+((p.ettSize||p.ettDepth)?` (${esc(p.ettSize)}${p.ettDepth?', ลึก '+esc(p.ettDepth)+'cm':''})`:'')); if(p.ambubag)ab.push('บีบ Ambubag'); if(p.o2on)ab.push('O₂'+(o2.length?' ('+o2.join(', ')+(p.o2note?' · '+esc(p.o2note):'')+')':'')); if(p.airwayOther)ab.push(esc(p.airwayOther));
   const circ=[]; if(p.iv)circ.push('IV '+esc(iv)); if(p.blood)circ.push('Blood'+(p.bloodText?' '+esc(p.bloodText):''));
-  const bld=[]; if(p.suture)bld.push('Suture'); if(p.pressure)bld.push('Pressure wound');
-  const dis=[]; if(p.splint)dis.push('splint/stab'); if(p.collar)dis.push('Hard/Philadelphia collar'); if(p.scoop)dis.push('Scoop/Spinal board'); if(p.tourniquet)dis.push('Tourniquet'+(p.tourniquetPos?' ('+esc(p.tourniquetPos)+')':''));
+  const bld=[]; if(p.suture)bld.push('Suture'); if(p.pressure)bld.push('Pressure wound'); if(p.tourniquet)bld.push('Tourniquet'+(p.tourniquetPos?' ('+esc(p.tourniquetPos)+')':''));
+  const dis=[]; if(p.splint)dis.push('splint/stab'); if(p.collar)dis.push('Hard/Philadelphia collar'); if(p.scoop)dis.push('Scoop/Spinal board');
   const sumT=e.summary==='same'?'<b>คงเดิม</b>':e.summary==='worse'?'<b>ทรุดลง</b>':e.summary==='other'?('<b>อื่นๆ</b> '+esc(e.summaryOther)):'—';
   const used=o=>['sbp','dbp','pr','rr','temp','spo2','pupilRt','pupilLt','e','m','v','pain','note','recorder','time'].some(f=>o[f]);
   const rows=OBS.filter(used).map(o=>`<tr><td>${esc(o.time)}</td><td>${esc(o.sbp)}</td><td>${esc(o.dbp)}</td><td>${esc(o.pr)}</td><td>${esc(o.rr)}</td><td>${esc(o.temp)}</td><td>${esc(o.spo2)}</td><td>${esc(o.pupilRt)}</td><td>${esc(o.pupilLt)}</td><td>${esc(o.e)}</td><td>${esc(o.m)}</td><td>${esc(o.v)}</td><td>${esc(o.pain)}</td><td style="text-align:left">${esc(o.note)}</td></tr>`).join('');
