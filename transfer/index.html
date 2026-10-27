@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ใบนำส่งผู้ป่วยระหว่างหน่วยงาน — JNH ER</title>
 <link rel="icon" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -174,6 +174,42 @@ table.a4-tbl{width:100%;border-collapse:collapse;font-size:10px;margin-top:3px}
 table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align:center}
 .a4-foot{font-size:9px;margin-top:8px;color:#333}
 .u{border-bottom:1px dotted #000;padding:0 4px}.sig-img{max-height:46px}
+
+/* ============ MOBILE POLISH ============ */
+.screen{-webkit-overflow-scrolling:touch}
+/* respect iPhone notch / home-bar */
+.app-hdr{padding-top:calc(12px + env(safe-area-inset-top));padding-left:calc(16px + env(safe-area-inset-left));padding-right:calc(16px + env(safe-area-inset-right))}
+.wiz-steps{top:calc(56px + env(safe-area-inset-top))}
+.wiz-nav{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+.home-wrap{padding-bottom:calc(30px + env(safe-area-inset-bottom))}
+/* bigger, easier tap targets on phones */
+.inp{padding:13px 13px;border-radius:11px}
+textarea.inp{min-height:84px}
+.chk{padding:11px 14px;font-size:15px;margin:0 7px 8px 0}
+.chk .bx{width:20px;height:20px}
+.seg button{padding:12px 6px;font-size:14.5px}
+.mini-btn{padding:11px 14px;font-size:14px}
+.nav-btn{padding:16px;font-size:17px}
+.hdr-btn{padding:10px 13px}
+.vmini .inp{padding:12px 6px}
+/* give page content room above the sticky bottom bar */
+#wiz-body{padding-bottom:20px}
+/* record cards: stack on phones so action buttons are full-width & thumb-friendly */
+@media(max-width:560px){
+  .rec-card{flex-direction:column;align-items:stretch}
+  .rec-card > div:last-child{flex-direction:row!important;flex-wrap:wrap}
+  .rec-card > div:last-child > *{flex:1;min-width:46%;text-align:center}
+  .stat .v{font-size:30px}
+  .card{padding:14px}
+  .wrap{padding:14px 13px}
+}
+@media(max-width:380px){
+  .seg{display:grid;grid-template-columns:1fr 1fr}
+  .seg button{min-width:0}
+}
+/* current wizard step stands out a bit more */
+.wiz-step{font-size:12px;padding:8px 6px;min-width:58px}
+.wiz-step.on{box-shadow:0 2px 6px rgba(37,99,235,.35)}
 @media print{body{background:#fff}.screen,.app-hdr,.wiz-steps,.wiz-nav,.toast{display:none!important}#a4-form{display:block!important;position:static;left:0;width:100%}.a4page{width:100%;padding:0;page-break-after:always}.a4page:last-child{page-break-after:auto}@page{size:A4;margin:12mm}}
 </style>
 </head>
@@ -343,7 +379,7 @@ table.a4-tbl th,table.a4-tbl td{border:1px solid #000;padding:2px 3px;text-align
 const FB=window.FIREBASE_CONFIG||null;
 const DRIVE_URL=(window.LINKS_DRIVE_URL||'').trim();
 const PATH='transfer';
-const BUILD='2026-10-27b';
+const BUILD='2026-10-27c';
 let fbRef=null, fbOK=false;
 let CASES={}, SETTINGS={adminPass:'1234'}, NURSES_SEND=[], NURSES_RECV=[];
 let adminOK=false, adminAction=null;
@@ -498,7 +534,7 @@ function hhmm(d){return pad(d.getHours())+':'+pad(d.getMinutes());}
 const STEP_NAMES=['ผู้นำส่ง','ผู้ป่วย+V/S','เตรียมย้าย','บันทึกพยาบาล','ประเมิน','สรุป+เซ็น','Comment'];
 function startNew(){ if(hasDraft()&&!confirm('มีเคสที่กรอกค้างอยู่ — เริ่มใหม่จะลบของเดิม ตกลงไหม?')) return; clearDraft(); R=blankRecord(); page=1; go('wiz'); renderWiz(); }
 function confirmExitWiz(){ saveDraft(); stopAlert(); toast('บันทึกร่างไว้แล้ว — กลับมาทำต่อได้',2600); go('home'); }
-function renderSteps(){ $('wiz-steps').innerHTML=STEP_NAMES.map((n,i)=>{const k=i+1;const cls=k===page?'on':(k<page?'done':'');return `<div class="wiz-step ${cls}" onclick="gotoPage(${k})">${k}.${n}</div>`;}).join(''); $('wiz-pt').textContent=R.patientName?('· '+R.patientName+(R.hn?' ('+R.hn+')':'')):''; }
+function renderSteps(){ $('wiz-steps').innerHTML=STEP_NAMES.map((n,i)=>{const k=i+1;const cls=k===page?'on':(k<page?'done':'');return `<div class="wiz-step ${cls}" onclick="gotoPage(${k})">${k}.${n}</div>`;}).join(''); $('wiz-pt').textContent=R.patientName?('· '+R.patientName+(R.hn?' ('+R.hn+')':'')):''; try{ const a=$('wiz-steps').querySelector('.wiz-step.on'); if(a&&a.scrollIntoView) a.scrollIntoView({inline:'center',block:'nearest'}); }catch(e){} }
 function gotoPage(k){ savecurrent(); page=k; renderWiz(); }
 function wizPrev(){ if(page>1){ savecurrent(); page--; renderWiz(); } }
 function wizNext(){ savecurrent(); if(page<PAGES){ page++; renderWiz(); } else { finalize(); } }
