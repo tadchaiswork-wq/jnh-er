@@ -381,7 +381,7 @@ textarea.inp{min-height:84px}
 const FB=window.FIREBASE_CONFIG||null;
 const DRIVE_URL=(window.LINKS_DRIVE_URL||'').trim();
 const PATH='transfer';
-const BUILD='2026-10-28b';
+const BUILD='2026-10-28c';
 let fbRef=null, fbOK=false;
 let CASES={}, SETTINGS={adminPass:'1234'}, NURSES_SEND=[], NURSES_RECV=[];
 let adminOK=false, adminAction=null;
@@ -737,7 +737,7 @@ function renderObsCards(){ const c=$('obs-cards'); if(!c)return;
     <div class="oc-edit">แตะเพื่อแก้ไข ✎</div>
   </div>`).join('');
 }
-function emptyObsTime(){ const last=R.obs[R.obs.length-1]; const base=(last&&last.time)||R.departER; if(base){ const [h,m]=base.split(':').map(Number); if(!isNaN(h)){ let t=h*60+m+R.alertInterval; t%=1440; return pad(Math.floor(t/60))+':'+pad(t%60); } } return ''; }
+function emptyObsTime(){ return hhmm(new Date()); }
 function addObs(){ const o=emptyObs(); o.time=emptyObsTime(); R.obs.push(o); obsEdit=R.obs.length-1; openObsEditor(); }
 function editObs(i){ obsEdit=i; openObsEditor(); }
 /* ---- obs editor sheet ---- */
