@@ -112,6 +112,8 @@ textarea.inp{min-height:70px;resize:vertical}
 .obs-tbl .orec{width:100%;border:1px solid var(--line);border-radius:7px;padding:5px;font-size:12px}
 .obs-del{background:#fff;border:1px solid #fca5a5;color:var(--red);border-radius:6px;padding:5px 8px;font-weight:800;cursor:pointer}
 .alert-bar{display:flex;align-items:center;gap:10px;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-weight:700;color:#92400e;font-size:14px;flex-wrap:wrap}
+@keyframes alertblink{0%,100%{background:#fee2e2}50%{background:#f87171;color:#fff}}
+.alert-bar.overdue{border-color:#ef4444;color:#b91c1c;animation:alertblink 1s steps(1) infinite}
 
 .sig-wrap{border:1.5px dashed #94a3b8;border-radius:10px;background:#fff;position:relative}
 .sig-wrap canvas{width:100%;height:150px;display:block;touch-action:none;border-radius:10px}
@@ -379,7 +381,7 @@ textarea.inp{min-height:84px}
 const FB=window.FIREBASE_CONFIG||null;
 const DRIVE_URL=(window.LINKS_DRIVE_URL||'').trim();
 const PATH='transfer';
-const BUILD='2026-10-27c';
+const BUILD='2026-10-28a';
 let fbRef=null, fbOK=false;
 let CASES={}, SETTINGS={adminPass:'1234'}, NURSES_SEND=[], NURSES_RECV=[];
 let adminOK=false, adminAction=null;
@@ -519,7 +521,7 @@ function blankRecord(){
     prep:{ idBand:'', record:'', monitor:'', film:'', belongings:'',
       oralAirway:false, nasalAirway:false, ettOn:false, ettSize:'', ettDepth:'', ambubag:false,
       o2on:false, o2type:[], o2note:'', airwayOther:'',
-      iv:false, ivLines:[], blood:false, bloodText:'',
+      iv:false, ivLines:[], blood:false, bloodText:'', med:false, medText:'',
       suture:false, pressure:false, splint:false, collar:false, scoop:false, tourniquet:false, tourniquetPos:'' },
     alertInterval:5, departER:hhmm(now), obs:[],
     ev:{ ab:'',abDetail:'',circ:'',circDetail:'',bleed:'',bleedDetail:'',dis:'',disDetail:'',handover:'',arriveTime:'',summary:'',summaryOther:'',initialHelp:'',wardNurse:(localStorage.getItem('tf_lastRecv')||''),
@@ -563,8 +565,8 @@ function val(id){const e=$(id);return e?e.value:'';}
 function savecurrent(){
   if(page===1){ /* transporter saved on change */ }
   else if(page===2){ R.date=val('f-date');R.location=val('f-location');R.hn=val('f-hn');R.patientName=val('f-name');R.dx=val('f-dx');R.nurseNote=val('f-nursenote'); }
-  else if(page===3){ const p=R.prep; p.ettSize=val('f-ettsize');p.ettDepth=val('f-ettdepth');p.o2note=val('f-o2note');p.airwayOther=val('f-airwayother');p.bloodText=val('f-bloodtext');p.tourniquetPos=val('f-tqpos');
-    (p.ivLines||[]).forEach((ln,i)=>{ const sel=$('iv-fluid-'+i); if(sel) ln.fluid=sel.value; const dg=$('iv-drug-'+i); if(dg) ln.drug=dg.value; }); }
+  else if(page===3){ const p=R.prep; p.ettSize=val('f-ettsize');p.ettDepth=val('f-ettdepth');p.o2note=val('f-o2note');p.airwayOther=val('f-airwayother');p.bloodText=val('f-bloodtext');p.medText=val('f-medtext');p.tourniquetPos=val('f-tqpos');
+    (p.ivLines||[]).forEach((ln,i)=>{ const sel=$('iv-fluid-'+i); if(sel) ln.fluid=sel.value; }); }
   else if(page===4){ const d=$('f-departer'); if(d)R.departER=d.value; R.time=R.departER||R.time; }
   else if(page===5){ const e=R.ev; e.abDetail=val('f-abdetail');e.circDetail=val('f-circdetail');e.bleedDetail=val('f-bleeddetail');e.disDetail=val('f-disdetail');e.arriveTime=val('f-arrive');e.summaryOther=val('f-summaryother');e.initialHelp=val('f-initialhelp'); computeDuration(); }
   else if(page===6){ R.ev.wardNurse=val('f-wardnurse'); saveSigs(); computeDuration(); }
@@ -668,8 +670,8 @@ function pg3(){ const p=R.prep; return `
       <span class="chk ${p.o2on?'on':''}" onclick="togglePrep('o2on')"><span class="bx">${p.o2on?'✓':''}</span>on Oxygen</span>
     </div>
     ${p.ettOn?`<div class="subpanel"><div class="row">
-      <div class="fld" style="margin:0"><label>เบอร์ ETT</label><input class="inp" id="f-ettsize" value="${esc(p.ettSize)}" placeholder="7.5"></div>
-      <div class="fld" style="margin:0"><label>ความลึก (cm)</label><input class="inp" id="f-ettdepth" value="${esc(p.ettDepth)}" placeholder="21"></div></div></div>`:''}
+      <div class="fld" style="margin:0"><label>เบอร์ ETT</label><input class="inp" id="f-ettsize" value="${esc(p.ettSize)}" inputmode="decimal" placeholder="7.5" oninput="this.value=this.value.replace(/[^0-9.]/g,'')"></div>
+      <div class="fld" style="margin:0"><label>ความลึก (cm)</label><input class="inp" id="f-ettdepth" value="${esc(p.ettDepth)}" inputmode="numeric" placeholder="21" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div></div></div>`:''}
     ${p.o2on?`<div class="subpanel">
       <div class="sublabel">ชนิด Oxygen</div>
       <span class="chk ${p.o2type.includes('cannula')?'on':''}" onclick="toggleO2('cannula')"><span class="bx">${p.o2type.includes('cannula')?'✓':''}</span>Cannula</span>
@@ -679,20 +681,18 @@ function pg3(){ const p=R.prep; return `
     <div class="fld"><label>อื่นๆ (airway/breathing)</label><input class="inp" id="f-airwayother" value="${esc(p.airwayOther)}"></div>
 
     <div class="grp-lbl">CIRCULATION</div>
-    <span class="chk ${p.iv?'on':''}" onclick="togglePrep('iv')"><span class="bx">${p.iv?'✓':''}</span>IV</span>
+    <span class="chk ${p.iv?'on':''}" onclick="togglePrep('iv')"><span class="bx">${p.iv?'✓':''}</span>IV สารน้ำ</span>
+    <span class="chk ${p.med?'on':''}" onclick="togglePrep('med')"><span class="bx">${p.med?'✓':''}</span>💊 ยา</span>
     <span class="chk ${p.blood?'on':''}" onclick="togglePrep('blood')"><span class="bx">${p.blood?'✓':''}</span>Blood</span>
     ${p.iv?`<div class="subpanel">${(p.ivLines||[]).map((ln,i)=>`
-      <div style="border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px;background:#fff">
-      <div class="row" style="align-items:flex-end">
+      <div class="row" style="align-items:flex-end;margin-bottom:8px">
         <div class="fld" style="margin:0;flex:2"><label>สารน้ำ IV เส้นที่ ${i+1}</label>
           <select class="inp" id="iv-fluid-${i}">${IV_FLUIDS.map(f=>`<option ${ln.fluid===f?'selected':''}>${f}</option>`).join('')}</select></div>
         <div class="fld" style="margin:0"><label>Rate</label><button class="vchip" style="width:100%" onclick="pickIVrate(${i})"><span class="vv" id="iv-rate-${i}">${esc(ln.rate||'80')} ml/hr</span></button></div>
         <button class="obs-del" onclick="delIV(${i})">ลบ</button>
-      </div>
-      <div class="fld" style="margin:6px 0 0"><label>ยาที่ผสม/ห้อยไปในเส้นนี้ (ชื่อยา · ขนาด · rate)</label>
-        <input class="inp" id="iv-drug-${i}" value="${esc(ln.drug||'')}" placeholder="เช่น Dopamine (2:1) 10 ml/hr, KCl 20 mEq ห้อยไป"></div>
       </div>`).join('')}
       <button class="mini-btn" onclick="addIV()">➕ เพิ่มเส้น IV</button></div>`:''}
+    ${p.med?`<div class="subpanel"><div class="fld" style="margin:0"><label>ยาที่ให้ระหว่างนำส่ง (ชื่อยา · ขนาด · วิธีให้ · เวลา)</label><textarea class="inp" id="f-medtext" placeholder="เช่น Adrenaline 1 mg IV push 07:50, Diazepam 10 mg IV, Dopamine (2:1) drip 10 ml/hr">${esc(p.medText)}</textarea></div></div>`:''}
     ${p.blood?`<div class="fld"><label>รายละเอียด Blood</label><input class="inp" id="f-bloodtext" value="${esc(p.bloodText)}"></div>`:''}
 
     <div class="grp-lbl">การห้ามเลือด</div>
@@ -710,15 +710,15 @@ function pg3(){ const p=R.prep; return `
 /* ---- PAGE 4 ---- */
 function pg4(){ return `
   <div class="card c-green">
-    <h3>บันทึกการพยาบาล (ทุก ${R.alertInterval} นาที นับตั้งแต่ออกจาก ER)</h3>
-    <div class="row">
-      <div class="fld"><label>เวลาออกจาก ER (อัตโนมัติ · แก้ได้)</label><input type="time" class="inp" id="f-departer" value="${esc(R.departER)}" onchange="R.departER=this.value"></div>
-      <div class="fld"><label>แจ้งเตือนทุก</label><div class="seg">
+    <h3>บันทึกการพยาบาลระหว่างนำส่ง</h3>
+    <div class="row" style="align-items:flex-end">
+      <div class="fld" style="flex:0 0 118px;min-width:110px;margin-bottom:0"><label>เวลาออกจาก ER</label><input type="time" class="inp" id="f-departer" value="${esc(R.departER)}" onchange="R.departER=this.value"></div>
+      <div class="fld" style="flex:1;margin-bottom:0"><label>แจ้งเตือนทุก</label><div class="seg" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
         <button class="${R.alertInterval===5?'on':''}" onclick="setInt(5)">5 นาที</button>
         <button class="${R.alertInterval===10?'on':''}" onclick="setInt(10)">10 นาที</button>
         <button class="${R.alertInterval===15?'on':''}" onclick="setInt(15)">15 นาที</button></div></div>
     </div>
-    <div class="alert-bar" id="alert-bar">⏱ <span id="alert-txt">ระบบจะเตือนให้บันทึกทุก ${R.alertInterval} นาที</span></div>
+    <div class="alert-bar" id="alert-bar" style="margin-top:12px">⏱ <span id="alert-txt">บันทึกถัดไปในอีก ${R.alertInterval}:00</span></div>
     <button class="big-add" onclick="addObs()">➕ เพิ่มบันทึกสัญญาณชีพ</button>
     <div id="obs-cards" style="margin-top:12px"></div>
   </div>`;}
@@ -732,7 +732,7 @@ function renderObsCards(){ const c=$('obs-cards'); if(!c)return;
     <div class="oc-grid">
       <span><b>BP</b> ${o.sbp||'-'}/${o.dbp||'-'}</span><span><b>PR</b> ${o.pr||'-'}</span><span><b>RR</b> ${o.rr||'-'}</span>
       <span><b>SpO₂</b> ${o.spo2||'-'}</span><span><b>T</b> ${o.temp||'-'}</span><span><b>Pain</b> ${o.pain||'-'}</span>
-      <span><b>Pupil</b> ${o.pupilRt||'-'}/${o.pupilLt||'-'}</span><span><b>GCS</b> E${o.e||'-'}M${o.m||'-'}V${o.v||'-'}</span>
+      <span><b>Pupil</b> ${o.pupilRt||'-'}/${o.pupilLt||'-'}</span><span><b>GCS</b> E${o.e||'-'}V${o.v||'-'}M${o.m||'-'}</span>
     </div>${o.note?`<div class="oc-note">📝 ${esc(o.note)}</div>`:''}
     <div class="oc-edit">แตะเพื่อแก้ไข ✎</div>
   </div>`).join('');
@@ -749,15 +749,33 @@ function renderObsEditor(){ const o=R.obs[obsEdit]||emptyObs();
   $('obs-edit-body').innerHTML=`
     <div class="fld"><label>เวลา</label><input type="time" class="inp" id="oe-time" value="${esc(o.time)}" onchange="R.obs[obsEdit].time=this.value"></div>
     <div class="grp-lbl">สัญญาณชีพ (พิมพ์ตัวเลข)</div>
-    <div class="vgrid">${ofld('sbp','SBP','int')}${ofld('dbp','DBP','int')}${ofld('pr','PR','int')}${ofld('rr','RR','int')}${ofld('temp','BT (°C)','dec')}${ofld('spo2','SpO₂','int')}${ofldPupil('pupilRt','Pupil Rt')}${ofldPupil('pupilLt','Pupil Lt')}${ofld('e','E','int')}${ofld('m','M','int')}${ofldV()}${ofld('pain','Pain','int')}</div>
+    <div class="vgrid">${ofld('sbp','SBP','int')}${ofld('dbp','DBP','int')}${ofld('pr','PR','int')}${ofld('rr','RR','int')}${ofld('spo2','SpO₂','int')}${ofld('temp','BT (°C)','dec')}</div>
+    <div class="grp-lbl">COMA SCORE</div>
+    <div class="vgrid">${ofld('e','E','int')}${ofldV()}${ofld('m','M','int')}${ofldPupil('pupilRt','Pupil Rt')}${ofldPupil('pupilLt','Pupil Lt')}</div>
+    <div class="grp-lbl">Pain score</div>
+    <div class="vgrid">${ofld('pain','Pain (0–10)','int')}</div>
     <div class="fld" style="margin-top:12px"><label>Assessment / Intervention</label><textarea class="inp" id="oe-note" oninput="R.obs[obsEdit].note=this.value" placeholder="อาการ/การช่วยเหลือ...">${esc(o.note)}</textarea></div>`;
 }
 function nurseChangeObs(sel){ if(sel.value==='__add__'){ const n=prompt('ชื่อพยาบาลใหม่:'); if(n&&n.trim()){ addNurse('send',n.trim()); R.obs[obsEdit].recorder=n.trim(); } renderObsEditor(); return; } R.obs[obsEdit].recorder=sel.value; }
 
 /* alert */
 function beep(){ try{ if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)(); const o=audioCtx.createOscillator(),g=audioCtx.createGain(); o.connect(g);g.connect(audioCtx.destination); o.frequency.value=880; g.gain.setValueAtTime(.001,audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(.4,audioCtx.currentTime+.02); g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.5); o.start();o.stop(audioCtx.currentTime+.55);}catch(e){} try{navigator.vibrate&&navigator.vibrate(400);}catch(e){} }
-function startAlert(){ stopAlert(); alertTimer=setInterval(()=>{ if(!R.departER)return; const [h,m]=R.departER.split(':').map(Number); if(isNaN(h))return; const now=new Date(); const el=$('alert-txt'); if(!el)return; const elapsed=(now.getHours()*60+now.getMinutes())-(h*60+m); if(elapsed<0){el.textContent='รอถึงเวลาออกจาก ER';return;} const nextIn=R.alertInterval-(elapsed%R.alertInterval); el.textContent=`ผ่านไป ${elapsed} นาที · บันทึกถัดไปในอีก ${nextIn} นาที`; if(elapsed>0&&elapsed%R.alertInterval===0&&now.getSeconds()<2){ beep(); const b=$('alert-bar'); if(b)b.style.background='#fee2e2'; el.textContent=`⏰ ครบ ${elapsed} นาที — บันทึก!`; setTimeout(()=>{const bb=$('alert-bar');if(bb)bb.style.background='#fffbeb';},4000); } },1000); }
-function stopAlert(){ if(alertTimer){clearInterval(alertTimer);alertTimer=null;} }
+function fmtMMSS(s){ s=Math.max(0,Math.round(s)); return pad(Math.floor(s/60))+':'+pad(s%60); }
+function alertBaseSec(){ // วินาที-ของ-วัน ของจุดอ้างอิง (บันทึกล่าสุด หรือ เวลาออกจาก ER)
+  let base=R.departER;
+  if(R.obs&&R.obs.length){ let mx=null; R.obs.forEach(o=>{ if(o&&o.time){ const [h,m]=o.time.split(':').map(Number); if(!isNaN(h)){ const t=h*60+m; if(mx==null||t>mx)mx=t; } } }); if(mx!=null) base=pad(Math.floor(mx/60))+':'+pad(mx%60); }
+  const [h,m]=(base||'').split(':').map(Number); if(isNaN(h))return null; return (h*60+m)*60;
+}
+let alertBeeped=false;
+function startAlert(){ stopAlert(); alertTimer=setInterval(()=>{
+  const el=$('alert-txt'), bar=$('alert-bar'); if(!el||!bar)return;
+  const baseSec=alertBaseSec(); if(baseSec==null){ el.textContent='ใส่เวลาออกจาก ER ก่อน'; return; }
+  const now=new Date(); let nowSec=now.getHours()*3600+now.getMinutes()*60+now.getSeconds();
+  const dueSec=baseSec+R.alertInterval*60; let rem=dueSec-nowSec; if(rem>12*3600)rem-=86400; if(rem<-12*3600)rem+=86400;
+  if(rem>0){ bar.classList.remove('overdue'); el.textContent='⏱ บันทึกสัญญาณชีพถัดไปในอีก '+fmtMMSS(rem); alertBeeped=false; }
+  else { bar.classList.add('overdue'); el.textContent='⏰ เกินเวลาบันทึกมาแล้ว '+fmtMMSS(-rem)+' — บันทึกสัญญาณชีพ!'; if(!alertBeeped){ try{beep();}catch(e){} alertBeeped=true; } }
+},1000); }
+function stopAlert(){ if(alertTimer){clearInterval(alertTimer);alertTimer=null;} const bar=$('alert-bar'); if(bar)bar.classList.remove('overdue'); alertBeeped=false; }
 
 /* ---- PAGE 5 ---- */
 function evSeg(field,label){ const v=R.ev[field]; const o=(k,t,cls)=>`<button class="${v===k?'on '+cls:''}" onclick="setEv('${field}','${k}')">${t}</button>`;
@@ -876,9 +894,9 @@ function ynT(v){ return v==='yes'?'<b>✓ มี</b>':v==='no'?'<b>✓ ไม่
 function evT(v){ const m={appropriate:'ทำและเหมาะสม',notdone:'ไม่ทำ',unnecessary:'ไม่จำเป็น',inappropriate:'ทำแต่ไม่เหมาะสม'}; return v?('<b>✓ '+m[v]+'</b>'):'—'; }
 function renderA4(r){ const p=r.prep||{},e=r.ev||{}; const OBS=Array.isArray(r.obs)?r.obs:[];
   const o2=[]; if(p.o2type&&p.o2type.includes('cannula'))o2.push('Cannula'); if(p.o2type&&p.o2type.includes('maskbag'))o2.push('Mask c bag'); if(p.o2type&&p.o2type.includes('neb'))o2.push('พ่นยา');
-  const iv=(p.ivLines||[]).map(l=>`${esc(l.fluid)} ${esc(l.rate)}ml/hr${l.drug?(' + '+esc(l.drug)):''}`).join('; ');
+  const iv=(p.ivLines||[]).map(l=>`${esc(l.fluid)} ${esc(l.rate)}ml/hr`).join('; ');
   const ab=[]; if(p.oralAirway)ab.push('Oral airway'); if(p.nasalAirway)ab.push('Nasal airway'); if(p.ettOn)ab.push('ET-tube'+((p.ettSize||p.ettDepth)?` (${esc(p.ettSize)}${p.ettDepth?', ลึก '+esc(p.ettDepth)+'cm':''})`:'')); if(p.ambubag)ab.push('บีบ Ambubag'); if(p.o2on)ab.push('O₂'+(o2.length?' ('+o2.join(', ')+(p.o2note?' · '+esc(p.o2note):'')+')':'')); if(p.airwayOther)ab.push(esc(p.airwayOther));
-  const circ=[]; if(p.iv)circ.push('IV '+esc(iv)); if(p.blood)circ.push('Blood'+(p.bloodText?' '+esc(p.bloodText):''));
+  const circ=[]; if(p.iv)circ.push('IV '+esc(iv)); if(p.med&&(p.medText||'').trim())circ.push('ยา: '+esc(p.medText)); if(p.blood)circ.push('Blood'+(p.bloodText?' '+esc(p.bloodText):''));
   const bld=[]; if(p.suture)bld.push('Suture'); if(p.pressure)bld.push('Pressure wound'); if(p.tourniquet)bld.push('Tourniquet'+(p.tourniquetPos?' ('+esc(p.tourniquetPos)+')':''));
   const dis=[]; if(p.splint)dis.push('splint/stab'); if(p.collar)dis.push('Hard/Philadelphia collar'); if(p.scoop)dis.push('Scoop/Spinal board');
   const sumT=e.summary==='same'?'<b>คงเดิม</b>':e.summary==='worse'?'<b>ทรุดลง</b>':e.summary==='other'?('<b>อื่นๆ</b> '+esc(e.summaryOther)):'—';
