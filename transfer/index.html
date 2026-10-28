@@ -381,7 +381,7 @@ textarea.inp{min-height:84px}
 const FB=window.FIREBASE_CONFIG||null;
 const DRIVE_URL=(window.LINKS_DRIVE_URL||'').trim();
 const PATH='transfer';
-const BUILD='2026-10-28a';
+const BUILD='2026-10-28b';
 let fbRef=null, fbOK=false;
 let CASES={}, SETTINGS={adminPass:'1234'}, NURSES_SEND=[], NURSES_RECV=[];
 let adminOK=false, adminAction=null;
@@ -517,7 +517,7 @@ function blankRecord(){
   return { id:'tf_'+Date.now()+'_'+Math.random().toString(36).slice(2,7), createdAt:now.toISOString(),
     month:now.getFullYear()+'-'+pad(now.getMonth()+1), no:null, locked:false,
     transporter:(localStorage.getItem('tf_lastSend')||''), date:now.toISOString().slice(0,10), time:hhmm(now), location:'', hn:'', patientName:'', dx:'', firstNurse:'',
-    vsSBP:'', vsDBP:'', vsPR:'', vsRR:'', vsT:'', cE:'', cV:'', cM:'', cRt:'', cLt:'', nurseNote:'',
+    vsSBP:'', vsDBP:'', vsPR:'', vsRR:'', vsT:'', vsO2:'', vsPain:'', cE:'', cV:'', cM:'', cRt:'', cLt:'', nurseNote:'',
     prep:{ idBand:'', record:'', monitor:'', film:'', belongings:'',
       oralAirway:false, nasalAirway:false, ettOn:false, ettSize:'', ettDepth:'', ambubag:false,
       o2on:false, o2type:[], o2note:'', airwayOther:'',
@@ -633,8 +633,8 @@ function pg2(){ return `
   </div>
   <div class="card c-teal">
     <h3>Vital sign ก่อนนำส่ง</h3>
-    <div class="grp-lbl">ความดัน / ชีพจร / หายใจ / อุณหภูมิ</div>
-    <div class="vgrid">${vfld('vsSBP','SBP','int')}${vfld('vsDBP','DBP','int')}${vfld('vsPR','PR','int')}${vfld('vsRR','RR','int')}${vfld('vsT','BT (°C)','dec')}</div>
+    <div class="grp-lbl">ความดัน / ชีพจร / หายใจ / อุณหภูมิ / SpO₂ / Pain</div>
+    <div class="vgrid">${vfld('vsSBP','SBP','int')}${vfld('vsDBP','DBP','int')}${vfld('vsPR','PR','int')}${vfld('vsRR','RR','int')}${vfld('vsT','BT (°C)','dec')}${vfld('vsO2','SpO₂','int')}${vfld('vsPain','Pain (0–10)','int')}</div>
     <div class="grp-lbl">COMA SCORE</div>
     <div class="vgrid">${vfld('cE','E','int')}${fldV('cV')}${vfld('cM','M','int')}${fldPupil('cRt','Pupil Rt')}${fldPupil('cLt','Pupil Lt')}</div>
     <div class="fld" style="margin-top:12px"><label>Nurse Note</label><textarea class="inp" id="f-nursenote">${esc(R.nurseNote)}</textarea></div>
@@ -909,7 +909,7 @@ function renderA4(r){ const p=r.prep||{},e=r.ev||{}; const OBS=Array.isArray(r.o
     <div class="a4-sticker">รหัสใบนำส่ง <b>${caseCode(r)}</b><br>ชื่อ-สกุล ${esc(r.patientName)||'..........'}<br>HN ${esc(r.hn)||'......'}<br>${r.locked?'🔒 จบการนำส่งแล้ว':''}</div></div>
   <div class="a4-line">วันที่ <span class="u">${esc(r.date)}</span> เวลา <span class="u">${esc(r.time)}</span> สถานที่รับผู้ป่วย <span class="u">${esc(r.location)||'......'}</span> · ผู้นำส่ง <span class="u">${esc(r.transporter)||'......'}</span></div>
   <div class="a4-line">Dx <span class="u">${esc(r.dx)||'............................................'}</span></div>
-  <div class="a4-line">Vital sign ก่อนนำส่ง BP <span class="u">${esc(r.vsSBP)||'..'}/${esc(r.vsDBP)||'..'}</span> P <span class="u">${esc(r.vsPR)||'..'}</span> R <span class="u">${esc(r.vsRR)||'..'}</span> T <span class="u">${esc(r.vsT)||'..'}</span></div>
+  <div class="a4-line">Vital sign ก่อนนำส่ง BP <span class="u">${esc(r.vsSBP)||'..'}/${esc(r.vsDBP)||'..'}</span> P <span class="u">${esc(r.vsPR)||'..'}</span> R <span class="u">${esc(r.vsRR)||'..'}</span> T <span class="u">${esc(r.vsT)||'..'}</span> SpO₂ <span class="u">${esc(r.vsO2)||'..'}</span>% Pain <span class="u">${esc(r.vsPain)||'..'}</span></div>
   <div class="a4-line">COMA E <span class="u">${esc(r.cE)||'.'}</span> V <span class="u">${esc(r.cV)||'.'}</span> M <span class="u">${esc(r.cM)||'.'}</span> · Pupil Rt <span class="u">${esc(r.cRt)||'..'}</span> Lt <span class="u">${esc(r.cLt)||'..'}</span></div>
   <div class="a4-line">Nurse Note <span class="u">${esc(r.nurseNote)||'............................................'}</span></div>
   <div class="a4-sec">การเตรียมความพร้อมก่อนเคลื่อนย้าย</div>
