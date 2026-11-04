@@ -104,9 +104,11 @@ table.sum tr.tot-row td{font-weight:800;background:#f8fafc}
 .sumline .s .v{font-size:22px;font-weight:800}.sumline .s .l{font-size:11.5px;color:var(--muted)}
 .sumline .s.tot .v{color:var(--brand-d)}.sumline .s.und .v{color:var(--under)}.sumline .s.ov .v{color:var(--over)}.sumline .s.eup .v{color:#b91c1c}
 .gridwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow)}
-table.grid{border-collapse:collapse;width:100%;min-width:830px;font-size:13.5px}
+table.grid{border-collapse:collapse;width:100%;min-width:880px;font-size:13.5px}
 table.grid th{background:#eef2ff;color:#3730a3;font-size:11.5px;font-weight:700;padding:9px 6px;white-space:nowrap;border-bottom:1px solid var(--line)}
 table.grid td{border-top:1px solid var(--line);padding:5px 6px;text-align:center;vertical-align:middle}
+table.grid td.num{color:var(--muted);font-weight:700;font-size:12px;background:#f8fafc}
+table.grid .gsel{font-weight:700}
 table.grid tr.excl td{background:#f8fafc;opacity:.6}
 .gsel{border:1.4px solid var(--line);border-radius:7px;padding:6px 4px;font-size:13.5px;background:#fff;min-width:52px}
 .gsel.cat{min-width:96px}
@@ -221,7 +223,7 @@ table.grid tr.excl td{background:#f8fafc;opacity:.6}
 /* ============ CONFIG ============ */
 const FB=window.FIREBASE_CONFIG||null;
 const PATH='triagekpi';
-const BUILD='2026-11-04f';
+const BUILD='2026-11-04g';
 let fbRef=null, FBSTATE='off';
 let CASES={}, ANALYSIS={}, SETTINGS={adminPass:'1234'};
 let adminAction=null;
@@ -291,6 +293,8 @@ function monthCases(mk){ return Object.values(CASES).filter(r=>r&&r.month===mk);
 function monthCasesSorted(mk){ return monthCases(mk).sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')); }
 function lvlOpts(v){ return LVLSEL.map(o=>`<option value="${o}" ${o===(v||'')?'selected':''}>${o||'–'}</option>`).join(''); }
 function catOpts(v){ return CATS.map(c=>`<option value="${c}" ${c===v?'selected':''}>${c}</option>`).join(''); }
+function lvlColor(v){ return {R:'#fecaca',E:'#fbcfe8',U:'#fef3c7',L:'#bbf7d0',N:'#ffffff'}[v]||'#ffffff'; }  // R แดง · E ชมพู · U เหลือง · L เขียว · N ขาว (pastel)
+function catColor(c){ return {Sepsis:'#fde68a',STEMI:'#fecdd3',Stroke:'#bfdbfe',Revisit:'#e9d5ff','LN admit':'#bbf7d0'}[c]||'#ffffff'; }
 function vbCell(r){ const v=rowVerdict(r);
   if(v==='under') return '<span class="vb u">▼ Under</span>';
   if(v==='over') return '<span class="vb o">▲ Over</span>';
@@ -301,14 +305,15 @@ function eupCell(r){ const v=rowVerdict(r);
   return '<span class="vb none">–</span>'; }
 function renderGrid(){ const list=monthCasesSorted(curMonth);
   if(!list.length){ $('e-grid').innerHTML='<tbody><tr><td style="padding:24px;color:var(--muted);text-align:center">— ยังไม่มีแถว กด "➕ เพิ่มแถว" ด้านล่าง —</td></tr></tbody>'; updSummary(); return; }
-  let h=`<thead><tr><th>✓</th><th>กลุ่มเคส</th><th>HN</th><th>N triage</th><th>N check</th><th>D check</th><th>ผล</th><th>≥E</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>`;
-  h+=list.map(r=>`<tr id="row-${r.id}" class="${r.include?'':'excl'}">
+  let h=`<thead><tr><th>#</th><th>✓</th><th>กลุ่มเคส</th><th>HN</th><th>N triage</th><th>N check</th><th>D check</th><th>ผล</th><th>≥E</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>`;
+  h+=list.map((r,idx)=>`<tr id="row-${r.id}" class="${r.include?'':'excl'}">
+    <td class="num">${idx+1}</td>
     <td><input type="checkbox" class="gchk" ${r.include?'checked':''} onchange="setCell('${r.id}','include',this.checked)"></td>
-    <td><select class="gsel cat" onchange="setCell('${r.id}','cat',this.value)">${catOpts(r.cat)}</select></td>
+    <td><select class="gsel cat" style="background:${catColor(r.cat)}" onchange="setCell('${r.id}','cat',this.value);this.style.background=catColor(this.value)">${catOpts(r.cat)}</select></td>
     <td><input class="ginp ghn" inputmode="numeric" value="${esc(r.hn)}" onchange="setCell('${r.id}','hn',this.value.replace(/[^0-9]/g,''))"></td>
-    <td><select class="gsel" onchange="setCell('${r.id}','nt',this.value)">${lvlOpts(r.nt)}</select></td>
-    <td><select class="gsel" onchange="setCell('${r.id}','nc',this.value)">${lvlOpts(r.nc)}</select></td>
-    <td><select class="gsel" onchange="setCell('${r.id}','dc',this.value)">${lvlOpts(r.dc)}</select></td>
+    <td><select class="gsel" style="background:${lvlColor(r.nt)}" onchange="setCell('${r.id}','nt',this.value);this.style.background=lvlColor(this.value)">${lvlOpts(r.nt)}</select></td>
+    <td><select class="gsel" style="background:${lvlColor(r.nc)}" onchange="setCell('${r.id}','nc',this.value);this.style.background=lvlColor(this.value)">${lvlOpts(r.nc)}</select></td>
+    <td><select class="gsel" style="background:${lvlColor(r.dc)}" onchange="setCell('${r.id}','dc',this.value);this.style.background=lvlColor(this.value)">${lvlOpts(r.dc)}</select></td>
     <td id="v-${r.id}">${vbCell(r)}</td>
     <td id="e-${r.id}">${eupCell(r)}</td>
     <td class="l"><input class="ginp gnote" value="${esc(r.note)}" onchange="setCell('${r.id}','note',this.value)" placeholder="เหตุผล/อาการ"></td>
