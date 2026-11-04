@@ -97,6 +97,24 @@ table.sum tr.tot-row td{font-weight:800;background:#f8fafc}
 .modal h3{margin:0 0 10px;color:var(--brand-d)}
 .mbtns{display:flex;gap:10px;margin-top:14px}.mbtns button{flex:1;border:none;border-radius:11px;padding:12px;font-weight:800;cursor:pointer}
 .c-cancel{background:#e2e8f0;color:#334155}.c-ok{background:var(--brand);color:#fff}
+/* grid (spreadsheet-style entry/review) */
+.sumline{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.sumline .s{flex:1;min-width:90px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;box-shadow:var(--shadow)}
+.sumline .s .v{font-size:22px;font-weight:800}.sumline .s .l{font-size:11.5px;color:var(--muted)}
+.sumline .s.tot .v{color:var(--brand-d)}.sumline .s.und .v{color:var(--under)}.sumline .s.ov .v{color:var(--over)}
+.gridwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow)}
+table.grid{border-collapse:collapse;width:100%;min-width:740px;font-size:13.5px}
+table.grid th{background:#eef2ff;color:#3730a3;font-size:11.5px;font-weight:700;padding:9px 6px;white-space:nowrap;border-bottom:1px solid var(--line)}
+table.grid td{border-top:1px solid var(--line);padding:5px 6px;text-align:center;vertical-align:middle}
+table.grid tr.excl td{background:#f8fafc;opacity:.6}
+.gsel{border:1.4px solid var(--line);border-radius:7px;padding:6px 4px;font-size:13.5px;background:#fff;min-width:52px}
+.gsel.cat{min-width:96px}
+.ginp{border:1.4px solid var(--line);border-radius:7px;padding:6px 6px;font-size:13.5px;background:#fff}
+.ghn{width:82px}.gnote{min-width:150px;width:100%}
+.gchk{width:22px;height:22px;cursor:pointer;accent-color:var(--ok)}
+.vb{font-weight:800;border-radius:6px;padding:3px 6px;font-size:12px;display:inline-block;min-width:30px}
+.vb.u{background:var(--under-bg);color:var(--under)}.vb.o{background:var(--over-bg);color:var(--over)}.vb.k{background:var(--ok-bg);color:var(--ok)}.vb.none{color:#cbd5e1}
+.gdel{border:none;background:none;color:var(--under);font-size:17px;cursor:pointer;padding:2px 6px}
 @media print{.hdr,.back,.addbtn,.mini,.seg,.noprint{display:none!important}.card{box-shadow:none;break-inside:avoid}body{background:#fff}}
 </style>
 </head>
@@ -123,25 +141,14 @@ table.sum tr.tot-row td{font-weight:800;background:#f8fafc}
   </div>
 </div>
 
-<!-- ENTRY -->
+<!-- ENTRY (spreadsheet-style) -->
 <div id="s-entry" class="screen">
-  <div class="hdr"><button class="back" onclick="go('home')">← หน้าแรก</button><div class="t">ลงบันทึกเคส <span class="s" id="e-mlabel"></span></div></div>
+  <div class="hdr"><button class="back" onclick="go('home')">← หน้าแรก</button><div class="t">บันทึก / รีวิว <span class="s" id="e-mlabel"></span></div></div>
   <div class="wrap">
-    <div class="card">
-      <h3>➕ เพิ่มเคสตรวจสอบ</h3>
-      <div class="fld"><label class="lbl">กลุ่มเคส</label><div class="seg" id="e-cat"></div></div>
-      <div class="fld"><label class="lbl">HN (ไม่บังคับ)</label><input class="inp" id="e-hn" inputmode="numeric" placeholder="เลข HN" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
-      <div class="fld"><label class="lbl">ระดับที่พยาบาลคัดกรอง (N triage)</label><div class="tlvl" id="e-nt"></div></div>
-      <div class="fld"><label class="lbl">ระดับที่ถูกต้อง (ทบทวน/แพทย์)</label><div class="tlvl" id="e-ct"></div></div>
-      <div class="fld" id="e-verdict-wrap" style="display:none"><div class="verdict" id="e-verdict"></div></div>
-      <div class="fld"><label class="lbl">หมายเหตุ (เหตุผล/อาการ)</label><input class="inp" id="e-note" placeholder="เช่น SIRS+, GCS 8, V/S..."></div>
-      <button class="addbtn" onclick="addCase()">➕ บันทึกเคสนี้</button>
-    </div>
-    <div class="card">
-      <h3>เคสในเดือนนี้ (<span id="e-count">0</span>)</h3>
-      <div class="sublabel">✓ = นับเป็นตัวชี้วัด · แตะกล่องเพื่อรวม/ไม่รวม · เคสที่ไม่เข้าเกณฑ์ (ซ้ำ/ไม่ใช่ revisit) ให้ติ๊กออก</div>
-      <div id="e-list"></div>
-    </div>
+    <div class="sumline" id="e-summary"></div>
+    <div class="gridwrap"><table class="grid" id="e-grid"></table></div>
+    <button class="addbtn" onclick="addRow()" style="margin-top:12px">➕ เพิ่มแถว</button>
+    <div class="sublabel" style="margin-top:8px">✓ = นับเป็นตัวชี้วัด (เคสซ้ำ/ไม่เข้าเกณฑ์ติ๊กออก) · under/over คำนวณอัตโนมัติจาก <b>N triage</b> เทียบกับ <b>D check</b> (ถ้าไม่มีใช้ N check) · แก้ในช่องได้เลย บันทึกอัตโนมัติ · เลื่อนตารางซ้าย-ขวาเพื่อดูครบ</div>
   </div>
 </div>
 
@@ -183,9 +190,17 @@ table.sum tr.tot-row td{font-weight:800;background:#f8fafc}
     </div>
     <div class="card">
       <h3>วิเคราะห์ & แนวทางแก้ไข</h3>
-      <div class="fld"><label class="lbl">สรุปผลการดำเนินงาน</label><textarea class="inp" id="q-summary" rows="3" placeholder="สรุปภาพรวมไตรมาสนี้..."></textarea></div>
-      <div class="fld"><label class="lbl">วิเคราะห์สาเหตุ / ปัจจัยที่ส่งผล</label><textarea class="inp" id="q-cause" rows="4" placeholder="คน / ผู้ป่วย / ทรัพยากร / process / environment..."></textarea></div>
-      <div class="fld"><label class="lbl">แนวทางการแก้ไข ปรับปรุง</label><textarea class="inp" id="q-action" rows="4" placeholder="แผนการปรับปรุง..."></textarea></div>
+      <div class="fld"><label class="lbl">สรุปผลการดำเนินงาน (ภาพรวมไตรมาส)</label><textarea class="inp" id="q-summary" rows="3" placeholder="เช่น ทบทวนกลุ่ม Sepsis/STEMI/Stroke/LN admit/revisit ทั้งหมด ... ราย พบว่า..."></textarea></div>
+      <div style="border-left:5px solid var(--under);background:var(--under-bg);border-radius:10px;padding:13px;margin:14px 0">
+        <div style="font-weight:800;color:var(--under);margin-bottom:10px">▼ Under-triage (คัดกรองต่ำกว่าจริง)</div>
+        <div class="fld"><label class="lbl">วิเคราะห์สาเหตุ / ปัจจัยที่ส่งผล</label><textarea class="inp" id="q-ucause" rows="4" placeholder="คน · ผู้ป่วย/ญาติ · ทรัพยากร · process · environment"></textarea></div>
+        <div class="fld" style="margin-bottom:0"><label class="lbl">แนวทางการแก้ไข / ปรับปรุง</label><textarea class="inp" id="q-uaction" rows="3" placeholder="แผนลด under-triage..."></textarea></div>
+      </div>
+      <div style="border-left:5px solid var(--over);background:var(--over-bg);border-radius:10px;padding:13px;margin:14px 0">
+        <div style="font-weight:800;color:var(--over);margin-bottom:10px">▲ Over-triage (คัดกรองสูงกว่าจริง)</div>
+        <div class="fld"><label class="lbl">วิเคราะห์สาเหตุ / ปัจจัยที่ส่งผล</label><textarea class="inp" id="q-ocause" rows="4" placeholder="คน · ผู้ป่วย/ญาติ · ทรัพยากร · process · environment"></textarea></div>
+        <div class="fld" style="margin-bottom:0"><label class="lbl">แนวทางการแก้ไข / ปรับปรุง</label><textarea class="inp" id="q-oaction" rows="3" placeholder="แผนลด over-triage..."></textarea></div>
+      </div>
       <button class="mini" onclick="saveAnalysis()">💾 บันทึกการวิเคราะห์</button>
     </div>
   </div>
@@ -205,7 +220,7 @@ table.sum tr.tot-row td{font-weight:800;background:#f8fafc}
 /* ============ CONFIG ============ */
 const FB=window.FIREBASE_CONFIG||null;
 const PATH='triagekpi';
-const BUILD='2026-11-04a';
+const BUILD='2026-11-04b';
 let fbRef=null, FBSTATE='off';
 let CASES={}, ANALYSIS={}, SETTINGS={adminPass:'1234'};
 let adminAction=null;
@@ -233,7 +248,7 @@ function initFB(){ if(!FB||typeof firebase==='undefined'){ setFB('off'); return;
     fbRef.child('settings').on('value',s=>{ const v=s.val(); if(v)SETTINGS=Object.assign({adminPass:'1234'},v); });
     firebase.database(app).ref('.info/connected').on('value',s=>setFB(s.val()?'ok':'off'));
   }catch(e){ console.warn(e); setFB('err'); } }
-function liveRefresh(){ if($('s-entry').classList.contains('active'))renderList(); if($('s-monthly').classList.contains('active'))renderMonthly(); if($('s-quarter').classList.contains('active'))renderQuarter(); }
+function liveRefresh(){ if($('s-entry').classList.contains('active'))renderGrid(); if($('s-monthly').classList.contains('active'))renderMonthly(); if($('s-quarter').classList.contains('active'))renderQuarter(); }
 
 /* ---- nav ---- */
 function go(scr){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $('s-'+scr).classList.add('active'); window.scrollTo(0,0); }
@@ -263,48 +278,59 @@ function quarterMonths(fyBE,q){ // returns [{y,m}]
   return [[gyEnd,7],[gyEnd,8],[gyEnd,9]].map(([y,m])=>({y,m}));
 }
 
-/* ============ ENTRY ============ */
-let curMonth=null, selCat='Sepsis', selNT='', selCT='';
-function goEntry(){ curMonth=monthKey(+$('h-year').value,+$('h-month').value); selCat='Sepsis'; selNT=''; selCT=''; $('e-hn').value=''; $('e-note').value='';
+/* ============ ENTRY (spreadsheet grid) ============ */
+let curMonth=null;
+const LVLSEL=['','R','E','U','L','N'];
+function refOf(r){ return (r.dc||r.nc||''); }         // ระดับที่ถูกต้อง: D check ก่อน, ไม่มีใช้ N check
+function rowVerdict(r){ return verdictOf(r.nt, refOf(r)); }
+function goEntry(){ curMonth=monthKey(+$('h-year').value,+$('h-month').value);
   $('e-mlabel').textContent='· '+monthLabel(+$('h-year').value,+$('h-month').value);
-  renderCatSeg(); renderLvl('e-nt',()=>selNT,v=>{selNT=v;updVerdict();}); renderLvl('e-ct',()=>selCT,v=>{selCT=v;updVerdict();}); updVerdict();
-  go('entry'); renderList(); }
-function renderCatSeg(){ $('e-cat').innerHTML=CATS.map(c=>`<button class="${c===selCat?'on':''}" onclick="selCat='${c}';renderCatSeg()">${c}</button>`).join(''); }
-function renderLvl(id,getv,setv){ const cur=getv(); $(id).innerHTML=LEVELS.map(([k,th])=>`<button data-k="${k}" class="${cur===k?'on':''}">${k}<span class="n">${th}</span></button>`).join('');
-  $(id).querySelectorAll('button').forEach(b=>b.onclick=()=>{ setv(b.dataset.k); renderLvl(id,getv,setv); }); }
-function updVerdict(){ const v=verdictOf(selNT,selCT); const w=$('e-verdict-wrap'),el=$('e-verdict');
-  if(!v){ w.style.display='none'; return; } w.style.display='block';
-  el.className='verdict '+(v==='ok'?'v-ok':v==='under'?'v-under':'v-over');
-  el.textContent=v==='ok'?'✓ คัดกรองถูกต้อง':v==='under'?'▼ Under-triage (คัดต่ำกว่าจริง)':'▲ Over-triage (คัดสูงกว่าจริง)'; }
-function addCase(){ if(!selNT||!selCT){ toast('เลือกระดับ N triage และระดับที่ถูกต้องก่อน'); return; }
-  const id='tk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-  const rec={ id, month:curMonth, cat:selCat, hn:($('e-hn').value||'').trim(), nt:selNT, ct:selCT, note:($('e-note').value||'').trim(), include:true, createdAt:new Date().toISOString() };
+  go('entry'); renderGrid(); }
+function monthCases(mk){ return Object.values(CASES).filter(r=>r&&r.month===mk); }
+function monthCasesSorted(mk){ return monthCases(mk).sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')); }
+function lvlOpts(v){ return LVLSEL.map(o=>`<option value="${o}" ${o===(v||'')?'selected':''}>${o||'–'}</option>`).join(''); }
+function catOpts(v){ return CATS.map(c=>`<option value="${c}" ${c===v?'selected':''}>${c}</option>`).join(''); }
+function vbCell(r){ const v=rowVerdict(r);
+  if(v==='under') return '<span class="vb u">▼ Under</span>';
+  if(v==='over') return '<span class="vb o">▲ Over</span>';
+  if(v==='ok') return '<span class="vb k">✓</span>';
+  return '<span class="vb none">–</span>'; }
+function renderGrid(){ const list=monthCasesSorted(curMonth);
+  if(!list.length){ $('e-grid').innerHTML='<tbody><tr><td style="padding:24px;color:var(--muted);text-align:center">— ยังไม่มีแถว กด "➕ เพิ่มแถว" ด้านล่าง —</td></tr></tbody>'; updSummary(); return; }
+  let h=`<thead><tr><th>✓</th><th>กลุ่มเคส</th><th>HN</th><th>N triage</th><th>N check</th><th>D check</th><th>ผล</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>`;
+  h+=list.map(r=>`<tr id="row-${r.id}" class="${r.include?'':'excl'}">
+    <td><input type="checkbox" class="gchk" ${r.include?'checked':''} onchange="setCell('${r.id}','include',this.checked)"></td>
+    <td><select class="gsel cat" onchange="setCell('${r.id}','cat',this.value)">${catOpts(r.cat)}</select></td>
+    <td><input class="ginp ghn" inputmode="numeric" value="${esc(r.hn)}" onchange="setCell('${r.id}','hn',this.value.replace(/[^0-9]/g,''))"></td>
+    <td><select class="gsel" onchange="setCell('${r.id}','nt',this.value)">${lvlOpts(r.nt)}</select></td>
+    <td><select class="gsel" onchange="setCell('${r.id}','nc',this.value)">${lvlOpts(r.nc)}</select></td>
+    <td><select class="gsel" onchange="setCell('${r.id}','dc',this.value)">${lvlOpts(r.dc)}</select></td>
+    <td id="v-${r.id}">${vbCell(r)}</td>
+    <td class="l"><input class="ginp gnote" value="${esc(r.note)}" onchange="setCell('${r.id}','note',this.value)" placeholder="เหตุผล/อาการ"></td>
+    <td><button class="gdel" onclick="askAdmin('del:${r.id}')" title="ลบแถว">🗑</button></td>
+  </tr>`).join('');
+  $('e-grid').innerHTML=h+'</tbody>'; updSummary(); }
+function setCell(id,field,val){ const r=CASES[id]; if(!r)return; r[field]=val;
+  if(fbRef){try{fbRef.child('cases/'+id+'/'+field).set(val);}catch(e){}}
+  if(field==='nt'||field==='nc'||field==='dc'){ const c=$('v-'+id); if(c)c.innerHTML=vbCell(r); }
+  if(field==='include'){ const tr=$('row-'+id); if(tr)tr.className=val?'':'excl'; }
+  updSummary(); }
+function addRow(){ const id='tk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  const rec={id,month:curMonth,cat:'Sepsis',hn:'',nt:'',nc:'',dc:'',note:'',include:true,createdAt:new Date().toISOString()};
   CASES[id]=rec; if(fbRef){try{fbRef.child('cases/'+id).set(rec);}catch(e){}}
-  selNT=''; selCT=''; $('e-hn').value=''; $('e-note').value='';
-  renderLvl('e-nt',()=>selNT,v=>{selNT=v;updVerdict();}); renderLvl('e-ct',()=>selCT,v=>{selCT=v;updVerdict();}); updVerdict();
-  toast('บันทึกเคสแล้ว ✓'); renderList(); $('e-hn').focus(); }
-function monthCases(mk){ return Object.values(CASES).filter(r=>r&&r.month===mk).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')); }
-function renderList(){ const list=monthCases(curMonth); $('e-count').textContent=list.length;
-  if(!list.length){ $('e-list').innerHTML='<div class="empty">— ยังไม่มีเคสในเดือนนี้ —</div>'; return; }
-  $('e-list').innerHTML=list.map(r=>{ const v=verdictOf(r.nt,r.ct);
-    const vp=v==='under'?'<span class="pill p-under">Under</span>':v==='over'?'<span class="pill p-over">Over</span>':v==='ok'?'<span class="pill p-ok">ถูกต้อง</span>':'';
-    return `<div class="crow ${r.include?'':'excl'}">
-      <div class="cx ${r.include?'on':''}" onclick="toggleInc('${r.id}')">${r.include?'✓':''}</div>
-      <div class="body">
-        <div class="l1"><span class="pill p-cat">${esc(r.cat)}</span> <span class="tg">${esc(r.nt)}→${esc(r.ct)}</span> ${vp}</div>
-        <div class="l2">${r.hn?('HN '+esc(r.hn)):'(ไม่ระบุ HN)'}${r.note?' · '+esc(r.note):''}</div>
-      </div>
-      <button class="mini red" onclick="askAdmin('del:${r.id}')">ลบ</button>
-    </div>`; }).join(''); }
-function toggleInc(id){ const r=CASES[id]; if(!r)return; r.include=!r.include; if(fbRef){try{fbRef.child('cases/'+id+'/include').set(r.include);}catch(e){}} renderList(); }
+  renderGrid(); const tr=$('row-'+id); if(tr){ tr.scrollIntoView({block:'center'}); const hn=tr.querySelector('.ghn'); if(hn)hn.focus(); } }
+function updSummary(){ const s=computeStats(monthCases(curMonth)); const el=$('e-summary'); if(!el)return;
+  el.innerHTML=`<div class="s tot"><div class="v">${s.total}</div><div class="l">เคสที่ตรวจสอบ</div></div>
+    <div class="s und"><div class="v">${s.under}</div><div class="l">Under ${pctTxt(s.under,s.total)}</div></div>
+    <div class="s ov"><div class="v">${s.over}</div><div class="l">Over ${pctTxt(s.over,s.total)}</div></div>`; }
 function doDelete(id){ const r=CASES[id]; if(!r)return; if(fbRef){try{fbRef.child('cases/'+id).remove();}catch(e){}} delete CASES[id]; toast('ลบแล้ว'); liveRefresh(); }
 
 /* ============ STATS ============ */
 function computeStats(cases){ // cases already filtered to scope
-  const inc=cases.filter(r=>r.include&&verdictOf(r.nt,r.ct));
+  const inc=cases.filter(r=>r.include&&rowVerdict(r));
   const out={total:inc.length,under:0,over:0,ok:0,byCat:{}};
   CATS.forEach(c=>out.byCat[c]={total:0,under:0,over:0});
-  inc.forEach(r=>{ const v=verdictOf(r.nt,r.ct); if(v==='under')out.under++; else if(v==='over')out.over++; else out.ok++;
+  inc.forEach(r=>{ const v=rowVerdict(r); if(v==='under')out.under++; else if(v==='over')out.over++; else out.ok++;
     const b=out.byCat[r.cat]||(out.byCat[r.cat]={total:0,under:0,over:0}); b.total++; if(v==='under')b.under++; else if(v==='over')b.over++; });
   return out; }
 function pct(n,d){ return d>0?(Math.round(n/d*1000)/10):null; }
@@ -337,8 +363,8 @@ function renderQuarter(){ const {fy,q}=currentQ(); const mons=quarterMonths(fy,q
   const s=computeStats(quarterCases()); $('q-title').textContent='ไตรมาส '+q+' / ปีงบ '+fy;
   $('q-stats').innerHTML=statCards(s); $('q-table').innerHTML=sumTable(s); }
 function analysisKey(){ const {fy,q}=currentQ(); return 'fy'+fy+'q'+q; }
-function loadAnalysis(){ const a=ANALYSIS[analysisKey()]||{}; $('q-summary').value=a.summary||''; $('q-cause').value=a.cause||''; $('q-action').value=a.action||''; }
-function saveAnalysis(){ const k=analysisKey(); const a={summary:$('q-summary').value.trim(),cause:$('q-cause').value.trim(),action:$('q-action').value.trim(),at:new Date().toISOString()};
+function loadAnalysis(){ const a=ANALYSIS[analysisKey()]||{}; $('q-summary').value=a.summary||''; $('q-ucause').value=a.underCause||''; $('q-uaction').value=a.underAction||''; $('q-ocause').value=a.overCause||''; $('q-oaction').value=a.overAction||''; }
+function saveAnalysis(){ const k=analysisKey(); const a={summary:$('q-summary').value.trim(),underCause:$('q-ucause').value.trim(),underAction:$('q-uaction').value.trim(),overCause:$('q-ocause').value.trim(),overAction:$('q-oaction').value.trim(),at:new Date().toISOString()};
   ANALYSIS[k]=a; if(fbRef){try{fbRef.child('analysis/'+k).set(a);}catch(e){}} toast('บันทึกการวิเคราะห์แล้ว ✓'); }
 
 /* ============ ADMIN ============ */
