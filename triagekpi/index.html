@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>งานคุณภาพ ER — Under/Over Triage</title>
+<link rel="icon" href="icon.svg">
+<link rel="manifest" href="manifest.json">
+<script src="../time-sync.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f6fb;--panel:#fff;--ink:#1e293b;--muted:#64748b;--line:#e5e9f0;--brand:#4f46e5;--brand-d:#4338ca;
+ --ok:#15803d;--ok-bg:#dcfce7;--under:#dc2626;--under-bg:#fee2e2;--over:#d97706;--over-bg:#fef3c7;--shadow:0 1px 3px rgba(15,23,42,.06),0 6px 20px rgba(15,23,42,.05)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:'Sarabun',system-ui,sans-serif;font-size:16px}
+input,select,textarea,button{font-family:inherit;font-size:16px}
+.screen{display:none;min-height:100dvh}.screen.active{display:block}
+.wrap{max-width:860px;margin:0 auto;padding:16px 16px calc(28px + env(safe-area-inset-bottom))}
+.hdr{background:var(--brand-d);color:#fff;padding:calc(14px + env(safe-area-inset-top)) 16px 14px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:20}
+.hdr .t{font-size:17px;font-weight:800;flex:1;line-height:1.2}
+.hdr .s{font-size:12px;color:#c7d2fe;font-weight:500}
+.back{background:rgba(255,255,255,.16);border:none;color:#fff;border-radius:10px;padding:9px 13px;font-weight:700;cursor:pointer}
+.dot{font-size:11px;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.d-ok{background:#15803d}.d-off{background:#64748b}.d-err{background:#b91c1c}
+/* home */
+.home{max-width:520px;margin:0 auto;padding:26px 18px calc(26px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px;min-height:100dvh;justify-content:center}
+.logo{text-align:center;margin-bottom:4px}
+.logo .h1{font-size:22px;font-weight:800;color:var(--brand-d)}
+.logo .h2{font-size:13px;color:var(--muted);margin-top:3px}
+.mcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:var(--shadow)}
+.lbl{font-size:13px;font-weight:700;color:#334155;margin-bottom:6px;display:block}
+.inp{width:100%;border:1.6px solid var(--line);border-radius:11px;padding:12px 12px;background:#fff;color:var(--ink)}
+.inp:focus{outline:none;border-color:var(--brand)}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:120px}
+.big{border:none;border-radius:15px;padding:18px;font-size:17px;font-weight:800;color:#fff;cursor:pointer;display:flex;align-items:center;gap:12px;justify-content:center;box-shadow:var(--shadow)}
+.big.enter{background:linear-gradient(145deg,#4f46e5,#4338ca)}
+.big.month{background:linear-gradient(145deg,#0e7490,#155e75)}
+.big.quarter{background:linear-gradient(145deg,#15803d,#166534)}
+.big:active{filter:brightness(.94)}
+/* cards / forms */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 12px;font-size:16px;color:var(--brand-d);border-bottom:2px solid var(--line);padding-bottom:8px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1;min-width:58px;border:1.6px solid var(--line);background:#fff;border-radius:10px;padding:11px 6px;font-weight:700;color:#475569;cursor:pointer;font-size:14.5px}
+.seg button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.tlvl{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.tlvl button{border:1.6px solid var(--line);background:#fff;border-radius:10px;padding:10px 3px;cursor:pointer;font-weight:800;color:#334155;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:16px}
+.tlvl button .n{font-size:9.5px;font-weight:600;color:var(--muted);line-height:1.1}
+.tlvl button.on{color:#fff}
+.tlvl button.on .n{color:rgba(255,255,255,.85)}
+.tlvl button.on[data-k="R"]{background:#b91c1c;border-color:#b91c1c}
+.tlvl button.on[data-k="E"]{background:#ea580c;border-color:#ea580c}
+.tlvl button.on[data-k="U"]{background:#ca8a04;border-color:#ca8a04}
+.tlvl button.on[data-k="L"]{background:#2563eb;border-color:#2563eb}
+.tlvl button.on[data-k="N"]{background:#475569;border-color:#475569}
+.fld{margin-bottom:12px}
+.verdict{text-align:center;font-weight:800;border-radius:10px;padding:10px;font-size:15px}
+.v-ok{background:var(--ok-bg);color:var(--ok)}.v-under{background:var(--under-bg);color:var(--under)}.v-over{background:var(--over-bg);color:var(--over)}
+.addbtn{width:100%;border:none;border-radius:12px;padding:15px;font-size:16px;font-weight:800;color:#fff;background:linear-gradient(145deg,#15803d,#166534);cursor:pointer}
+.mini{border:none;border-radius:9px;padding:8px 12px;font-size:13px;font-weight:700;color:#fff;background:var(--brand);cursor:pointer}
+.mini.gray{background:#64748b}.mini.red{background:var(--under)}
+/* case rows */
+.crow{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;margin-bottom:8px;background:#fff}
+.crow.excl{opacity:.5}
+.crow .cx{width:22px;height:22px;flex:0 0 auto;border-radius:6px;border:2px solid #cbd5e1;display:flex;align-items:center;justify-content:center;font-weight:900;cursor:pointer;background:#fff;color:#fff}
+.crow .cx.on{background:var(--ok);border-color:var(--ok)}
+.crow .body{flex:1;min-width:0}
+.crow .l1{font-weight:700;font-size:15px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.crow .l2{font-size:12.5px;color:var(--muted);margin-top:2px}
+.pill{font-size:11px;font-weight:800;padding:1px 8px;border-radius:20px}
+.p-cat{background:#eef2ff;color:#4338ca}
+.p-under{background:var(--under-bg);color:var(--under)}
+.p-over{background:var(--over-bg);color:var(--over)}
+.p-ok{background:var(--ok-bg);color:var(--ok)}
+.tg{font-weight:800;font-family:ui-monospace,monospace}
+/* stats */
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:14px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;text-align:center;box-shadow:var(--shadow)}
+.stat .v{font-size:30px;font-weight:800}.stat .l{font-size:12.5px;color:var(--muted);margin-top:2px}
+.stat.tot .v{color:var(--brand-d)}.stat.und .v{color:var(--under)}.stat.ov .v{color:var(--over)}.stat.acc .v{color:var(--ok)}
+table.sum{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:14px}
+table.sum th{background:#f1f5f9;color:#334155;font-size:12px;font-weight:700;padding:9px 8px;text-align:center}
+table.sum th:first-child,table.sum td:first-child{text-align:left}
+table.sum td{padding:9px 8px;border-top:1px solid var(--line);text-align:center}
+table.sum tr.tot-row td{font-weight:800;background:#f8fafc}
+.u-c{color:var(--under);font-weight:700}.o-c{color:var(--over);font-weight:700}
+.sublabel{font-size:12.5px;color:var(--muted);margin:2px 0 10px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0f172a;color:#fff;padding:12px 20px;border-radius:12px;font-weight:700;z-index:300;opacity:0;transition:.25s;max-width:90vw;text-align:center}
+.toast.show{opacity:1}
+.empty{text-align:center;color:var(--muted);padding:26px 10px}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:18px}
+.ov.hide{display:none}
+.modal{background:#fff;border-radius:16px;padding:20px;max-width:380px;width:100%;max-height:86vh;overflow:auto}
+.modal h3{margin:0 0 10px;color:var(--brand-d)}
+.mbtns{display:flex;gap:10px;margin-top:14px}.mbtns button{flex:1;border:none;border-radius:11px;padding:12px;font-weight:800;cursor:pointer}
+.c-cancel{background:#e2e8f0;color:#334155}.c-ok{background:var(--brand);color:#fff}
+@media print{.hdr,.back,.addbtn,.mini,.seg,.noprint{display:none!important}.card{box-shadow:none;break-inside:avoid}body{background:#fff}}
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<div id="s-home" class="screen active">
+  <div class="home">
+    <div class="logo">
+      <div class="h1">📊 งานคุณภาพ ER</div>
+      <div class="h2">ตัวชี้วัด Under / Over Triage · โรงพยาบาลชัยนาทนเรนทร · <span id="home-fb" class="dot d-off">● ออฟไลน์</span></div>
+    </div>
+    <div class="mcard">
+      <label class="lbl">เลือกเดือนที่ทำงาน</label>
+      <div class="row">
+        <select class="inp" id="h-month"></select>
+        <select class="inp" id="h-year"></select>
+      </div>
+    </div>
+    <button class="big enter" onclick="goEntry()">➕ ลงบันทึกเคส (เดือนที่เลือก)</button>
+    <button class="big month" onclick="goMonthly()">📋 สรุปรายเดือน</button>
+    <button class="big quarter" onclick="goQuarter()">📈 สรุปรายไตรมาส</button>
+    <div style="text-align:center"><button class="mini gray" onclick="askAdmin('setpass')">🔒 เปลี่ยนรหัส admin</button></div>
+  </div>
+</div>
+
+<!-- ENTRY -->
+<div id="s-entry" class="screen">
+  <div class="hdr"><button class="back" onclick="go('home')">← หน้าแรก</button><div class="t">ลงบันทึกเคส <span class="s" id="e-mlabel"></span></div></div>
+  <div class="wrap">
+    <div class="card">
+      <h3>➕ เพิ่มเคสตรวจสอบ</h3>
+      <div class="fld"><label class="lbl">กลุ่มเคส</label><div class="seg" id="e-cat"></div></div>
+      <div class="fld"><label class="lbl">HN (ไม่บังคับ)</label><input class="inp" id="e-hn" inputmode="numeric" placeholder="เลข HN" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+      <div class="fld"><label class="lbl">ระดับที่พยาบาลคัดกรอง (N triage)</label><div class="tlvl" id="e-nt"></div></div>
+      <div class="fld"><label class="lbl">ระดับที่ถูกต้อง (ทบทวน/แพทย์)</label><div class="tlvl" id="e-ct"></div></div>
+      <div class="fld" id="e-verdict-wrap" style="display:none"><div class="verdict" id="e-verdict"></div></div>
+      <div class="fld"><label class="lbl">หมายเหตุ (เหตุผล/อาการ)</label><input class="inp" id="e-note" placeholder="เช่น SIRS+, GCS 8, V/S..."></div>
+      <button class="addbtn" onclick="addCase()">➕ บันทึกเคสนี้</button>
+    </div>
+    <div class="card">
+      <h3>เคสในเดือนนี้ (<span id="e-count">0</span>)</h3>
+      <div class="sublabel">✓ = นับเป็นตัวชี้วัด · แตะกล่องเพื่อรวม/ไม่รวม · เคสที่ไม่เข้าเกณฑ์ (ซ้ำ/ไม่ใช่ revisit) ให้ติ๊กออก</div>
+      <div id="e-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MONTHLY -->
+<div id="s-monthly" class="screen">
+  <div class="hdr"><button class="back" onclick="go('home')">← หน้าแรก</button><div class="t">สรุปรายเดือน</div><button class="back noprint" onclick="window.print()">🖨</button></div>
+  <div class="wrap">
+    <div class="card noprint">
+      <div class="row">
+        <select class="inp" id="m-month"></select>
+        <select class="inp" id="m-year"></select>
+      </div>
+    </div>
+    <h3 id="m-title" style="color:var(--brand-d);margin:4px 2px 10px"></h3>
+    <div class="stat-grid" id="m-stats"></div>
+    <div class="card">
+      <h3>แยกตามกลุ่มเคส</h3>
+      <div style="overflow-x:auto"><div id="m-table"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- QUARTER -->
+<div id="s-quarter" class="screen">
+  <div class="hdr"><button class="back" onclick="go('home')">← หน้าแรก</button><div class="t">สรุปรายไตรมาส (ปีงบ)</div><button class="back noprint" onclick="window.print()">🖨</button></div>
+  <div class="wrap">
+    <div class="card noprint">
+      <div class="row">
+        <select class="inp" id="q-q"></select>
+        <select class="inp" id="q-year"></select>
+      </div>
+      <div class="sublabel" id="q-months"></div>
+    </div>
+    <h3 id="q-title" style="color:var(--brand-d);margin:4px 2px 10px"></h3>
+    <div class="stat-grid" id="q-stats"></div>
+    <div class="card">
+      <h3>แยกตามกลุ่มเคส (รวมทั้งไตรมาส)</h3>
+      <div style="overflow-x:auto"><div id="q-table"></div></div>
+    </div>
+    <div class="card">
+      <h3>วิเคราะห์ & แนวทางแก้ไข</h3>
+      <div class="fld"><label class="lbl">สรุปผลการดำเนินงาน</label><textarea class="inp" id="q-summary" rows="3" placeholder="สรุปภาพรวมไตรมาสนี้..."></textarea></div>
+      <div class="fld"><label class="lbl">วิเคราะห์สาเหตุ / ปัจจัยที่ส่งผล</label><textarea class="inp" id="q-cause" rows="4" placeholder="คน / ผู้ป่วย / ทรัพยากร / process / environment..."></textarea></div>
+      <div class="fld"><label class="lbl">แนวทางการแก้ไข ปรับปรุง</label><textarea class="inp" id="q-action" rows="4" placeholder="แผนการปรับปรุง..."></textarea></div>
+      <button class="mini" onclick="saveAnalysis()">💾 บันทึกการวิเคราะห์</button>
+    </div>
+  </div>
+</div>
+
+<!-- admin modal -->
+<div id="admin-modal" class="ov hide"><div class="modal">
+  <h3 id="admin-title">🔒 ใส่รหัส Admin</h3>
+  <input class="inp" id="admin-pin" type="password" inputmode="numeric" placeholder="รหัส admin">
+  <div id="admin-extra"></div>
+  <div class="mbtns"><button class="c-cancel" onclick="hideEl('admin-modal')">ยกเลิก</button><button class="c-ok" onclick="adminOk()">ตกลง</button></div>
+</div></div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* ============ CONFIG ============ */
+const FB=window.FIREBASE_CONFIG||null;
+const PATH='triagekpi';
+const BUILD='2026-11-04a';
+let fbRef=null, FBSTATE='off';
+let CASES={}, ANALYSIS={}, SETTINGS={adminPass:'1234'};
+let adminAction=null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+
+/* triage levels (ความรุนแรง: R สูงสุด → N ต่ำสุด) */
+const LEVELS=[['R','กู้ชีพ'],['E','ฉุกเฉิน'],['U','เร่งด่วน'],['L','กึ่งเร่งด่วน'],['N','ไม่เร่งด่วน']];
+const RANK={R:1,E:2,U:3,L:4,N:5};
+const CATS=['Sepsis','STEMI','Stroke','Revisit','LN admit'];
+const TH_MON=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+/* ---- under/over logic ---- */
+function verdictOf(nt,ct){ if(!nt||!ct||!(nt in RANK)||!(ct in RANK)) return null;
+  if(RANK[nt]===RANK[ct]) return 'ok';
+  return RANK[nt]>RANK[ct] ? 'under' : 'over'; }   // nurse less urgent = under
+
+/* ---- firebase ---- */
+function setFB(st){ FBSTATE=st; const h=$('home-fb'); if(h){ h.className='dot '+(st==='ok'?'d-ok':st==='err'?'d-err':'d-off'); h.textContent=st==='ok'?'● ออนไลน์':st==='err'?'● ต่อไม่ได้':'● ออฟไลน์'; } }
+function initFB(){ if(!FB||typeof firebase==='undefined'){ setFB('off'); return; }
+  try{ const app=firebase.apps.length?firebase.app():firebase.initializeApp(FB); fbRef=firebase.database(app).ref(PATH);
+    fbRef.child('cases').on('value',s=>{ CASES=s.val()||{}; liveRefresh(); },()=>setFB('err'));
+    fbRef.child('analysis').on('value',s=>{ ANALYSIS=s.val()||{}; if($('s-quarter').classList.contains('active'))loadAnalysis(); });
+    fbRef.child('settings').on('value',s=>{ const v=s.val(); if(v)SETTINGS=Object.assign({adminPass:'1234'},v); });
+    firebase.database(app).ref('.info/connected').on('value',s=>setFB(s.val()?'ok':'off'));
+  }catch(e){ console.warn(e); setFB('err'); } }
+function liveRefresh(){ if($('s-entry').classList.contains('active'))renderList(); if($('s-monthly').classList.contains('active'))renderMonthly(); if($('s-quarter').classList.contains('active'))renderQuarter(); }
+
+/* ---- nav ---- */
+function go(scr){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $('s-'+scr).classList.add('active'); window.scrollTo(0,0); }
+function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1900); }
+function hideEl(id){ $(id).classList.add('hide'); }
+
+/* ---- month pickers ---- */
+function fillMonthSelectors(){
+  const now=new Date(); const yNow=now.getFullYear();
+  [['h-year'],['m-year'],['q-year']].forEach(()=>{});
+  ['h-month','m-month'].forEach(id=>{ const s=$(id); s.innerHTML=''; for(let m=1;m<=12;m++){ const o=document.createElement('option'); o.value=m; o.textContent=TH_MON[m]; s.appendChild(o);} s.value=now.getMonth()+1; });
+  ['h-year','m-year'].forEach(id=>{ const s=$(id); s.innerHTML=''; for(let y=yNow+1;y>=yNow-3;y--){ const o=document.createElement('option'); o.value=y; o.textContent='พ.ศ. '+(y+543); s.appendChild(o);} s.value=yNow; });
+  // quarter selectors (fiscal)
+  const qs=$('q-q'); qs.innerHTML=''; [['1','ไตรมาส 1 (ต.ค.–ธ.ค.)'],['2','ไตรมาส 2 (ม.ค.–มี.ค.)'],['3','ไตรมาส 3 (เม.ย.–มิ.ย.)'],['4','ไตรมาส 4 (ก.ค.–ก.ย.)']].forEach(([v,t])=>{ const o=document.createElement('option');o.value=v;o.textContent=t;qs.appendChild(o);});
+  const qy=$('q-year'); qy.innerHTML=''; const fyNow=fiscalYearBE(now.getFullYear(),now.getMonth()+1); for(let y=fyNow+1;y>=fyNow-3;y--){ const o=document.createElement('option');o.value=y;o.textContent='ปีงบ '+y;qy.appendChild(o);} qy.value=fyNow; qs.value=fiscalQuarter(now.getMonth()+1);
+}
+function monthKey(y,m){ return y+'-'+pad(m); }
+function monthLabel(y,m){ return TH_MON[m]+' '+(y+543); }
+/* fiscal: Oct–Dec = Q1 of (gregYear+1)+543 ; Jan–Sep same calendar year +543 */
+function fiscalYearBE(gy,m){ return (m>=10 ? gy+1 : gy)+543; }
+function fiscalQuarter(m){ if(m>=10)return 1; if(m<=3)return 2; if(m<=6)return 3; return 4; }
+function quarterMonths(fyBE,q){ // returns [{y,m}]
+  const gyEnd=fyBE-543; // fiscal year BE -> ends in this greg year
+  if(q===1) return [[gyEnd-1,10],[gyEnd-1,11],[gyEnd-1,12]].map(([y,m])=>({y,m}));
+  if(q===2) return [[gyEnd,1],[gyEnd,2],[gyEnd,3]].map(([y,m])=>({y,m}));
+  if(q===3) return [[gyEnd,4],[gyEnd,5],[gyEnd,6]].map(([y,m])=>({y,m}));
+  return [[gyEnd,7],[gyEnd,8],[gyEnd,9]].map(([y,m])=>({y,m}));
+}
+
+/* ============ ENTRY ============ */
+let curMonth=null, selCat='Sepsis', selNT='', selCT='';
+function goEntry(){ curMonth=monthKey(+$('h-year').value,+$('h-month').value); selCat='Sepsis'; selNT=''; selCT=''; $('e-hn').value=''; $('e-note').value='';
+  $('e-mlabel').textContent='· '+monthLabel(+$('h-year').value,+$('h-month').value);
+  renderCatSeg(); renderLvl('e-nt',()=>selNT,v=>{selNT=v;updVerdict();}); renderLvl('e-ct',()=>selCT,v=>{selCT=v;updVerdict();}); updVerdict();
+  go('entry'); renderList(); }
+function renderCatSeg(){ $('e-cat').innerHTML=CATS.map(c=>`<button class="${c===selCat?'on':''}" onclick="selCat='${c}';renderCatSeg()">${c}</button>`).join(''); }
+function renderLvl(id,getv,setv){ const cur=getv(); $(id).innerHTML=LEVELS.map(([k,th])=>`<button data-k="${k}" class="${cur===k?'on':''}">${k}<span class="n">${th}</span></button>`).join('');
+  $(id).querySelectorAll('button').forEach(b=>b.onclick=()=>{ setv(b.dataset.k); renderLvl(id,getv,setv); }); }
+function updVerdict(){ const v=verdictOf(selNT,selCT); const w=$('e-verdict-wrap'),el=$('e-verdict');
+  if(!v){ w.style.display='none'; return; } w.style.display='block';
+  el.className='verdict '+(v==='ok'?'v-ok':v==='under'?'v-under':'v-over');
+  el.textContent=v==='ok'?'✓ คัดกรองถูกต้อง':v==='under'?'▼ Under-triage (คัดต่ำกว่าจริง)':'▲ Over-triage (คัดสูงกว่าจริง)'; }
+function addCase(){ if(!selNT||!selCT){ toast('เลือกระดับ N triage และระดับที่ถูกต้องก่อน'); return; }
+  const id='tk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
+  const rec={ id, month:curMonth, cat:selCat, hn:($('e-hn').value||'').trim(), nt:selNT, ct:selCT, note:($('e-note').value||'').trim(), include:true, createdAt:new Date().toISOString() };
+  CASES[id]=rec; if(fbRef){try{fbRef.child('cases/'+id).set(rec);}catch(e){}}
+  selNT=''; selCT=''; $('e-hn').value=''; $('e-note').value='';
+  renderLvl('e-nt',()=>selNT,v=>{selNT=v;updVerdict();}); renderLvl('e-ct',()=>selCT,v=>{selCT=v;updVerdict();}); updVerdict();
+  toast('บันทึกเคสแล้ว ✓'); renderList(); $('e-hn').focus(); }
+function monthCases(mk){ return Object.values(CASES).filter(r=>r&&r.month===mk).sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||'')); }
+function renderList(){ const list=monthCases(curMonth); $('e-count').textContent=list.length;
+  if(!list.length){ $('e-list').innerHTML='<div class="empty">— ยังไม่มีเคสในเดือนนี้ —</div>'; return; }
+  $('e-list').innerHTML=list.map(r=>{ const v=verdictOf(r.nt,r.ct);
+    const vp=v==='under'?'<span class="pill p-under">Under</span>':v==='over'?'<span class="pill p-over">Over</span>':v==='ok'?'<span class="pill p-ok">ถูกต้อง</span>':'';
+    return `<div class="crow ${r.include?'':'excl'}">
+      <div class="cx ${r.include?'on':''}" onclick="toggleInc('${r.id}')">${r.include?'✓':''}</div>
+      <div class="body">
+        <div class="l1"><span class="pill p-cat">${esc(r.cat)}</span> <span class="tg">${esc(r.nt)}→${esc(r.ct)}</span> ${vp}</div>
+        <div class="l2">${r.hn?('HN '+esc(r.hn)):'(ไม่ระบุ HN)'}${r.note?' · '+esc(r.note):''}</div>
+      </div>
+      <button class="mini red" onclick="askAdmin('del:${r.id}')">ลบ</button>
+    </div>`; }).join(''); }
+function toggleInc(id){ const r=CASES[id]; if(!r)return; r.include=!r.include; if(fbRef){try{fbRef.child('cases/'+id+'/include').set(r.include);}catch(e){}} renderList(); }
+function doDelete(id){ const r=CASES[id]; if(!r)return; if(fbRef){try{fbRef.child('cases/'+id).remove();}catch(e){}} delete CASES[id]; toast('ลบแล้ว'); liveRefresh(); }
+
+/* ============ STATS ============ */
+function computeStats(cases){ // cases already filtered to scope
+  const inc=cases.filter(r=>r.include&&verdictOf(r.nt,r.ct));
+  const out={total:inc.length,under:0,over:0,ok:0,byCat:{}};
+  CATS.forEach(c=>out.byCat[c]={total:0,under:0,over:0});
+  inc.forEach(r=>{ const v=verdictOf(r.nt,r.ct); if(v==='under')out.under++; else if(v==='over')out.over++; else out.ok++;
+    const b=out.byCat[r.cat]||(out.byCat[r.cat]={total:0,under:0,over:0}); b.total++; if(v==='under')b.under++; else if(v==='over')b.over++; });
+  return out; }
+function pct(n,d){ return d>0?(Math.round(n/d*1000)/10):null; }
+function pctTxt(n,d){ const p=pct(n,d); return p==null?'—':p.toFixed(1)+'%'; }
+function statCards(s){ return `
+  <div class="stat tot"><div class="v">${s.total}</div><div class="l">เคสที่ตรวจสอบ</div></div>
+  <div class="stat acc"><div class="v">${pctTxt(s.ok,s.total)}</div><div class="l">คัดกรองถูกต้อง (${s.ok})</div></div>
+  <div class="stat und"><div class="v">${pctTxt(s.under,s.total)}</div><div class="l">Under-triage (${s.under})</div></div>
+  <div class="stat ov"><div class="v">${pctTxt(s.over,s.total)}</div><div class="l">Over-triage (${s.over})</div></div>`; }
+function sumTable(s){
+  let rows=CATS.map(c=>{ const b=s.byCat[c]||{total:0,under:0,over:0}; return `<tr><td>${c}</td><td>${b.total}</td>
+    <td class="u-c">${b.under}</td><td class="u-c">${pctTxt(b.under,b.total)}</td>
+    <td class="o-c">${b.over}</td><td class="o-c">${pctTxt(b.over,b.total)}</td></tr>`; }).join('');
+  rows+=`<tr class="tot-row"><td>รวม</td><td>${s.total}</td><td class="u-c">${s.under}</td><td class="u-c">${pctTxt(s.under,s.total)}</td><td class="o-c">${s.over}</td><td class="o-c">${pctTxt(s.over,s.total)}</td></tr>`;
+  return `<table class="sum"><thead><tr><th>กลุ่มเคส</th><th>ตรวจสอบ</th><th>Under</th><th>%</th><th>Over</th><th>%</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---- monthly ---- */
+function goMonthly(){ $('m-month').value=$('h-month').value; $('m-year').value=$('h-year').value; go('monthly'); renderMonthly(); }
+function renderMonthly(){ const y=+$('m-year').value,m=+$('m-month').value; const s=computeStats(monthCases(monthKey(y,m)));
+  $('m-title').textContent='สรุปเดือน '+monthLabel(y,m); $('m-stats').innerHTML=statCards(s); $('m-table').innerHTML=sumTable(s); }
+
+/* ---- quarter ---- */
+function goQuarter(){ go('quarter'); renderQuarter(); loadAnalysis(); }
+function currentQ(){ return {fy:+$('q-year').value,q:+$('q-q').value}; }
+function quarterCases(){ const {fy,q}=currentQ(); const mks=quarterMonths(fy,q).map(o=>monthKey(o.y,o.m));
+  return Object.values(CASES).filter(r=>r&&mks.includes(r.month)); }
+function renderQuarter(){ const {fy,q}=currentQ(); const mons=quarterMonths(fy,q);
+  $('q-months').textContent='เดือนในไตรมาส: '+mons.map(o=>monthLabel(o.y,o.m)).join(' · ');
+  const s=computeStats(quarterCases()); $('q-title').textContent='ไตรมาส '+q+' / ปีงบ '+fy;
+  $('q-stats').innerHTML=statCards(s); $('q-table').innerHTML=sumTable(s); }
+function analysisKey(){ const {fy,q}=currentQ(); return 'fy'+fy+'q'+q; }
+function loadAnalysis(){ const a=ANALYSIS[analysisKey()]||{}; $('q-summary').value=a.summary||''; $('q-cause').value=a.cause||''; $('q-action').value=a.action||''; }
+function saveAnalysis(){ const k=analysisKey(); const a={summary:$('q-summary').value.trim(),cause:$('q-cause').value.trim(),action:$('q-action').value.trim(),at:new Date().toISOString()};
+  ANALYSIS[k]=a; if(fbRef){try{fbRef.child('analysis/'+k).set(a);}catch(e){}} toast('บันทึกการวิเคราะห์แล้ว ✓'); }
+
+/* ============ ADMIN ============ */
+function askAdmin(a){ adminAction=a; $('admin-pin').value=''; $('admin-extra').innerHTML=''; $('admin-title').textContent='🔒 ใส่รหัส Admin';
+  if(a==='setpass'){ $('admin-title').textContent='🔒 เปลี่ยนรหัส Admin'; $('admin-extra').innerHTML='<input class="inp" id="admin-new" inputmode="numeric" placeholder="รหัสใหม่ (4–8 ตัวเลข)" style="margin-top:10px">'; }
+  $('admin-modal').classList.remove('hide'); setTimeout(()=>$('admin-pin').focus(),60); }
+function adminOk(){ const pin=($('admin-pin').value||'').trim(); if(pin!==(SETTINGS.adminPass||'1234')&&pin!=='1234'){ toast('รหัสไม่ถูกต้อง'); return; }
+  const a=adminAction; hideEl('admin-modal');
+  if(a==='setpass'){ const nv=($('admin-new').value||'').trim(); if(!/^\d{4,8}$/.test(nv)){toast('รหัสใหม่ต้องเป็นเลข 4–8 ตัว');return;} SETTINGS.adminPass=nv; if(fbRef){try{fbRef.child('settings/adminPass').set(nv);}catch(e){}} toast('เปลี่ยนรหัสแล้ว'); }
+  else if(a&&a.indexOf('del:')===0){ doDelete(a.slice(4)); } }
+
+/* ============ INIT ============ */
+fillMonthSelectors();
+['m-month','m-year'].forEach(id=>$(id).addEventListener('change',renderMonthly));
+['q-q','q-year'].forEach(id=>$(id).addEventListener('change',()=>{renderQuarter();loadAnalysis();}));
+function startFB(){ try{ initFB(); }catch(e){ console.warn(e); } }
+if(typeof firebase!=='undefined'){ startFB(); } else { window.addEventListener('load',startFB); setTimeout(()=>{ if(!fbRef)startFB(); },2500); }
+</script>
+</body>
+</html>
