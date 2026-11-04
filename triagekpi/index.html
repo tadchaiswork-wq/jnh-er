@@ -102,9 +102,9 @@ table.sum tr.tot-row td{font-weight:800;background:#f8fafc}
 .sumline{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .sumline .s{flex:1;min-width:90px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center;box-shadow:var(--shadow)}
 .sumline .s .v{font-size:22px;font-weight:800}.sumline .s .l{font-size:11.5px;color:var(--muted)}
-.sumline .s.tot .v{color:var(--brand-d)}.sumline .s.und .v{color:var(--under)}.sumline .s.ov .v{color:var(--over)}
+.sumline .s.tot .v{color:var(--brand-d)}.sumline .s.und .v{color:var(--under)}.sumline .s.ov .v{color:var(--over)}.sumline .s.eup .v{color:#b91c1c}
 .gridwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow)}
-table.grid{border-collapse:collapse;width:100%;min-width:740px;font-size:13.5px}
+table.grid{border-collapse:collapse;width:100%;min-width:830px;font-size:13.5px}
 table.grid th{background:#eef2ff;color:#3730a3;font-size:11.5px;font-weight:700;padding:9px 6px;white-space:nowrap;border-bottom:1px solid var(--line)}
 table.grid td{border-top:1px solid var(--line);padding:5px 6px;text-align:center;vertical-align:middle}
 table.grid tr.excl td{background:#f8fafc;opacity:.6}
@@ -149,7 +149,7 @@ table.grid tr.excl td{background:#f8fafc;opacity:.6}
     <div class="sumline" id="e-summary"></div>
     <div class="gridwrap"><table class="grid" id="e-grid"></table></div>
     <button class="addbtn" onclick="addRow()" style="margin-top:12px">➕ เพิ่มแถว</button>
-    <div class="sublabel" style="margin-top:8px">✓ = นับเป็นตัวชี้วัด (เคสซ้ำ/ไม่เข้าเกณฑ์ติ๊กออก) · under/over คำนวณอัตโนมัติจาก <b>N triage</b> เทียบกับ <b>D check</b> (ถ้าไม่มีใช้ N check) · แก้ในช่องได้เลย บันทึกอัตโนมัติ · เลื่อนตารางซ้าย-ขวาเพื่อดูครบ</div>
+    <div class="sublabel" style="margin-top:8px">✓ = นับเป็นตัวชี้วัด (เคสซ้ำ/ไม่เข้าเกณฑ์ติ๊กออก) · under/over คำนวณอัตโนมัติจาก <b>N triage</b> เทียบกับ <b>D check</b> (ถ้าไม่มีใช้ N check) · ช่อง <b>อุบ.≥E</b> ติ๊กได้เฉพาะเคสที่เป็น under/over เพื่อระบุว่าเป็นอุบัติการณ์ระดับ E ขึ้นไป (ถึงตัวผู้ป่วย/เกิด harm) · แก้ในช่องได้เลย บันทึกอัตโนมัติ · เลื่อนตารางซ้าย-ขวาเพื่อดูครบ</div>
   </div>
 </div>
 
@@ -221,7 +221,7 @@ table.grid tr.excl td{background:#f8fafc;opacity:.6}
 /* ============ CONFIG ============ */
 const FB=window.FIREBASE_CONFIG||null;
 const PATH='triagekpi';
-const BUILD='2026-11-04d';
+const BUILD='2026-11-04e';
 let fbRef=null, FBSTATE='off';
 let CASES={}, ANALYSIS={}, SETTINGS={adminPass:'1234'};
 let adminAction=null;
@@ -296,9 +296,12 @@ function vbCell(r){ const v=rowVerdict(r);
   if(v==='over') return '<span class="vb o">▲ Over</span>';
   if(v==='ok') return '<span class="vb k">✓</span>';
   return '<span class="vb none">–</span>'; }
+function eupCell(r){ const v=rowVerdict(r);
+  if(v==='under'||v==='over') return `<input type="checkbox" class="gchk eup" ${r.eup?'checked':''} onchange="setCell('${r.id}','eup',this.checked)" title="อุบัติการณ์ระดับ E ขึ้นไป (ถึงตัวผู้ป่วย/เกิด harm)">`;
+  return '<span class="vb none">–</span>'; }
 function renderGrid(){ const list=monthCasesSorted(curMonth);
   if(!list.length){ $('e-grid').innerHTML='<tbody><tr><td style="padding:24px;color:var(--muted);text-align:center">— ยังไม่มีแถว กด "➕ เพิ่มแถว" ด้านล่าง —</td></tr></tbody>'; updSummary(); return; }
-  let h=`<thead><tr><th>✓</th><th>กลุ่มเคส</th><th>HN</th><th>N triage</th><th>N check</th><th>D check</th><th>ผล</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>`;
+  let h=`<thead><tr><th>✓</th><th>กลุ่มเคส</th><th>HN</th><th>N triage</th><th>N check</th><th>D check</th><th>ผล</th><th>อุบ.≥E</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>`;
   h+=list.map(r=>`<tr id="row-${r.id}" class="${r.include?'':'excl'}">
     <td><input type="checkbox" class="gchk" ${r.include?'checked':''} onchange="setCell('${r.id}','include',this.checked)"></td>
     <td><select class="gsel cat" onchange="setCell('${r.id}','cat',this.value)">${catOpts(r.cat)}</select></td>
@@ -307,46 +310,51 @@ function renderGrid(){ const list=monthCasesSorted(curMonth);
     <td><select class="gsel" onchange="setCell('${r.id}','nc',this.value)">${lvlOpts(r.nc)}</select></td>
     <td><select class="gsel" onchange="setCell('${r.id}','dc',this.value)">${lvlOpts(r.dc)}</select></td>
     <td id="v-${r.id}">${vbCell(r)}</td>
+    <td id="e-${r.id}">${eupCell(r)}</td>
     <td class="l"><input class="ginp gnote" value="${esc(r.note)}" onchange="setCell('${r.id}','note',this.value)" placeholder="เหตุผล/อาการ"></td>
     <td><button class="gdel" onclick="askAdmin('del:${r.id}')" title="ลบแถว">🗑</button></td>
   </tr>`).join('');
   $('e-grid').innerHTML=h+'</tbody>'; updSummary(); }
 function setCell(id,field,val){ const r=CASES[id]; if(!r)return; r[field]=val;
   if(fbRef){try{fbRef.child('cases/'+id+'/'+field).set(val);}catch(e){}}
-  if(field==='nt'||field==='nc'||field==='dc'){ const c=$('v-'+id); if(c)c.innerHTML=vbCell(r); }
+  if(field==='nt'||field==='nc'||field==='dc'){ const c=$('v-'+id); if(c)c.innerHTML=vbCell(r); const e=$('e-'+id); if(e)e.innerHTML=eupCell(r); }
   if(field==='include'){ const tr=$('row-'+id); if(tr)tr.className=val?'':'excl'; }
   updSummary(); }
 function addRow(){ const id='tk_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);
-  const rec={id,month:curMonth,cat:'Sepsis',hn:'',nt:'',nc:'',dc:'',note:'',include:true,createdAt:new Date().toISOString()};
+  const rec={id,month:curMonth,cat:'Sepsis',hn:'',nt:'',nc:'',dc:'',note:'',eup:false,include:true,createdAt:new Date().toISOString()};
   CASES[id]=rec; if(fbRef){try{fbRef.child('cases/'+id).set(rec);}catch(e){}}
   renderGrid(); const tr=$('row-'+id); if(tr){ tr.scrollIntoView({block:'center'}); const hn=tr.querySelector('.ghn'); if(hn)hn.focus(); } }
 function updSummary(){ const s=computeStats(monthCases(curMonth)); const el=$('e-summary'); if(!el)return;
   el.innerHTML=`<div class="s tot"><div class="v">${s.total}</div><div class="l">เคสที่ตรวจสอบ</div></div>
     <div class="s und"><div class="v">${s.under}</div><div class="l">Under ${pctTxt(s.under,s.total)}</div></div>
-    <div class="s ov"><div class="v">${s.over}</div><div class="l">Over ${pctTxt(s.over,s.total)}</div></div>`; }
+    <div class="s ov"><div class="v">${s.over}</div><div class="l">Over ${pctTxt(s.over,s.total)}</div></div>
+    <div class="s eup"><div class="v">${s.eup}</div><div class="l">อุบ.≥E</div></div>`; }
 function doDelete(id){ const r=CASES[id]; if(!r)return; if(fbRef){try{fbRef.child('cases/'+id).remove();}catch(e){}} delete CASES[id]; toast('ลบแล้ว'); liveRefresh(); }
 
 /* ============ STATS ============ */
 function computeStats(cases){ // cases already filtered to scope
   const inc=cases.filter(r=>r.include&&rowVerdict(r));
-  const out={total:inc.length,under:0,over:0,ok:0,byCat:{}};
-  CATS.forEach(c=>out.byCat[c]={total:0,under:0,over:0});
+  const out={total:inc.length,under:0,over:0,ok:0,eup:0,eupUnder:0,eupOver:0,byCat:{}};
+  CATS.forEach(c=>out.byCat[c]={total:0,under:0,over:0,eup:0});
   inc.forEach(r=>{ const v=rowVerdict(r); if(v==='under')out.under++; else if(v==='over')out.over++; else out.ok++;
-    const b=out.byCat[r.cat]||(out.byCat[r.cat]={total:0,under:0,over:0}); b.total++; if(v==='under')b.under++; else if(v==='over')b.over++; });
+    const eup=!!r.eup&&(v==='under'||v==='over');
+    if(eup){ out.eup++; if(v==='under')out.eupUnder++; else out.eupOver++; }
+    const b=out.byCat[r.cat]||(out.byCat[r.cat]={total:0,under:0,over:0,eup:0}); b.total++; if(v==='under')b.under++; else if(v==='over')b.over++; if(eup)b.eup++; });
   return out; }
 function pct(n,d){ return d>0?(Math.round(n/d*1000)/10):null; }
 function pctTxt(n,d){ const p=pct(n,d); return p==null?'—':p.toFixed(1)+'%'; }
 function statCards(s){ return `
   <div class="stat tot"><div class="v">${s.total}</div><div class="l">เคสที่ตรวจสอบ</div></div>
   <div class="stat acc"><div class="v">${pctTxt(s.ok,s.total)}</div><div class="l">คัดกรองถูกต้อง (${s.ok})</div></div>
-  <div class="stat und"><div class="v">${pctTxt(s.under,s.total)}</div><div class="l">Under-triage (${s.under})</div></div>
-  <div class="stat ov"><div class="v">${pctTxt(s.over,s.total)}</div><div class="l">Over-triage (${s.over})</div></div>`; }
+  <div class="stat und"><div class="v">${pctTxt(s.under,s.total)}</div><div class="l">Under-triage (${s.under}) · อุบ.≥E ${s.eupUnder||0}</div></div>
+  <div class="stat ov"><div class="v">${pctTxt(s.over,s.total)}</div><div class="l">Over-triage (${s.over}) · อุบ.≥E ${s.eupOver||0}</div></div>`; }
 function sumTable(s){
-  let rows=CATS.map(c=>{ const b=s.byCat[c]||{total:0,under:0,over:0}; return `<tr><td>${c}</td><td>${b.total}</td>
+  let rows=CATS.map(c=>{ const b=s.byCat[c]||{total:0,under:0,over:0,eup:0}; return `<tr><td>${c}</td><td>${b.total}</td>
     <td class="u-c">${b.under}</td><td class="u-c">${pctTxt(b.under,b.total)}</td>
-    <td class="o-c">${b.over}</td><td class="o-c">${pctTxt(b.over,b.total)}</td></tr>`; }).join('');
-  rows+=`<tr class="tot-row"><td>รวม</td><td>${s.total}</td><td class="u-c">${s.under}</td><td class="u-c">${pctTxt(s.under,s.total)}</td><td class="o-c">${s.over}</td><td class="o-c">${pctTxt(s.over,s.total)}</td></tr>`;
-  return `<table class="sum"><thead><tr><th>กลุ่มเคส</th><th>ตรวจสอบ</th><th>Under</th><th>%</th><th>Over</th><th>%</th></tr></thead><tbody>${rows}</tbody></table>`;
+    <td class="o-c">${b.over}</td><td class="o-c">${pctTxt(b.over,b.total)}</td>
+    <td style="color:#b91c1c;font-weight:700">${b.eup||0}</td></tr>`; }).join('');
+  rows+=`<tr class="tot-row"><td>รวม</td><td>${s.total}</td><td class="u-c">${s.under}</td><td class="u-c">${pctTxt(s.under,s.total)}</td><td class="o-c">${s.over}</td><td class="o-c">${pctTxt(s.over,s.total)}</td><td style="color:#b91c1c">${s.eup}</td></tr>`;
+  return `<table class="sum"><thead><tr><th>กลุ่มเคส</th><th>ตรวจสอบ</th><th>Under</th><th>%</th><th>Over</th><th>%</th><th>อุบ.≥E</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 /* ---- monthly ---- */
