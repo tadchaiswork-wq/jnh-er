@@ -29,6 +29,10 @@
     "monitorPresence": {
       ".read": true,
       ".write": true
+    },
+    "triagekpi": {
+      ".read": true,
+      ".write": true
     }
   }
 }
