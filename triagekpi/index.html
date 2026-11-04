@@ -91,8 +91,8 @@ table.sum tr.tot-row td{font-weight:800;background:#f8fafc}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#0f172a;color:#fff;padding:12px 20px;border-radius:12px;font-weight:700;z-index:300;opacity:0;transition:.25s;max-width:90vw;text-align:center}
 .toast.show{opacity:1}
 .empty{text-align:center;color:var(--muted);padding:26px 10px}
-.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:18px}
-.ov.hide{display:none}
+.ovl{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:18px}
+.ovl.hide{display:none}
 .modal{background:#fff;border-radius:16px;padding:20px;max-width:380px;width:100%;max-height:86vh;overflow:auto}
 .modal h3{margin:0 0 10px;color:var(--brand-d)}
 .mbtns{display:flex;gap:10px;margin-top:14px}.mbtns button{flex:1;border:none;border-radius:11px;padding:12px;font-weight:800;cursor:pointer}
@@ -207,7 +207,7 @@ table.grid tr.excl td{background:#f8fafc;opacity:.6}
 </div>
 
 <!-- admin modal -->
-<div id="admin-modal" class="ov hide"><div class="modal">
+<div id="admin-modal" class="ovl hide"><div class="modal">
   <h3 id="admin-title">🔒 ใส่รหัส Admin</h3>
   <input class="inp" id="admin-pin" type="password" inputmode="numeric" placeholder="รหัส admin">
   <div id="admin-extra"></div>
@@ -220,7 +220,7 @@ table.grid tr.excl td{background:#f8fafc;opacity:.6}
 /* ============ CONFIG ============ */
 const FB=window.FIREBASE_CONFIG||null;
 const PATH='triagekpi';
-const BUILD='2026-11-04b';
+const BUILD='2026-11-04c';
 let fbRef=null, FBSTATE='off';
 let CASES={}, ANALYSIS={}, SETTINGS={adminPass:'1234'};
 let adminAction=null;
