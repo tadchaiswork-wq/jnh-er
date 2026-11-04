@@ -7,6 +7,7 @@
 <link rel="icon" href="icon.svg">
 <link rel="manifest" href="manifest.json">
 <script src="../time-sync.js"></script>
+<script src="../firebase-config.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -220,7 +221,7 @@ table.grid tr.excl td{background:#f8fafc;opacity:.6}
 /* ============ CONFIG ============ */
 const FB=window.FIREBASE_CONFIG||null;
 const PATH='triagekpi';
-const BUILD='2026-11-04c';
+const BUILD='2026-11-04d';
 let fbRef=null, FBSTATE='off';
 let CASES={}, ANALYSIS={}, SETTINGS={adminPass:'1234'};
 let adminAction=null;
