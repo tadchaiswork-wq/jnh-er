@@ -34,4 +34,4 @@ window.EMAIL_DOMAIN = "jnher.web";
 window.SUPERADMIN_USERNAME = "pettoo";
 
 // แอป "ลิงก์สำคัญ" — เก็บไฟล์แนบลง Google Drive ผ่าน Apps Script (ดูไฟล์ drive-appsscript.gs)
-window.LINKS_DRIVE_URL = "https://script.google.com/macros/s/AKfycbwqIvfenjKhQyLJf6Yleg_LYIFQdVbovNJrty_nYbvZxdZxdq8UBCP4ps2kvyykTKN_/exec";
+window.LINKS_DRIVE_URL = "https://script.google.com/macros/s/AKfycbyI5gA-SMNFxJFMi0HN5Uvix1C9mHm42cdEf-jlFnuYFunQmPIpt_jhxPU7_43d4WcS/exec";
