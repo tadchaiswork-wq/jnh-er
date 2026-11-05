@@ -72,7 +72,7 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
 .modal .close{float:right;background:#f1f5f9;border:none;border-radius:9px;width:34px;height:34px;font-size:18px;cursor:pointer}
 .fld{margin:10px 0}.fld label{display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:5px}
 .fld input,.fld select{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px}
-.strow{display:grid;grid-template-columns:1fr 130px 70px 34px;gap:6px;margin-bottom:6px;align-items:center}
+.strow{display:grid;grid-template-columns:1fr 118px 92px 64px 30px;gap:6px;margin-bottom:6px;align-items:center}
 .strow input,.strow select{border:1px solid var(--line);border-radius:8px;padding:8px}
 .strow .del{background:var(--bad-bg);color:var(--bad);border:none;border-radius:8px;cursor:pointer;font-size:16px}
 .strow .noedit{font-size:12px;color:var(--brand-d);cursor:pointer;text-decoration:underline}
@@ -442,11 +442,16 @@ function drawStaff(){ $('stCount').textContent=edStaff.length;
   const opts=r=>ROLES.map(x=>`<option value="${x.key}" ${x.key===r?'selected':''}>${esc(x.name)}</option>`).join('');
   $('stRows').innerHTML=edStaff.map((s,i)=>{
     const chips=(s.no.length?('ปิด: '+s.no.map(r=>ROLE_TH[r]||r).join(',')):'')+(s.noCC?' · ไม่อยู่ศสก.':'')+(s.fixM?' · ประจำเช้า:'+(FIXM_TH[s.fixM]||s.fixM):'');
+    const fixCell = s.role==='float'
+      ? `<select data-i="${i}" data-f="fixM" title="หน้าที่เฉพาะลอยเช้า (เวรเช้าในเวลา)">${FIXM_OPTS.map(([k,l])=>`<option value="${k}" ${s.fixM===k?'selected':''}>${l}</option>`).join('')}</select>`
+      : `<span style="font-size:11px;color:#cbd5e1;text-align:center" title="หน้าที่เฉพาะใช้กับลอยเช้า">—</span>`;
     return `<div class="strow"><input value="${esc(s.name)}" data-i="${i}" data-f="name" placeholder="ชื่อ-สกุล">
      <select data-i="${i}" data-f="role">${opts(s.role)}</select>
+     ${fixCell}
      <span class="noedit" data-no="${i}" title="${esc(chips)}">ปิดบทบาท${s.no.length||s.noCC?' •':''}</span>
      <button class="del" data-i="${i}">×</button></div>`; }).join('');
   $('stRows').querySelectorAll('input,select').forEach(el=>el.addEventListener('input',e=>{edStaff[+e.target.dataset.i][e.target.dataset.f]=e.target.value;}));
+  $('stRows').querySelectorAll('select[data-f=role]').forEach(el=>el.addEventListener('change',()=>drawStaff()));
   $('stRows').querySelectorAll('.del').forEach(b=>b.onclick=()=>{edStaff.splice(+b.dataset.i,1);drawStaff();});
   $('stRows').querySelectorAll('.noedit').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openNoEdit(+b.dataset.no);});
 }
@@ -455,16 +460,13 @@ function openNoEdit(i){ const s=edStaff[i];
   const html=`<div class="pop-nm" style="font-weight:700;margin-bottom:6px">ปิดบทบาทถาวร: ${esc(s.name||'')}</div>
     <div style="font-size:12px;color:#64748b;margin-bottom:4px">บทบาทที่ไม่ให้จัด:</div><div class="rolechk" id="neRoles">${roleChk}</div>
     <label style="display:block;margin-top:8px;font-size:13px"><input type="checkbox" id="neCC" ${s.noCC?'checked':''}> ไม่ให้อยู่เวรศูนย์สั่งการ</label>
-    <div style="margin-top:10px;font-size:12px;color:#64748b">หน้าที่เฉพาะ เวรเช้าในเวลา (ช) — ลอยเช้า/คนที่มีหน้าที่ประจำ · ว่าง=ยืดหยุ่น:</div>
-    <select id="neFixM" style="width:100%;margin-top:4px;border:1px solid var(--line);border-radius:8px;padding:6px">
-      ${FIXM_OPTS.map(([k,l])=>`<option value="${k}" ${s.fixM===k?'selected':''}>${l}</option>`).join('')}</select>`;
+    ${s.role==='float'?'<div style="margin-top:8px;font-size:11px;color:#94a3b8">* หน้าที่เฉพาะลอยเช้า (ช EMS/Ref/…) ตั้งได้ในช่องถัดจากตำแหน่งในแถวรายชื่อ</div>':''}`;
   const pop=$('pop'); pop.innerHTML=html; pop.style.display='block'; pop.style.left='50%'; pop.style.top='120px'; pop.style.transform='translateX(-50%)'; pop.style.width='260px';
   pop.querySelectorAll('#neRoles input').forEach(c=>c.onchange=()=>{ const r=c.dataset.r; if(c.checked){if(s.no.indexOf(r)<0)s.no.push(r);} else s.no=s.no.filter(x=>x!==r); drawStaff(); });
   $('neCC').onchange=e=>{ s.noCC=e.target.checked; drawStaff(); };
-  $('neFixM').onchange=e=>{ s.fixM=e.target.value; drawStaff(); };
 }
 const FIXM_TH={incharge:'I',lead1:'L1',lead2:'L2',EMS:'EMS',refer:'Ref',triage:'T',member1:'M1',member2:'M2',leadalt:'สลับ L1/L2'};
-const FIXM_OPTS=[['','— ไม่ประจำ —'],['incharge','I (incharge)'],['lead1','L1'],['lead2','L2'],['leadalt','สลับ L1/L2 (คู่)'],['EMS','EMS'],['refer','Ref'],['triage','T'],['member1','M1'],['member2','M2']];
+const FIXM_OPTS=[['','ยืดหยุ่น'],['EMS','ช EMS'],['refer','ช Ref'],['leadalt','สลับ L1/L2'],['lead1','ช L1'],['lead2','ช L2'],['triage','ช T'],['incharge','ช I'],['member1','ช M1'],['member2','ช M2']];
 $('addStaff').onclick=()=>{ edStaff.push({id:uid(),name:'',role:ROLES[ROLES.length-1]?ROLES[ROLES.length-1].key:'member',order:edStaff.length,no:[],noCC:false}); drawStaff(); const ins=$('stRows').querySelectorAll('input[data-f=name]'); if(ins.length)ins[ins.length-1].focus(); };
 $('saveStaff').onclick=()=>{ const out={}; let o=0; edStaff.forEach(s=>{ const nm=(s.name||'').trim(); if(!nm)return; out[s.id||uid()]={name:nm,role:s.role||'member',order:o++,no:s.no||[],noCC:!!s.noCC,fixM:s.fixM||''}; });
   STAFF=out; DB.set(PATH+'/staff',out); toast('บันทึกรายชื่อแล้ว ('+Object.keys(out).length+')'); $('pop').style.display='none'; renderMeSel(); render(); };
