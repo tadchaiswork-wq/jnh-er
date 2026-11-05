@@ -466,7 +466,7 @@ function openNoEdit(i){ const s=edStaff[i];
   $('neCC').onchange=e=>{ s.noCC=e.target.checked; drawStaff(); };
 }
 const FIXM_TH={incharge:'I',lead1:'L1',lead2:'L2',EMS:'EMS',refer:'Ref',triage:'T',member1:'M1',member2:'M2',leadalt:'สลับ L1/L2'};
-const FIXM_OPTS=[['','ยืดหยุ่น'],['EMS','ช EMS'],['refer','ช Ref'],['leadalt','สลับ L1/L2'],['lead1','ช L1'],['lead2','ช L2'],['triage','ช T'],['incharge','ช I'],['member1','ช M1'],['member2','ช M2']];
+const FIXM_OPTS=[['','อื่นๆ (แชร์ได้ทั้ง 6: I/L1/L2/T/M1/M2)'],['EMS','ช EMS'],['refer','ช Ref'],['leadalt','สลับ L1/L2 (คู่)']];
 $('addStaff').onclick=()=>{ edStaff.push({id:uid(),name:'',role:ROLES[ROLES.length-1]?ROLES[ROLES.length-1].key:'member',order:edStaff.length,no:[],noCC:false}); drawStaff(); const ins=$('stRows').querySelectorAll('input[data-f=name]'); if(ins.length)ins[ins.length-1].focus(); };
 $('saveStaff').onclick=()=>{ const out={}; let o=0; edStaff.forEach(s=>{ const nm=(s.name||'').trim(); if(!nm)return; out[s.id||uid()]={name:nm,role:s.role||'member',order:o++,no:s.no||[],noCC:!!s.noCC,fixM:s.fixM||''}; });
   STAFF=out; DB.set(PATH+'/staff',out); toast('บันทึกรายชื่อแล้ว ('+Object.keys(out).length+')'); $('pop').style.display='none'; renderMeSel(); render(); };
@@ -557,7 +557,7 @@ async function autoDraft(){
     const noOf=id=>((STAFF[id]||{}).no)||[];
     const takeRole=(base,prefers,id)=>{ const arr=slotsLeft[base], no=noOf(id); for(const pr of prefers){const i=arr.indexOf(pr); if(i>=0&&no.indexOf(pr)<0){arr.splice(i,1);return pr;}} for(let i=0;i<arr.length;i++){ if(no.indexOf(arr[i])<0){const r=arr[i];arr.splice(i,1);return r;} } return null; };
     const memPref=base=> base==='m'?['EMS','refer','triage','member1','member2','lead1','lead2','incharge']:(base==='n'?['member1','member2','lead1','lead2']:['member1','member2','triage','lead1','lead2','incharge']);
-    const roleFor=(st,base)=>{ const cat=st.role; if(base==='m'&&cat==='head')return takeRole(base,['head'],st.id); if(cat==='subhead')return takeRole(base,['incharge'],st.id); if(cat==='float')return takeRole(base,['lead1','lead2'],st.id); return takeRole(base,memPref(base),st.id); };
+    const roleFor=(st,base)=>{ const cat=st.role; if(base==='m'&&cat==='head')return takeRole(base,['head'],st.id); if(cat==='subhead')return takeRole(base,['incharge'],st.id); if(cat==='float')return takeRole(base,['lead1','lead2','triage','member1','member2','incharge'],st.id); return takeRole(base,memPref(base),st.id); };
     const place=(st,base)=>{ const r=roleFor(st,base); if(r===null)return false; give(st.id,d,base,r); return true; };
     // morning fixed
     if(!special){
