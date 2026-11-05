@@ -474,8 +474,9 @@ function autoDraft(){
       subs.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(s=>{ if(got.m<need.m&&wkMornLeft[s.id]>0&&can(s.id,d,'m')){give(s.id,d,'m');got.m++;wkMornLeft[s.id]--;} });
       floats.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(f=>{ if(got.m<need.m&&wkMornLeft[f.id]>0&&can(f.id,d,'m')){give(f.id,d,'m');got.m++;wkMornLeft[f.id]--;} });
     }
-    // --- เติมเวรจาก pool: เฉลี่ย "ชนิดเวร" ให้พอ ๆ กัน (คนที่มีเวรชนิดนี้น้อยสุดก่อน แล้วค่อยดูโหลดรวม) ---
-    ['m','a','n'].forEach(s=>{
+    // --- เติมเวรจาก pool: เฉลี่ย "ชนิดเวร" ให้พอ ๆ กัน (คนที่มีเวรชนิดนี้น้อยสุดก่อน แล้วค่อยดูโหลดรวม)
+    //     เติม "ดึก" ก่อน เพราะติดข้อจำกัดบ่าย→ดึกมากสุด จะได้กระจายทั่วถึง ---
+    ['n','a','m'].forEach(s=>{
       let guard=0;
       while(got[s]<need[s] && guard<pool.length*3){
         guard++;
