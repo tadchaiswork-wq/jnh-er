@@ -1,0 +1,154 @@
+<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPHIS ER Mockup — Order ER (เภสัชกร)</title>
+<link href="assets/favicon.ico" rel="shortcut icon">
+<link rel="stylesheet" href="assets/theme.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" href="assets/project.css"><link rel="stylesheet" href="assets/mock.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap4.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment-with-locales.min.js"></script>
+<script src="assets/mock.js"></script></head><body>
+<div id="mock-navbar"></div>
+<div class="container-fluid">
+    <div class="alert alert-secondary row" role="alert">
+        <form>
+            <div class="form-row">
+                <div class="form-group col-auto">
+                    <label for="patient">HN, VN, ชื่อ-สกุล</label>
+                    <input type="text" class="form-control" id="patient" name="patient">
+                </div>
+                <div class="form-group col-auto">
+                    <label for="order_date_from">วันที่ Order ตั้งแต่</label>
+                    <input type="date" class="form-control" id="order_date_from" name="order_date_from" value="2026-11-03">
+                </div>
+                <div class="form-group col-auto">
+                    <label for="order_date_to">ถึง</label>
+                    <input type="date" class="form-control" id="order_date_to" name="order_date_to" value="2026-11-04">
+                </div>
+                <div class="form-group col-auto">
+                    <label for="refresh_interval">รอบการ Update
+                        <svg width="20" height="20" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="12" fill="#CCCCCC" />
+                            <path transform="translate(12, 12) scale(.9)" fill="#323232" d="M 0 0 v -12 A 12 12 1 0 1 10.39 6 z" />
+                        </svg>
+                    </label>
+                    <select class="form-control" id="refresh_interval" name="refresh_interval">
+                        <option value="0">ไม่ต้องทำ</option>
+                        <option value="5">5 วินาที</option>
+                        <option value="15">15 วินาที</option>
+                        <option value="30">30 วินาที</option>
+                        <option value="60" selected>1 นาที</option>
+                        <option value="180">3 นาที</option>
+                        <option value="300">5 นาที</option>
+                        <option value="600">10 นาที</option>
+                        <option value="900">15 นาที</option>
+                        <option value="1200">20 นาที</option>
+                        <option value="1800">30 นาที</option>
+                        <option value="2700">45 นาที</option>
+                        <option value="3600">1 ชั่วโมง</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group form-check">
+                <input class="form-check-input" type="checkbox" id="containing_med_order_item" name="containing_med_order_item" value="Y" checked onchange="renderTable()">
+                <label class="form-check-label" for="containing_med_order_item">ยา/Nurse's Order ที่ยังไม่ได้ตรวจสอบ <i class="fas fa-pills"></i></label>
+            </div>
+            <div class="form-row">
+                <div class="col">
+                    <button type="button" class="btn btn-secondary mb-1" id="toggleSoundButton" value="off" onclick="toggleSound()"><i class="fa fa-volume-mute"></i></button>
+                    <button type="button" class="btn btn-secondary mb-1 ml-2" data-mock-action="ทดสอบเสียงแจ้งเตือน Order ใหม่"><i class="fa fa-play" aria-hidden="true"></i> Test</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div id="show_pharmacy_order">
+        <div>
+            <table id="order_table" class="table table-bordered table-hover">
+                <thead>
+                    <tr class="text-center">
+                        <th class="th-sm" scope="col">#</th>
+                        <th class="th-sm" scope="col">เตียง</th>
+                        <th class="th-sm" scope="col">เลขที่ใบ Order<br>เวลาที่บันทึก</th>
+                        <th class="th-sm" scope="col">VN</th>
+                        <th class="th-sm" scope="col">HN</th>
+                        <th class="th-sm" scope="col">ชื่อ - สกุล</th>
+                        <th class="th-sm" scope="col">อายุ</th>
+                        <th class="th-sm" scope="col">เวลา Order</th>
+                        <th class="th-sm" scope="col"><i class="fas fa-pills"></i></th>
+                        <th class="th-sm" scope="col">Priority</th>
+                    </tr>
+                </thead>
+                <tbody id="order_table_body"></tbody>
+            </table>
+        </div>
+        <br>
+        <div class="small text-muted">
+            <span class="badge table-danger border">&nbsp;&nbsp;&nbsp;</span> ยังไม่ได้รับ - มี Stat Order &nbsp;
+            <span class="badge table-warning border">&nbsp;&nbsp;&nbsp;</span> ยังไม่ได้รับ / มี Home-Med Order &nbsp;
+            <span class="badge table-info border">&nbsp;&nbsp;&nbsp;</span> รับแล้ว &nbsp;
+            <span class="badge border">&nbsp;&nbsp;&nbsp;</span> ตรวจสอบแล้ว
+            &nbsp;·&nbsp; <i class="fas fa-envelope"></i> ยังไม่ได้รับ <i class="fas fa-edit"></i> รับแล้ว <i class="fas fa-check-circle"></i> ตรวจสอบแล้ว
+        </div>
+    </div>
+</div>
+<script>
+// ข้อมูลสมมติ — priority 1..9 ตามเงื่อนไขของ opd-er-pharmacy-order-monitor-table.php
+var ORDERS = [
+    {id: 25110, bed: 'Resus 1', vn: '691104083015', hn: '000123456', name: 'นายสมชาย ตัวอย่างดี', note: 'Chest pain, EKG ST elevation', age: '58 ปี', dt: '04/11/2569 08:40', min: '04/11/2569 09:05', max: '04/11/2569 10:20', med: true, p: 1, text: 'ยังไม่ได้รับ - มี Stat Order', na: 2, ac: 0, dn: 1},
+    {id: 25114, bed: 'Urgent 3', vn: '691104091102', hn: '000245117', name: 'นางสาวมาลี ใจงาม', note: 'Acute gastroenteritis', age: '34 ปี', dt: '04/11/2569 09:12', min: '04/11/2569 09:30', max: '04/11/2569 09:30', med: true, p: 2, text: 'ยังไม่ได้รับ - มี Home-Med Order', na: 1, ac: 0, dn: 0},
+    {id: 25117, bed: 'Urgent 1', vn: '691104094410', hn: '000387002', name: 'ด.ช.ภูมิ รักเรียน', note: 'Febrile convulsion', age: '2 ปี', dt: '04/11/2569 09:44', min: '04/11/2569 10:02', max: '04/11/2569 10:02', med: true, p: 3, text: 'ยังไม่ได้รับ', na: 1, ac: 0, dn: 0},
+    {id: 25098, bed: 'Resus 2', vn: '691104065230', hn: '000099871', name: 'นายประยุทธ มั่นคง', note: 'Sepsis, on Levophed', age: '72 ปี', dt: '04/11/2569 06:52', min: '04/11/2569 07:10', max: '04/11/2569 08:55', med: true, p: 4, text: 'รับแล้ว - มี Stat Order', na: 0, ac: 2, dn: 1},
+    {id: 25102, bed: 'Obs 2', vn: '691104071555', hn: '000412663', name: 'นางบุญมี ศรีสุข', note: 'Asthma exacerbation', age: '61 ปี', dt: '04/11/2569 07:15', min: '04/11/2569 07:30', max: '04/11/2569 07:30', med: true, p: 6, text: 'รับแล้ว', na: 0, ac: 1, dn: 0},
+    {id: 25087, bed: 'Obs 4', vn: '691103221804', hn: '000310045', name: 'นายวิชัย ทองดี', note: 'Head injury, observe 24 hr', age: '27 ปี', dt: '03/11/2569 22:18', min: '03/11/2569 22:30', max: '04/11/2569 06:00', med: false, p: 9, text: 'ตรวจสอบแล้ว', na: 0, ac: 0, dn: 3},
+    {id: 25091, bed: 'Urgent 2', vn: '691104012233', hn: '000188420', name: 'นางสมศรี แก้วใส', note: 'DKA', age: '49 ปี', dt: '04/11/2569 01:22', min: '04/11/2569 01:40', max: '04/11/2569 05:15', med: false, p: 7, text: 'ตรวจสอบแล้ว - มี Stat Order', na: 0, ac: 0, dn: 4}
+];
+function rowClass(p) {
+    if (p == 1) return 'table-danger';
+    if (p >= 2 && p <= 3) return 'table-warning';
+    if (p >= 4 && p <= 6) return 'table-info';
+    return '';
+}
+function prIcon(p) {
+    if (p <= 3) return 'fas fa-envelope';
+    if (p <= 6) return 'fas fa-edit';
+    return 'fas fa-check-circle';
+}
+function renderTable() {
+    var onlyMed = $('#containing_med_order_item').prop('checked');
+    var body = $('#order_table_body').empty();
+    var n = 0;
+    ORDERS.forEach(function (r) {
+        if (onlyMed && !r.med) return;
+        n++;
+        $('<tr/>', {'class': rowClass(r.p), style: 'cursor: pointer;', click: function () { location.href = 'er-order.html?view_by=pharmacist'; }}).append(
+            $('<td/>', {'class': 'text-center', text: n}),
+            $('<td/>').append($('<div/>', {'class': 'text-truncate', text: r.bed})),
+            $('<td/>', {'class': 'text-center', text: r.id + ' ( ' + r.dt + ' )'}),
+            $('<td/>').append($('<div/>', {'class': 'text-truncate', text: r.vn})),
+            $('<td/>').append($('<div/>', {'class': 'text-truncate', text: r.hn})),
+            $('<td/>').append(
+                $('<div/>', {'class': 'text-truncate font-weight-bold', text: r.name}),
+                $('<div/>', {'class': 'text-truncate', style: 'white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;', text: r.note})
+            ),
+            $('<td/>').append($('<div/>', {'class': 'text-truncate', text: r.age})),
+            $('<td/>').append($('<div/>', {text: r.min + ' - ' + r.max})),
+            $('<td/>').append($('<div/>', {'class': 'text-center', html: r.med ? '<i class="fas fa-pills"></i>' : ''})),
+            $('<td/>').append($('<div/>', {'class': 'text-truncate'}).append(
+                $('<i/>', {'class': prIcon(r.p)}), ' ' + r.text,
+                $('<div/>', {'class': 'float-right', html:
+                    '<i class="fas fa-envelope"></i> ' + r.na + ' <i class="fas fa-edit"></i> ' + r.ac + ' <i class="fas fa-check-circle"></i> ' + r.dn})
+            ))
+        ).appendTo(body);
+    });
+}
+function toggleSound() {
+    var b = $('#toggleSoundButton');
+    if (b.val() == 'off') b.val('on').addClass('btn-primary').removeClass('btn-secondary').html('<i class="fa fa-volume-up"></i>');
+    else b.val('off').addClass('btn-secondary').removeClass('btn-primary').html('<i class="fa fa-volume-mute"></i>');
+}
+$(renderTable);
+</script>
+<div class="mock-ribbon">MOCKUP — ข้อมูลสมมติ · <a href="index.html">สารบัญ</a></div>
+</body></html>
