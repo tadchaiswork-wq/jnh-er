@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPHIS ER Mockup — Triage</title>
+<link href="assets/favicon.ico" rel="shortcut icon">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+<link rel="stylesheet" href="assets/project.css">
+<link rel="stylesheet" href="assets/mock.css">
+<link rel="stylesheet" href="assets/triage.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/mock.js"></script>
+<!-- CHANGE-13: ฐานข้อมูลกลาง (ถ้าไม่มี config จะใช้ข้อมูลในเครื่อง) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="assets/firebase-config.js"></script>
+<script src="assets/er-flow.js"></script>
+<script src="assets/triage-score.js"></script>
+</head>
+<body>
+<div id="mock-navbar"></div>
+
+<!-- CHANGE-01: หน้า Triage ใหม่ (ไม่มีในระบบเดิม) -->
+<div class="container-fluid pt-2 pb-5">
+<div class="tri-grid">
+
+    <!-- ===== ซ้าย: สแกน + เคสในมือ ===== -->
+    <div class="tri-left">
+        <div class="card mb-2">
+            <div class="card-body p-2">
+                <label class="mb-1 font-weight-bold"><i class="fas fa-barcode"></i> สแกน Barcode Visit</label>
+                <div class="input-group">
+                    <input id="scan" type="text" class="form-control" placeholder="สแกน / พิมพ์ VN แล้วกด Enter" autocomplete="off">
+                    <div class="input-group-append"><button id="scan-btn" class="btn btn-primary" type="button" title="จำลองการสแกน"><i class="fas fa-qrcode"></i></button></div>
+                </div>
+                <small class="text-muted">mockup: กด Enter หรือปุ่มสแกน = มีผู้ป่วยใหม่เข้ามา</small>
+            </div>
+        </div>
+
+        <ul class="nav nav-pills nav-fill mb-2 small" id="q-tabs">
+            <li class="nav-item"><a class="nav-link active" href="#" data-q="wait_triage">รอ triage <span class="badge badge-light" id="n-wait">0</span></a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-q="triaged">triage แล้ว <span class="badge badge-light" id="n-done">0</span></a></li>
+        </ul>
+        <div class="list-group q-list" id="q-list"></div>
+        <div class="text-right mt-2"><a href="#" id="reset" class="small text-muted"><i class="fas fa-undo"></i> ล้างข้อมูลทดลอง</a></div>
+    </div>
+
+    <!-- ===== กลาง: ฟอร์ม ===== -->
+    <div class="tri-mid">
+        <div id="empty" class="alert alert-light border text-center py-5">
+            <i class="fas fa-barcode fa-3x text-muted mb-3"></i><br>สแกน Barcode Visit หรือเลือกเคสทางซ้ายเพื่อเริ่ม triage
+        </div>
+
+        <form id="tf" class="d-none" autocomplete="off">
+            <!-- แถบผู้ป่วย -->
+            <div class="alert alert-secondary py-2 mb-2" id="pt-banner"></div>
+
+            <!-- CHANGE-11: เลือกประเภทก่อน — ชัดเจน -->
+            <div class="seg type-pick mb-2" data-k="type">
+                <button type="button" data-v="nontrauma"><i class="fas fa-stethoscope"></i> Non-trauma</button>
+                <button type="button" data-v="trauma"><i class="fas fa-car-crash"></i> Trauma</button>
+            </div>
+
+            <!-- อาการสำคัญ -->
+            <div class="card mb-2"><div class="card-body p-2">
+                <label class="mb-1 font-weight-bold req">อาการสำคัญที่มา รพ. (CC) <span class="hx">HOSxP</span></label>
+                <textarea class="form-control" rows="2" data-k="cc" placeholder="เช่น เจ็บหน้าอกร้าวไปแขนซ้าย 30 นาที ก่อนมา"></textarea>
+                <div class="mt-1 small">
+                    <span class="text-muted mr-1">อาการวิกฤต:</span>
+                    <span class="chip" data-crit="หัวใจหยุดเต้น / ไม่หายใจ">Arrest / ไม่หายใจ</span>
+                    <span class="chip" data-crit="หายใจลำบากรุนแรง">หายใจลำบากรุนแรง</span>
+                    <span class="chip" data-crit="ภาวะช็อก">ช็อก</span>
+                    <span class="chip" data-crit="ชักต่อเนื่อง">ชักต่อเนื่อง</span>
+                    <span class="chip" data-crit="ต้องใส่ท่อช่วยหายใจทันที">ต้อง intubate</span>
+                </div>
+            </div></div>
+
+            <!-- Vital signs -->
+            <div class="card mb-2"><div class="card-body p-2">
+                <label class="font-weight-bold mb-1">Vital signs <span class="hx">HOSxP</span></label>
+                <div class="form-row vs-row">
+                    <div class="col"><label class="req">BT °C</label><input class="form-control" data-k="bt" inputmode="decimal"></div>
+                    <div class="col"><label class="req">PR</label><input class="form-control" data-k="pr" inputmode="numeric"></div>
+                    <div class="col" style="flex:1.8"><label class="req">BP mmHg</label>
+                        <div class="input-group"><input class="form-control" data-k="sbp" placeholder="SBP" inputmode="numeric"><div class="input-group-prepend input-group-append"><span class="input-group-text px-1">/</span></div><input class="form-control" data-k="dbp" placeholder="DBP" inputmode="numeric"></div></div>
+                    <div class="col"><label class="req">RR</label><input class="form-control" data-k="rr" inputmode="numeric"></div>
+                    <div class="col"><label class="req">SpO2 %</label><input class="form-control" data-k="spo2" inputmode="numeric"></div>
+                    <div class="col"><label>DTX</label><input class="form-control" data-k="dtx" placeholder="ถ้ามี" inputmode="numeric"></div>
+                    <div class="col"><label>Pain</label><input class="form-control" data-k="pain" placeholder="0-10" inputmode="numeric"></div>
+                </div>
+                <div class="form-row mt-2 align-items-end">
+                    <div class="col-auto"><label class="req">GCS</label>
+                        <div class="d-flex align-items-center">
+                            <span class="mr-1">E</span><select class="form-control form-control-sm gcs" data-k="gcs_e"><option></option><option>4</option><option>3</option><option>2</option><option>1</option></select>
+                            <span class="mx-1">V</span><select class="form-control form-control-sm gcs" data-k="gcs_v"><option></option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select>
+                            <span class="mx-1">M</span><select class="form-control form-control-sm gcs" data-k="gcs_m"><option></option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select>
+                            <span class="ml-2">= <b id="gcs-total">-</b></span>
+                            <button type="button" class="btn btn-sm btn-outline-secondary ml-2" id="gcs15">E4V5M6</button>
+                        </div>
+                    </div>
+                    <div class="col-auto ml-auto">
+                        <div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="on_o2" data-k="on_o2"><label class="custom-control-label" for="on_o2">ได้รับ O2 อยู่</label></div>
+                    </div>
+                </div>
+            </div></div>
+
+            <!-- ประวัติ -->
+            <div class="card mb-2"><div class="card-body p-2">
+                <div class="form-row">
+                    <div class="col"><label class="font-weight-bold mb-1">ดื่มสุรา</label>
+                        <div class="seg" data-k="alcohol"><button type="button" data-v="no">ไม่ดื่ม</button><button type="button" data-v="yes">ดื่ม</button><button type="button" data-v="quit">เลิกแล้ว</button><button type="button" data-v="unk">ไม่ทราบ</button></div></div>
+                    <div class="col"><label class="font-weight-bold mb-1">สูบบุหรี่</label>
+                        <div class="seg" data-k="smoke"><button type="button" data-v="no">ไม่สูบ</button><button type="button" data-v="yes">สูบ</button><button type="button" data-v="quit">เลิกแล้ว</button><button type="button" data-v="unk">ไม่ทราบ</button></div></div>
+                </div>
+            </div></div>
+
+            <!-- Trauma -->
+            <div class="card mb-2 d-none" id="trauma-card"><div class="card-header py-1 font-weight-bold">ข้อมูลการบาดเจ็บ</div><div class="card-body p-2">
+                <div class="form-row">
+                    <div class="col"><label class="req">วัน-เวลาเกิดเหตุ</label><input type="datetime-local" class="form-control" data-k="inj_time"></div>
+                    <div class="col" style="flex:1.4"><label class="req">สถานที่เกิดเหตุ</label><input class="form-control" data-k="inj_place" placeholder="เช่น ถ.พหลโยธิน หน้าตลาดสด อ.เมือง"></div>
+                </div>
+                <label class="req mt-2 mb-1">กลไกการบาดเจ็บ</label>
+                <div class="seg seg-wrap" data-k="mech">
+                    <button type="button" data-v="traffic">อุบัติเหตุจราจร</button><button type="button" data-v="fall">ตกจากที่สูง</button><button type="button" data-v="assault">ถูกทำร้าย</button><button type="button" data-v="sharp">ของมีคม</button><button type="button" data-v="animal">สัตว์กัด</button><button type="button" data-v="other">อื่นๆ</button>
+                </div>
+                <div id="traffic-box" class="d-none mt-2 p-2 rounded bg-light">
+                    <div class="form-row">
+                        <div class="col"><label class="req mb-1">ยานพาหนะ</label>
+                            <div class="seg seg-wrap" data-k="vehicle"><button type="button" data-v="moto">จักรยานยนต์</button><button type="button" data-v="car">รถยนต์</button><button type="button" data-v="bike">จักรยาน</button><button type="button" data-v="ped">คนเดินเท้า</button><button type="button" data-v="other">อื่นๆ</button></div></div>
+                        <div class="col-auto"><label class="mb-1">สถานะ</label>
+                            <div class="seg" data-k="role"><button type="button" data-v="driver">ผู้ขับขี่</button><button type="button" data-v="passenger">ผู้โดยสาร</button></div></div>
+                    </div>
+                    <div class="mt-2" id="helmet-box"><label class="req mb-1"><i class="fas fa-hard-hat"></i> สวมหมวกนิรภัย</label>
+                        <div class="seg" data-k="helmet"><button type="button" data-v="yes">สวม</button><button type="button" data-v="no">ไม่สวม</button><button type="button" data-v="unk">ไม่ทราบ</button></div></div>
+                    <div class="mt-2" id="belt-box"><label class="req mb-1">คาดเข็มขัดนิรภัย</label>
+                        <div class="seg" data-k="seatbelt"><button type="button" data-v="yes">คาด</button><button type="button" data-v="no">ไม่คาด</button><button type="button" data-v="unk">ไม่ทราบ</button></div></div>
+                </div>
+
+                <label class="req mt-2 mb-1">ตำแหน่งที่บาดเจ็บ <small class="text-muted">(กดที่รูปหรือปุ่ม เลือกได้หลายตำแหน่ง · <i class="fas fa-magic"></i> เติมใน CC ให้อัตโนมัติ)</small></label>
+                <div class="d-flex">
+                    <svg id="body" viewBox="0 0 200 400" width="130" height="260" class="mr-3 flex-shrink-0">
+                        <text x="8" y="16" class="bl">ขวา</text><text x="166" y="16" class="bl">ซ้าย</text>
+                        <circle data-r="head" cx="100" cy="36" r="26"></circle>
+                        <rect data-r="neck" x="89" y="62" width="22" height="14" rx="3"></rect>
+                        <rect data-r="chest" x="64" y="77" width="72" height="60" rx="10"></rect>
+                        <rect data-r="abdomen" x="67" y="138" width="66" height="50" rx="6"></rect>
+                        <rect data-r="pelvis" x="65" y="189" width="70" height="30" rx="8"></rect>
+                        <rect data-r="arm_r" x="38" y="80" width="24" height="128" rx="11"></rect>
+                        <rect data-r="arm_l" x="138" y="80" width="24" height="128" rx="11"></rect>
+                        <rect data-r="leg_r" x="67" y="221" width="31" height="170" rx="13"></rect>
+                        <rect data-r="leg_l" x="102" y="221" width="31" height="170" rx="13"></rect>
+                    </svg>
+                    <div class="flex-grow-1">
+                        <div id="region-chips" class="mb-2"></div>
+                        <div id="head-box" class="d-none p-2 rounded border">
+                            <div class="font-weight-bold mb-1">บาดเจ็บศีรษะ</div>
+                            <label class="req mb-1">สลบ (LOC)</label>
+                            <div class="seg mb-2" data-k="loc"><button type="button" data-v="yes">สลบ</button><button type="button" data-v="no">ไม่สลบ</button><button type="button" data-v="unk">ไม่ทราบ</button></div>
+                            <label class="req mb-1">จำเหตุการณ์ได้</label>
+                            <div class="seg" data-k="amnesia"><button type="button" data-v="no">จำได้</button><button type="button" data-v="yes">จำไม่ได้</button><button type="button" data-v="unk">ประเมินไม่ได้</button></div>
+                        </div>
+                    </div>
+                </div>
+            </div></div>
+
+            <!-- Fast track -->
+            <div class="card mb-2"><div class="card-header py-1 font-weight-bold">Activate Fast Track <small class="text-muted font-weight-normal">— แจ้งทีมตรวจรักษาทันทีเมื่อยืนยัน</small></div><div class="card-body p-2">
+                <div class="ft-row">
+                    <button type="button" class="ft" data-ft="sepsis">Sepsis</button>
+                    <button type="button" class="ft" data-ft="stroke45">Stroke FT 4.5 hr</button>
+                    <button type="button" class="ft" data-ft="stroke24">Stroke FT 24 hr</button>
+                    <button type="button" class="ft" data-ft="acs">Chest pain / ACS</button>
+                </div>
+                <div id="ft-hint" class="small mt-1"></div>
+                <div id="lkw-box" class="form-row mt-2 d-none">
+                    <div class="col"><label class="req">เวลาที่เห็นปกติล่าสุด (LKW)</label><input type="datetime-local" class="form-control" data-k="lkw"></div>
+                    <div class="col d-flex align-items-end" style="flex:1.4"><div id="lkw-calc" class="small pb-2"></div></div>
+                </div>
+                <div id="acs-box" class="small mt-2 d-none alert alert-danger py-1 mb-0"><i class="fas fa-stopwatch"></i> Door-to-ECG เป้าหมาย ≤ 10 นาที — มาถึงแล้ว <b id="acs-min"></b> นาที</div>
+            </div></div>
+
+            <!-- ทรัพยากร -->
+            <div class="card mb-2"><div class="card-body p-2">
+                <label class="font-weight-bold mb-1">คาดว่าต้องใช้ทรัพยากร <small class="text-muted font-weight-normal">(Lab, X-ray/CT, IV fluid/ยาฉีด, หัตถการ, consult)</small></label>
+                <div class="seg" data-k="resources"><button type="button" data-v="2">≥ 2 อย่าง</button><button type="button" data-v="1">1 อย่าง</button><button type="button" data-v="0">ไม่ต้องใช้</button></div>
+            </div></div>
+        </form>
+    </div>
+
+    <!-- ===== ขวา: คะแนน + ยืนยัน ===== -->
+    <div class="tri-right">
+        <div class="sticky-panel d-none" id="panel">
+            <div class="card mb-2"><div class="card-body p-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <b>NEWS2</b><span class="score-big" id="news2-total">-</span>
+                </div>
+                <div class="small" id="news2-risk"></div>
+                <table class="table table-sm small mb-0 mt-1" id="news2-tbl"></table>
+            </div></div>
+            <div class="card mb-2"><div class="card-body p-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <b>SIRS</b><span class="score-big" id="sirs-total">-</span>
+                </div>
+                <ul class="list-unstyled small mb-0 mt-1" id="sirs-list"></ul>
+            </div></div>
+
+            <div class="card mb-2"><div class="card-body p-2">
+                <div class="small text-muted">ระบบแนะนำ (MOPH ED Triage)</div>
+                <div class="d-flex align-items-center mt-1">
+                    <span class="lvl-big" id="sug-badge">?</span>
+                    <div class="ml-2 small" id="sug-text"></div>
+                </div>
+                <ul class="small mb-0 mt-1 pl-3" id="sug-reasons"></ul>
+            </div></div>
+
+            <div class="card mb-2"><div class="card-body p-2">
+                <!-- CHANGE-04 -->
+                <label class="font-weight-bold mb-1">ทีม / เตียง</label>
+                <input id="bedcode" class="form-control mb-1" placeholder="เตียง เช่น 36 หรือ 1/36" autocomplete="off">
+                <div class="small text-muted mb-2" id="team-auto"></div>
+                <!-- /CHANGE-04 -->
+                <label class="font-weight-bold mb-1 req">ระดับ Triage (ผู้ triage ตัดสิน)</label>
+                <div class="lvl-pick" data-k="level">
+                    <button type="button" data-v="R">R</button><button type="button" data-v="E">E</button><button type="button" data-v="U">U</button><button type="button" data-v="L">L</button><button type="button" data-v="N">N</button>
+                </div>
+                <div id="diff-box" class="mt-2 d-none">
+                    <label class="small text-danger mb-1 req">เหตุผลที่ต่างจากระบบแนะนำ</label>
+                    <input class="form-control form-control-sm" data-k="diff_reason" placeholder="เช่น ประเมินแล้วอาการคงที่ / clinical judgement">
+                </div>
+                <div id="missing" class="small text-danger mt-2"></div>
+                <button type="button" id="submit" class="btn btn-success btn-block mt-2"><i class="fas fa-paper-plane"></i> <span>ยืนยัน Triage &amp; ส่งตรวจ</span></button>
+                <div class="small text-muted mt-1" id="edit-info"></div>
+            </div></div>
+        </div>
+    </div>
+</div>
+</div>
+<!-- /CHANGE-01 -->
+
+<!-- แจ้งเตือน fast track -->
+<div class="modal fade" id="ftModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content border-danger">
+    <div class="modal-header bg-danger text-white py-2"><h5 class="modal-title"><i class="fas fa-bolt"></i> Fast Track activated</h5></div>
+    <div class="modal-body" id="ftModalBody"></div>
+    <div class="modal-footer py-1"><button type="button" class="btn btn-danger" data-dismiss="modal">รับทราบ</button></div>
+</div></div></div>
+<div id="toast" class="t-toast"></div>
+
+<script>
+$(function () {
+    'use strict';
+    var L = TriageScore.LEVELS;
+    var FT = { sepsis: 'Sepsis', stroke45: 'Stroke FT 4.5 hr', stroke24: 'Stroke FT 24 hr', acs: 'Chest pain / ACS' };
+    var REG = { head: 'ศีรษะ', face: 'ใบหน้า', neck: 'คอ', chest: 'ทรวงอก', abdomen: 'ท้อง', back: 'หลัง/กระดูกสันหลัง', pelvis: 'เชิงกราน/ฝีเย็บ', arm_r: 'แขนขวา', arm_l: 'แขนซ้าย', leg_r: 'ขาขวา', leg_l: 'ขาซ้าย' };
+    var REQ = { cc: 'CC', bt: 'BT', pr: 'PR', sbp: 'SBP', dbp: 'DBP', rr: 'RR', spo2: 'SpO2' };
+    var cur = null, q = 'wait_triage', crit = [], fts = [], regions = [];
+    var me = ERFlow.ME.triage;
+    $('.navbar .fa-user').parent().html('<i class="fa fa-user"></i> ' + me);
+
+    // ---------- segmented buttons ----------
+    $(document).on('click', '.seg button, .lvl-pick button', function () {
+        var $b = $(this), $g = $b.parent();
+        if ($b.hasClass('active') && $g.data('k') !== 'type') $b.removeClass('active');
+        else { $g.children().removeClass('active'); $b.addClass('active'); }
+        if (['type', 'loc', 'amnesia'].indexOf($g.data('k')) >= 0) syncCC();
+        $g.trigger('segchange'); update();
+    });
+    function segVal(k) { return $('[data-k="' + k + '"]').filter('.seg,.lvl-pick').children('.active').data('v') || ''; }
+    function setSeg(k, v) { var $g = $('[data-k="' + k + '"]').filter('.seg,.lvl-pick'); $g.children().removeClass('active'); if (v !== '' && v !== undefined && v !== null) $g.children('[data-v="' + v + '"]').addClass('active'); }
+
+    // ---------- body map ----------
+    function renderRegions() {
+        $('#body [data-r]').each(function () { $(this).toggleClass('on', regions.indexOf($(this).data('r')) >= 0); });
+        $('#region-chips').html(Object.keys(REG).map(function (k) {
+            return '<span class="chip' + (regions.indexOf(k) >= 0 ? ' on' : '') + '" data-reg="' + k + '">' + REG[k] + '</span>';
+        }).join(''));
+        $('#head-box').toggleClass('d-none', regions.indexOf('head') < 0);
+    }
+    function toggleReg(r) { var i = regions.indexOf(r); if (i >= 0) regions.splice(i, 1); else regions.push(r); renderRegions(); syncCC(); update(); }
+
+    // CHANGE-02: ตำแหน่งบาดเจ็บ → เติมบรรทัด "บาดเจ็บ: ..." ใน CC อัตโนมัติ (ไม่ทับข้อความที่พิมพ์เอง)
+    function syncCC() {
+        var $cc = $('[data-k=cc]');
+        var lines = $cc.val().split('\n').filter(function (l) { return !/^บาดเจ็บ: /.test(l); });
+        if (segVal('type') === 'trauma' && regions.length) {
+            var loc = segVal('loc'), am = segVal('amnesia');
+            var parts = Object.keys(REG).filter(function (k) { return regions.indexOf(k) >= 0; }).map(function (k) {
+                var t = REG[k];
+                if (k === 'head') {
+                    var x = [];
+                    if (loc === 'yes') x.push('สลบ'); else if (loc === 'no') x.push('ไม่สลบ');
+                    if (am === 'yes') x.push('จำเหตุการณ์ไม่ได้'); else if (am === 'no') x.push('จำเหตุการณ์ได้');
+                    if (x.length) t += ' (' + x.join(', ') + ')';
+                }
+                return t;
+            });
+            while (lines.length && !$.trim(lines[lines.length - 1])) lines.pop();
+            lines.push('บาดเจ็บ: ' + parts.join(', '));
+        }
+        $cc.val(lines.join('\n').replace(/\n+$/, ''));
+    }
+    $('#body').on('click', '[data-r]', function () { toggleReg($(this).data('r')); });
+    $(document).on('click', '[data-reg]', function () { toggleReg($(this).data('reg')); });
+
+    // ---------- chips / fast track ----------
+    $(document).on('click', '[data-crit]', function () {
+        var c = $(this).data('crit'), i = crit.indexOf(c);
+        if (i >= 0) crit.splice(i, 1); else crit.push(c);
+        $(this).toggleClass('on'); update();
+    });
+    $('.ft').on('click', function () {
+        var f = $(this).data('ft'), i = fts.indexOf(f);
+        if (i >= 0) fts.splice(i, 1); else {
+            fts.push(f);
+            if (f === 'stroke45') fts = fts.filter(function (x) { return x !== 'stroke24'; });
+            if (f === 'stroke24') fts = fts.filter(function (x) { return x !== 'stroke45'; });
+        }
+        renderFt(); update();
+    });
+    function renderFt() { $('.ft').each(function () { $(this).toggleClass('on', fts.indexOf($(this).data('ft')) >= 0); }); }
+
+    $('#gcs15').on('click', function () { $('[data-k=gcs_e]').val('4'); $('[data-k=gcs_v]').val('5'); $('[data-k=gcs_m]').val('6'); update(); });
+    $('#tf, #panel').on('input change', 'input,select,textarea', update);
+
+    // ---------- เก็บ / ใส่ค่า ----------
+    function collect() {
+        var d = {};
+        $('#tf [data-k]').each(function () {
+            var $e = $(this), k = $e.data('k');
+            if ($e.is('.seg')) d[k] = segVal(k);
+            else if ($e.is(':checkbox')) d[k] = $e.prop('checked');
+            else d[k] = $.trim($e.val());
+        });
+        d.level = segVal('level'); d.diff_reason = $.trim($('[data-k=diff_reason]').val());
+        d.critical = crit.slice(); d.fasttrack = fts.slice(); d.regions = regions.slice();
+        d.age_y = cur ? cur.age_y : null;
+        return d;
+    }
+    function fill(t) {
+        t = t || {};
+        $('#tf [data-k]').each(function () {
+            var $e = $(this), k = $e.data('k');
+            if ($e.is('.seg')) setSeg(k, t[k] !== undefined ? t[k] : '');
+            else if ($e.is(':checkbox')) $e.prop('checked', !!t[k]);
+            else $e.val(t[k] || '');
+        });
+        setSeg('level', t.level || ''); $('[data-k=diff_reason]').val(t.diff_reason || '');
+        crit = (t.critical || []).slice(); fts = (t.fasttrack || []).slice(); regions = (t.regions || []).slice();
+        $('[data-crit]').each(function () { $(this).toggleClass('on', crit.indexOf($(this).data('crit')) >= 0); });
+        renderFt(); renderRegions();
+    }
+
+    // ---------- คำนวณ ----------
+    function update() {
+        if (!cur) return;
+        var d = collect();
+        var trauma = d.type === 'trauma';
+        $('#trauma-card').toggleClass('d-none', !trauma);
+        $('#traffic-box').toggleClass('d-none', d.mech !== 'traffic');
+        $('#helmet-box').toggleClass('d-none', ['moto', 'bike'].indexOf(d.vehicle) < 0);
+        $('#belt-box').toggleClass('d-none', d.vehicle !== 'car');
+
+        var g = TriageScore.gcsTotal(d); $('#gcs-total').text(g === null ? '-' : g);
+
+        var n = TriageScore.news2(d);
+        if (!n.valid) { $('#news2-total').text('n/a').css('background', '#eee'); $('#news2-risk').text('NEWS2 ใช้กับอายุ ≥ 16 ปี'); $('#news2-tbl').empty(); }
+        else {
+            var col = !n.complete ? '#adb5bd' : n.risk === 'high' ? '#dc3545' : n.risk === 'medium' ? '#fd7e14' : n.risk === 'low-medium' ? '#ffc107' : '#28a745';
+            $('#news2-total').text(n.complete ? n.total : n.total + '*').css({ background: col, color: n.risk === 'low-medium' ? '#212529' : '#fff' });
+            $('#news2-risk').html(n.complete ? n.riskTh : '<span class="text-muted">* ยังลงข้อมูลไม่ครบ</span>');
+            $('#news2-tbl').html(n.parts.map(function (p) {
+                var s = p.score === null ? '<span class="text-muted">-</span>' : '<span class="sc sc' + p.score + '">' + p.score + '</span>';
+                return '<tr><td>' + p.label + '</td><td class="text-muted">' + (p.value === null ? '' : p.value) + '</td><td class="text-right">' + s + '</td></tr>';
+            }).join(''));
+        }
+        var s = TriageScore.sirs(d);
+        $('#sirs-total').text(s.count + '/3').css({ background: s.positive ? '#dc3545' : '#6c757d', color: '#fff' });
+        $('#sirs-list').html(s.items.map(function (i) {
+            var ic = i.pending ? '<i class="far fa-clock text-muted"></i>' : i.met === null ? '<i class="far fa-circle text-muted"></i>' : i.met ? '<i class="fas fa-check-circle text-danger"></i>' : '<i class="far fa-circle text-success"></i>';
+            return '<li>' + ic + ' ' + i.label + (i.pending ? ' <span class="text-muted">(รอผล Lab)</span>' : '') + '</li>';
+        }).join(''));
+
+        // fast track hints
+        var hints = [];
+        if (s.positive && fts.indexOf('sepsis') < 0) hints.push('<span class="text-danger"><i class="fas fa-lightbulb"></i> SIRS ≥ 2 → พิจารณา Sepsis fast track</span>');
+        var stroke = fts.indexOf('stroke45') >= 0 || fts.indexOf('stroke24') >= 0;
+        $('#lkw-box').toggleClass('d-none', !stroke);
+        if (stroke && d.lkw) {
+            var h = (Date.now() - new Date(d.lkw)) / 3600000;
+            var hs = Math.floor(h) + ' ชม. ' + Math.round((h % 1) * 60) + ' นาที';
+            var want = h <= 4.5 ? 'stroke45' : h <= 24 ? 'stroke24' : null;
+            $('#lkw-calc').html('ผ่านมา <b>' + hs + '</b> → ' + (want ? '<b>' + FT[want] + '</b>' : '<span class="text-danger">เกิน 24 ชม. — ไม่เข้า fast track</span>') +
+                (want && fts.indexOf(want) < 0 ? ' <a href="#" id="ft-fix" data-want="' + want + '">[เปลี่ยนให้]</a>' : ''));
+        } else $('#lkw-calc').empty();
+        $('#acs-box').toggleClass('d-none', fts.indexOf('acs') < 0);
+        $('#acs-min').text(ERFlow.minsSince(cur.arrive));
+        $('#ft-hint').html(hints.join('<br>'));
+
+        // high risk จาก trauma
+        var hr = [];
+        if (trauma && regions.indexOf('head') >= 0 && d.loc === 'yes') hr.push('Head injury + สลบ');
+        if (trauma && regions.indexOf('head') >= 0 && d.amnesia === 'yes') hr.push('Head injury + จำเหตุการณ์ไม่ได้');
+
+        var sug = TriageScore.suggest(d, { critical: crit, news2: n, sirs: s, fastTrack: fts.map(function (f) { return FT[f]; }), highRisk: hr, resources: d.resources });
+        if (sug.level) {
+            var lv = L[sug.level];
+            $('#sug-badge').text(lv.code).css({ background: lv.color, color: lv.text, borderColor: lv.code === 'N' ? '#adb5bd' : lv.color });
+            $('#sug-text').html('<b>' + lv.th + '</b>');
+            $('#sug-reasons').html(sug.reasons.map(function (r) { return '<li>' + r.text + '</li>'; }).join(''));
+        } else {
+            $('#sug-badge').text('?').css({ background: '#e9ecef', color: '#6c757d', borderColor: '#e9ecef' });
+            $('#sug-text').html('ไม่พบเกณฑ์ R/E<br>เลือก <b>จำนวนทรัพยากร</b> เพื่อแยก U/L/N');
+            $('#sug-reasons').empty();
+        }
+        cur._sug = sug.level;
+
+        var diff = d.level && sug.level && d.level !== sug.level;
+        $('#diff-box').toggleClass('d-none', !diff);
+
+        // ตรวจข้อมูลที่ต้องกรอก
+        var miss = [];
+        Object.keys(REQ).forEach(function (k) { if (!d[k]) miss.push(REQ[k]); });
+        if (g === null) miss.push('GCS');
+        if (trauma) {
+            if (!d.inj_time) miss.push('วันเวลาเกิดเหตุ'); if (!d.inj_place) miss.push('สถานที่เกิดเหตุ'); if (!d.mech) miss.push('กลไกการบาดเจ็บ');
+            if (d.mech === 'traffic') {
+                if (!d.vehicle) miss.push('ยานพาหนะ');
+                if (['moto', 'bike'].indexOf(d.vehicle) >= 0 && !d.helmet) miss.push('หมวกนิรภัย');
+                if (d.vehicle === 'car' && !d.seatbelt) miss.push('เข็มขัดนิรภัย');
+            }
+            if (!regions.length) miss.push('ตำแหน่งที่บาดเจ็บ');
+            if (regions.indexOf('head') >= 0) { if (!d.loc) miss.push('สลบหรือไม่'); if (!d.amnesia) miss.push('จำเหตุการณ์ได้หรือไม่'); }
+        }
+        if (stroke && !d.lkw) miss.push('LKW');
+        var bc = $.trim($('#bedcode').val()), bcm = /^(?:(\d+)\s*\/\s*)?(\w+)$/.exec(bc);
+        if (bc && !bcm) miss.push('รูปแบบ ทีม/เตียง (เช่น 36 หรือ 1/36)');
+        // CHANGE-12: ทีมอัตโนมัติ
+        if (bcm && bcm[1]) $('#team-auto').text('ทีม ' + bcm[1] + ' (กำหนดเอง)');
+        else if (cur.status === 'triaged' && cur.team) $('#team-auto').text('ทีม ' + cur.team);
+        else $('#team-auto').html(d.level ? 'ทีมอัตโนมัติ: <b>ทีม ' + ERFlow.peekTeam(d.level) + '</b> (ลำดับถัดไปของระดับ ' + d.level + ')' : 'ทีมอัตโนมัติ: เลือกระดับก่อน');
+        if (!d.type) miss.unshift('Trauma / Non-trauma');
+        if (!d.level) miss.push('ระดับ Triage');
+        if (diff && !d.diff_reason) miss.push('เหตุผลที่ต่างจากระบบแนะนำ');
+        $('#missing').html(miss.length ? '<i class="fas fa-exclamation-circle"></i> ยังไม่ครบ: ' + miss.join(', ') : '');
+        $('#submit').prop('disabled', miss.length > 0);
+        $('#tf [data-k]').each(function () {
+            var k = $(this).data('k'); if (REQ[k]) $(this).toggleClass('is-missing', !d[k]);
+        });
+    }
+    $(document).on('click', '#ft-fix', function (e) {
+        e.preventDefault(); var w = $(this).data('want');
+        fts = fts.filter(function (x) { return x !== 'stroke45' && x !== 'stroke24'; }); fts.push(w); renderFt(); update();
+    });
+
+    // ---------- รายการเคส ----------
+    function lvBadge(code) { var lv = L[code]; return lv ? '<span class="lvl-sm" style="background:' + lv.color + ';color:' + lv.text + '">' + code + '</span>' : ''; }
+    function renderQueue() {
+        var w = ERFlow.cases('wait_triage').sort(function (a, b) { return new Date(a.arrive) - new Date(b.arrive); });
+        var dn = ERFlow.cases('triaged').sort(function (a, b) { return new Date(b.triagedAt) - new Date(a.triagedAt); });
+        $('#n-wait').text(w.length); $('#n-done').text(dn.length);
+        var list = q === 'wait_triage' ? w : dn;
+        $('#q-list').html(list.length ? list.map(function (c) {
+            var m = ERFlow.minsSince(c.arrive), t = c.triage || {};
+            var right = q === 'wait_triage'
+                ? '<span class="' + (m >= 15 ? 'text-danger font-weight-bold' : m >= 10 ? 'text-warning' : 'text-muted') + '">รอ ' + m + ' น.</span>'
+                : lvBadge(t.level);
+            var ft = (t.fasttrack || []).map(function (f) { return '<span class="badge badge-danger ft-blink">' + FT[f] + '</span> '; }).join('');
+            return '<a href="#" class="list-group-item list-group-item-action py-2' + (cur && cur.id === c.id ? ' active-case' : '') + '" data-id="' + c.id + '">' +
+                '<div class="d-flex justify-content-between"><b>QN ' + c.qn + '</b>' + right + '</div>' +
+                '<div>' + c.name + '</div><small class="text-muted">' + c.age_y + ' ปี · มาถึง ' + ERFlow.hm(c.arrive) + (t.cc ? ' · ' + $('<i>').text(t.cc).html() : '') + '</small>' +
+                (ft ? '<div>' + ft + '</div>' : '') + '</a>';
+        }).join('') : '<div class="text-muted small p-3 text-center border rounded">ไม่มีเคส</div>');
+    }
+    $('#q-tabs').on('click', 'a', function (e) { e.preventDefault(); q = $(this).data('q'); $('#q-tabs a').removeClass('active'); $(this).addClass('active'); renderQueue(); });
+    $('#q-list').on('click', '[data-id]', function (e) { e.preventDefault(); open($(this).data('id')); });
+
+    function open(id) {
+        cur = ERFlow.get(id); if (!cur) return;
+        $('#empty').addClass('d-none'); $('#tf,#panel').removeClass('d-none');
+        $('#pt-banner').html(
+            '<div class="d-flex justify-content-between"><div>' +
+            '<b class="h6 mb-0">' + cur.name + '</b> · ' + cur.sex + ' ' + cur.age_y + ' ปี<br>' +
+            '<small>HN ' + cur.hn + ' | VN ' + cur.vn + ' | QN ' + cur.qn + ' | สิทธิ ' + cur.right + '</small>' +
+            (cur.allergy ? '<br><span class="text-danger font-weight-bold small"><i class="fas fa-exclamation-triangle"></i> แพ้ยา: ' + cur.allergy + '</span>' : '<br><small class="text-muted">ไม่มีประวัติแพ้ยา</small>') +
+            '</div><div class="text-right small">มาถึง <b>' + ERFlow.fmt(cur.arrive) + '</b><br>รอ <b id="wait-min">' + ERFlow.minsSince(cur.arrive) + '</b> นาที</div></div>');
+        fill(cur.triage);
+        $('#bedcode').val(cur.status === 'triaged' && (cur.team || cur.bed) ? (cur.team || '') + '/' + (cur.bed || '') : '');
+        var edit = cur.status === 'triaged';
+        $('#submit span').text(edit ? 'บันทึกการแก้ไข Triage' : 'ยืนยัน Triage & ส่งตรวจ');
+        $('#submit').toggleClass('btn-success', !edit).toggleClass('btn-primary', edit);
+        $('#edit-info').html(edit ? 'triage เมื่อ ' + ERFlow.fmt(cur.triagedAt) + ' โดย ' + cur.triagedBy + (cur.history.length ? '<br>แก้ไข ' + cur.history.length + ' ครั้ง ล่าสุด ' + ERFlow.fmt(cur.history[cur.history.length - 1].at) : '') : '');
+        renderQueue(); update();
+        $('[data-k=cc]').focus();
+    }
+
+    // ---------- ยืนยัน ----------
+    $('#submit').on('click', function () {
+        if (!cur) return;
+        var d = collect(); d.suggested = cur._sug;
+        d.news2 = TriageScore.news2(d).total; d.sirs = TriageScore.sirs(d).count;
+        var wasNew = cur.status !== 'triaged';
+        var prevFt = (cur.triage && cur.triage.fasttrack) || [];
+        if (!wasNew) cur.history.push({ at: new Date().toISOString(), by: me, before: cur.triage });
+        var bm = /^(?:(\d+)\s*\/\s*)?(\w*)$/.exec($.trim($('#bedcode').val()));
+        if (bm && bm[1]) cur.team = bm[1];
+        else if (!cur.team) cur.team = ERFlow.takeTeam(d.level);   // CHANGE-12: ทีมอัตโนมัติ
+        if (bm && bm[2]) cur.bed = bm[2];
+        cur.triage = d; cur.status = 'triaged';
+        if (wasNew) { cur.triagedAt = new Date().toISOString(); cur.triagedBy = me; }
+        ERFlow.save();
+        var newFt = d.fasttrack.filter(function (f) { return prevFt.indexOf(f) < 0; });
+        if (newFt.length) {
+            ERFlow.notify({ type: 'fasttrack', caseId: cur.id, ft: newFt, level: d.level });
+            $('#ftModalBody').html('<p class="mb-2">ส่งการแจ้งเตือนไปยัง <b>ทีมตรวจรักษา</b> แล้ว</p>' +
+                '<div class="h5">' + newFt.map(function (f) { return '<span class="badge badge-danger mr-1">' + FT[f] + '</span>'; }).join('') + '</div>' +
+                '<div>' + lvBadge(d.level) + ' <b>' + cur.name + '</b> ' + cur.age_y + ' ปี · QN ' + cur.qn + '</div><div class="text-muted small">' + $('<i>').text(d.cc).html() + '</div>' +
+                '<div class="small mt-2 text-muted">mockup: ระบบจริงจะขึ้นแจ้งเตือนบนกระดานแพทย์/พยาบาล</div>');
+            $('#ftModal').modal('show');
+        } else toast(wasNew ? 'ส่งตรวจรักษาแล้ว — ' + cur.name + ' (ระดับ ' + d.level + ')' : 'บันทึกการแก้ไขแล้ว');
+        if (wasNew) {
+            var next = ERFlow.cases('wait_triage').sort(function (a, b) { return new Date(a.arrive) - new Date(b.arrive); })[0];
+            if (next) open(next.id); else { cur = null; $('#tf,#panel').addClass('d-none'); $('#empty').removeClass('d-none'); renderQueue(); }
+        } else open(cur.id);
+    });
+
+    function toast(m) { $('#toast').text(m).addClass('show'); setTimeout(function () { $('#toast').removeClass('show'); }, 2500); }
+
+    // ---------- สแกน ----------
+    function doScan() { var c = ERFlow.scan($('#scan').val()); $('#scan').val(''); q = 'wait_triage'; $('#q-tabs a').removeClass('active').first().addClass('active'); open(c.id); toast('สแกนแล้ว: ' + c.name); }
+    $('#scan').on('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doScan(); } });
+    $('#scan-btn').on('click', doScan);
+    $('#reset').on('click', function (e) { e.preventDefault(); if (!confirm('ล้างข้อมูลทดลองทั้งหมด? (มีผลกับทุกเครื่อง)')) return; ERFlow.reset(); cur = null; $('#tf,#panel').addClass('d-none'); $('#empty').removeClass('d-none'); renderQueue(); toast('ล้างข้อมูลทดลองแล้ว'); });
+
+    setInterval(function () { renderQueue(); if (cur) { $('#wait-min').text(ERFlow.minsSince(cur.arrive)); $('#acs-min').text(ERFlow.minsSince(cur.arrive)); } }, 30000);
+
+    // CHANGE-13: เครื่องอื่นบันทึก → อัปเดตรายการ
+    window.addEventListener('erflow-remote', function () { renderQueue(); });
+    renderRegions(); renderQueue();
+    var first = ERFlow.cases('wait_triage').sort(function (a, b) { return new Date(a.arrive) - new Date(b.arrive); })[0];
+    if (first) open(first.id);
+    $('#scan').focus();
+});
+</script>
+</body>
+</html>
