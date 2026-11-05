@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPHIS ER Mockup — สารบัญ</title>
+<link href="assets/favicon.ico" rel="shortcut icon">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+<link rel="stylesheet" href="assets/project.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/mock.js"></script>
+</head>
+<body>
+<div id="mock-navbar"></div>
+<div class="container mt-4 mb-5">
+    <h3><i class="fas fa-ambulance text-primary"></i> โมดูล ER — HTML Mockup</h3>
+    <p class="text-muted">
+        หน้าจอจำลองของโมดูล ER (<code>opd-er-*.php</code>) ในระบบ KPHIS เดิม ทำเป็น HTML ล้วน เปิดดูได้โดยไม่ต้องมีเซิร์ฟเวอร์/ฐานข้อมูล
+        · ข้อมูลผู้ป่วยทั้งหมดเป็น <b>ข้อมูลสมมติ</b> · ปุ่มบันทึก/ยืนยัน/ลบ จะแสดงข้อความแจ้งเท่านั้น ไม่มีการบันทึกจริง
+        · ต้องต่ออินเทอร์เน็ต (โหลด jQuery / Bootstrap JS / Font Awesome / DataTables / Chart.js จาก CDN)
+    </p>
+
+    <!-- CHANGE-01 -->
+    <div class="card mb-3 border-success">
+        <div class="card-header bg-success text-white">ส่วนที่ 1 · Triage <span class="badge badge-light">ใหม่</span></div>
+        <div class="list-group list-group-flush">
+            <a class="list-group-item list-group-item-action" href="er-triage.html">หน้า Triage — สแกน Visit, V/S, GCS, Trauma body map, NEWS2/SIRS, แนะนำระดับ, Fast track</a>
+        </div>
+    </div>
+    <!-- /CHANGE-01 -->
+    <!-- CHANGE-03 -->
+    <div class="card mb-3 border-success">
+        <div class="card-header bg-success text-white">ส่วนที่ 2 · กระดานผู้ป่วย ER <span class="badge badge-light">ใหม่</span></div>
+        <div class="list-group list-group-flush">
+            <a class="list-group-item list-group-item-action" href="er-board.html?view=doctor">กระดานผู้ป่วย ER (แพทย์) — นับเคสตามระดับ, เรียง R→N, แจ้งเตือน Fast track</a>
+            <a class="list-group-item list-group-item-action" href="er-board.html?view=nurse">กระดานผู้ป่วย ER (พยาบาล) — Order ที่ยังไม่รับกระพริบ, จัดเตียง</a>
+        </div>
+    </div>
+    <!-- /CHANGE-03 -->
+    <!-- CHANGE-07 -->
+    <div class="card mb-3 border-success">
+        <div class="card-header bg-success text-white">ส่วนที่ 3 · บันทึกการรักษา <span class="badge badge-light">ใหม่</span></div>
+        <div class="list-group list-group-flush">
+            <a class="list-group-item list-group-item-action" href="er-case.html?view=doctor">บันทึกการรักษา (แพทย์) — One day order, Progress note + สรุป triage, Standing order, สรุป PH/CC/PI/PE/Dx/Mx/Plan, D/C / Admit</a>
+            <a class="list-group-item list-group-item-action" href="er-case.html?view=nurse">บันทึกการรักษา (พยาบาล) — รับ order → Nurse note, Nurse note timeline, จำหน่าย / ใบนำส่ง</a>
+        </div>
+    </div>
+    <!-- /CHANGE-07 -->
+
+    <div class="card mb-3">
+        <div class="card-header">รายการผู้ป่วย ER <small class="text-muted">— opd-er-order-list.php</small></div>
+        <div class="list-group list-group-flush">
+            <a class="list-group-item list-group-item-action" href="er-patient-list.html?view_by=doctor">รายการผู้ป่วย ER (แพทย์)</a>
+            <a class="list-group-item list-group-item-action" href="er-patient-list.html?view_by=nurse">รายการผู้ป่วย ER (พยาบาล) <small class="text-muted">— มีสีแถวตามสถานะการรับ Order</small></a>
+            <a class="list-group-item list-group-item-action" href="er-patient-list.html?view_by=pharmacist">รายการผู้ป่วย ER (เภสัชกร)</a>
+            <a class="list-group-item list-group-item-action" href="er-patient-list.html?view_by=other">รายการผู้ป่วย ER (อื่นๆ)</a>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header">หน้าผู้ป่วย — บันทึก ER Order <small class="text-muted">— opd-er-order.php (เปลี่ยนมุมมองได้ที่มุมขวาบนของหน้า)</small></div>
+        <div class="list-group list-group-flush">
+            <a class="list-group-item list-group-item-action" href="er-order.html?view_by=doctor#pills-order">Order — One Day Order | Progress Note (+Add, Confirm, Off) <span class="badge badge-primary">แพทย์</span></a>
+            <a class="list-group-item list-group-item-action" href="er-order.html?view_by=nurse#pills-order">Order — รับรายการ (พยาบาล), +Plan <span class="badge badge-info">พยาบาล</span></a>
+            <a class="list-group-item list-group-item-action" href="er-order.html?view_by=pharmacist#pills-order">Order — รับรายการ / ตรวจสอบแล้ว (ห้องยา) <span class="badge badge-success">เภสัชกร</span></a>
+            <a class="list-group-item list-group-item-action" href="er-order.html?view_by=doctor#pills-medical-history">ประวัติผู้ป่วย</a>
+            <a class="list-group-item list-group-item-action" href="er-order.html?view_by=nurse#pills-planning">Nurse Planning <span class="badge badge-info">พยาบาล</span></a>
+            <a class="list-group-item list-group-item-action" href="er-order.html?view_by=doctor#pills-lab">Lab</a>
+            <a class="list-group-item list-group-item-action" href="er-order.html?view_by=nurse#pills-focus">Nursing Progress Note (Focus list / Focus note)</a>
+            <a class="list-group-item list-group-item-action" href="er-order.html?view_by=nurse#pills-vs">Vital Sign (กราฟ + ตาราง + ฟอร์ม MEWS)</a>
+            <a class="list-group-item list-group-item-action" href="er-order.html?view_by=nurse#pills-io">I/O</a>
+            <a class="list-group-item list-group-item-action" href="er-order.html?view_by=doctor#pills-EMR">EMR</a>
+            <a class="list-group-item list-group-item-action" href="er-order.html?view_by=doctor#pills-opd-er-document">เอกสาร</a>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header">หน้าติดตามงาน / ตั้งค่า</div>
+        <div class="list-group list-group-flush">
+            <a class="list-group-item list-group-item-action" href="er-pharmacy-order-monitor.html">Order ER (เภสัชกร) <small class="text-muted">— opd-er-pharmacy-order-monitor.php</small></a>
+            <a class="list-group-item list-group-item-action" href="er-nurse-index-plan-monitor.html">Nurse Planning ER <small class="text-muted">— opd-er-nurse-index-plan-monitor.php</small></a>
+            <a class="list-group-item list-group-item-action" href="setting-er-bed.html">Setting › เตียง ER <small class="text-muted">— setting-er-bed.php</small></a>
+        </div>
+    </div>
+
+    <p class="small text-muted mb-0">
+        โครงไฟล์: <code>er-order.html</code> ถูกประกอบจาก <code>partials/</code> ด้วย <code>python3 build.py</code> (แก้ที่ partials แล้ว build ใหม่) ·
+        โฟลเดอร์นี้อยู่ใน <code>.gitignore</code> จึงไม่ขึ้น repo และไม่ถูก deploy
+    </p>
+</div>
+</body>
+</html>
