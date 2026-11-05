@@ -1,0 +1,66 @@
+/* CHANGE-07 — หน้าบันทึกการรักษา (โทนเรียบตามต้นฉบับ opd-er-order.php) */
+.case-cols { display: flex; gap: 0; border: 1px solid #dee2e6; }
+.case-cols > .cc-col { flex: 1 1 50%; min-width: 0; }
+.case-cols > .cc-col + .cc-col { border-left: 1px solid #dee2e6; }
+.cc-head { display: flex; justify-content: center; position: relative; font-weight: 700; padding: .5rem; border-bottom: 1px solid #dee2e6; }
+.cc-head .add { position: absolute; right: .6rem; top: .5rem; font-weight: 700; }
+.cc-body { padding: .6rem .75rem; }
+
+.blk { padding-bottom: .5rem; margin-bottom: .6rem; border-bottom: 1px solid #dee2e6; }
+.blk:last-child { border-bottom: 0; }
+.blk-time { font-weight: 500; }
+.blk-foot { text-align: right; font-size: .78rem; color: #495057; }
+.oi { display: flex; align-items: flex-start; }
+.oi .t { flex: 1; padding-left: 1em; text-indent: -1em; }
+.oi .t:before { content: "- "; }
+.oi .s { flex: 0 0 auto; margin-left: .5rem; font-size: .8rem; white-space: nowrap; }
+.oi.off .t { text-decoration: line-through; color: #6c757d; }
+.oi.pend.nurse .t { color: #c82333; }
+@keyframes blinkbg { 50% { background: #fff3cd; } }
+.oi.pend.nurse { animation: blinkbg 1.4s infinite; }
+.note-text { white-space: pre-wrap; }
+
+.tri-sum { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: .25rem; padding: .4rem .6rem; margin-bottom: .75rem; font-size: .85rem; }
+.lvl-sm { display: inline-block; min-width: 22px; text-align: center; border-radius: 3px; font-weight: 700; font-size: .8rem; padding: 0 4px; border: 1px solid rgba(0,0,0,.15); }
+.ft-tag { font-size: .72rem; color: #dc3545; border: 1px solid #dc3545; border-radius: 3px; padding: 0 3px; }
+
+.editor { border: 1px solid #07689F; border-radius: .25rem; padding: .5rem; background: #f7fbfe; }
+.orow { display: flex; align-items: center; gap: .35rem; margin-bottom: .3rem; }
+.orow input[type=text] { flex: 1; }
+
+.sum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem .75rem; }
+.sum-grid .full { grid-column: 1 / -1; }
+.sum-grid label { font-weight: 600; margin-bottom: .1rem; font-size: .85rem; }
+.req:after { content: " *"; color: #dc3545; }
+.hx { font-size: 10px; background: #e9ecef; color: #6c757d; border-radius: 3px; padding: 1px 4px; font-weight: normal; }
+
+.nn-table { font-size: .85rem; }
+.nn-table th { white-space: nowrap; background: #f8f9fa; }
+.nn-table td.vs, .nn-table th.vs { text-align: center; white-space: nowrap; }
+.nn-table td.sep, .nn-table th.sep { border-left: 2px solid #adb5bd; }
+.nn-table tr.hl td { background: #fff8e1; }
+.vs-in { display: flex; gap: .3rem; }
+.vs-in > div { flex: 1; }
+.vs-in label { font-size: .75rem; margin-bottom: 0; }
+
+.t-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(80px); background: #343a40; color: #fff; padding: .5rem 1rem; border-radius: .3rem; opacity: 0; transition: .25s; z-index: 3000; }
+.t-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* CHANGE-09: รูปแบบ order เดิม */
+.oi.med .t { color: #1f3fff; }
+.oi.off .t { text-decoration: line-through; color: inherit; }
+.oi.med.off .t { color: #1f3fff; }
+.blk.draft { background: #fff3cd; padding: .4rem; }
+.blk-time { font-weight: normal; }
+#odf .opts .btn { margin-right: .2rem; }
+#odf .input-group-text { font-size: .85rem; background: #e9ecef; }
+.orow-med .o-sig { margin-top: 2px; }
+
+/* CHANGE-12: ตัวอักษรใหญ่ขึ้น */
+body { font-size: 1.05rem; }
+.tri-sum { font-size: .98rem; }
+.blk-foot { font-size: .85rem; }
+.oi .s { font-size: .9rem; }
+.nn-table { font-size: .98rem; }
+.sum-grid label { font-size: .95rem; }
+#tabs { font-size: .92rem; }
