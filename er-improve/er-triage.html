@@ -90,6 +90,10 @@
                     <div class="col"><label class="req">SpO2 %</label><input class="form-control" data-k="spo2" inputmode="numeric"></div>
                     <div class="col"><label>DTX</label><input class="form-control" data-k="dtx" placeholder="ถ้ามี" inputmode="numeric"></div>
                     <div class="col"><label>Pain</label><input class="form-control" data-k="pain" placeholder="0-10" inputmode="numeric"></div>
+                    <!-- CHANGE-14: น้ำหนัก/ส่วนสูง -->
+                    <div class="col"><label>น.น. (kg)</label><input class="form-control" data-k="weight" inputmode="decimal"></div>
+                    <div class="col"><label>สูง (cm)</label><input class="form-control" data-k="height" inputmode="numeric"></div>
+                    <!-- /CHANGE-14 -->
                 </div>
                 <div class="form-row mt-2 align-items-end">
                     <div class="col-auto"><label class="req">GCS</label>
@@ -115,6 +119,14 @@
                     <div class="col"><label class="font-weight-bold mb-1">สูบบุหรี่</label>
                         <div class="seg" data-k="smoke"><button type="button" data-v="no">ไม่สูบ</button><button type="button" data-v="yes">สูบ</button><button type="button" data-v="quit">เลิกแล้ว</button><button type="button" data-v="unk">ไม่ทราบ</button></div></div>
                 </div>
+                <!-- CHANGE-15: การแพ้ยา -->
+                <div class="form-row mt-2 align-items-end">
+                    <div class="col-auto"><label class="font-weight-bold mb-1">การแพ้ยา</label>
+                        <div class="seg" data-k="allergy_status"><button type="button" data-v="no">ไม่แพ้</button><button type="button" data-v="yes">แพ้</button><button type="button" data-v="unk">ไม่ทราบ</button></div></div>
+                    <div class="col" id="allergy-box" style="display:none"><label class="font-weight-bold mb-1 text-danger"><i class="fas fa-exclamation-triangle"></i> แพ้ยาอะไร</label>
+                        <input class="form-control" data-k="allergy" placeholder="ระบุชื่อยา/สารที่แพ้ เช่น Penicillin, NSAIDs, อาหารทะเล"></div>
+                </div>
+                <!-- /CHANGE-15 -->
             </div></div>
 
             <!-- Trauma -->
@@ -270,6 +282,9 @@ $(function () {
     });
     function segVal(k) { return $('[data-k="' + k + '"]').filter('.seg,.lvl-pick').children('.active').data('v') || ''; }
     function setSeg(k, v) { var $g = $('[data-k="' + k + '"]').filter('.seg,.lvl-pick'); $g.children().removeClass('active'); if (v !== '' && v !== undefined && v !== null) $g.children('[data-v="' + v + '"]').addClass('active'); }
+    // CHANGE-15: โชว์ช่อง "แพ้ยาอะไร" เฉพาะเมื่อเลือก "แพ้"
+    function toggleAllergy() { var yes = segVal('allergy_status') === 'yes'; $('#allergy-box').toggle(yes); if (!yes) $('[data-k=allergy]').val(''); }
+    $(document).on('segchange', '[data-k=allergy_status]', toggleAllergy);
 
     // ---------- body map ----------
     function renderRegions() {
@@ -350,7 +365,7 @@ $(function () {
         setSeg('level', t.level || ''); $('[data-k=diff_reason]').val(t.diff_reason || '');
         crit = (t.critical || []).slice(); fts = (t.fasttrack || []).slice(); regions = (t.regions || []).slice();
         $('[data-crit]').each(function () { $(this).toggleClass('on', crit.indexOf($(this).data('crit')) >= 0); });
-        renderFt(); renderRegions();
+        renderFt(); renderRegions(); toggleAllergy();
     }
 
     // ---------- คำนวณ ----------
