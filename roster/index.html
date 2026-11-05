@@ -170,7 +170,9 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
   <button class="close" data-close>×</button><h3>📅 วันหยุดพิเศษ (เทศกาล)</h3>
   <div class="note">วันหยุดพิเศษจะจัดเวรแบบเสาร์–อาทิตย์ (6/6/4) และนับเป็น “เวรพิเศษ” เพื่อเฉลี่ยให้เท่ากัน (ได้เงินมากกว่า) · ปีใหม่คร่อมเดือนให้ใส่วันที่จริงทั้ง 2 เดือน ระบบเฉลี่ยข้ามเดือนให้</div>
   <div class="fld"><label>เพิ่มวันหยุดพิเศษ</label>
-    <div style="display:flex;gap:8px"><input type="date" id="holDate"><input id="holName" placeholder="ชื่อเทศกาล (เช่น สงกรานต์)"><button class="btn" id="holAdd">+ เพิ่ม</button></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><input type="date" id="holDate" style="flex:1;min-width:140px">
+      <select id="holType" style="border:1.5px solid var(--line);border-radius:10px;padding:10px"><option value="off">วันหยุดพิเศษ (หยุดเฉยๆ)</option><option value="fest">เทศกาล (ค่าเวร x1.5 · หารเท่า)</option></select>
+      <input id="holName" placeholder="ชื่อ (เช่น สงกรานต์)" style="flex:1;min-width:120px"><button class="btn" id="holAdd">+ เพิ่ม</button></div></div>
   <div id="holList"></div>
 </div></div>
 
@@ -222,8 +224,10 @@ function isWeekend(y,m,d){ const w=dow(y,m,d); return w===0||w===6; }
 function dstr(y,m,d){ return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
 function ymKey(y,m){ return y+'-'+String(m).padStart(2,'0'); }
 function monthLabel(y,m){ return 'เวรเดือน '+TH_MON[m]+' '+(y+543); }
+function holInfo(key){ const v=HOL[key]; if(!v)return null; if(typeof v==='string')return {name:v,fest:false}; return {name:v.name||'',fest:!!v.fest}; }
 function isHoliday(y,m,d){ return !!HOL[dstr(y,m,d)]; }
-function isSpecial(y,m,d){ return isWeekend(y,m,d)||isHoliday(y,m,d); } // จัดแบบเสาร์อาทิตย์
+function isFestival(y,m,d){ const i=holInfo(dstr(y,m,d)); return !!(i&&i.fest); }       // เทศกาล x1.5 (หารเท่า)
+function isSpecial(y,m,d){ return isWeekend(y,m,d)||isHoliday(y,m,d); }                  // จัดแบบเสาร์อาทิตย์ (ทั้ง 2 ประเภท)
 
 /* ---------- shift model ---------- */
 function cell(id,d){ const v=(SH[id]||{})[d]; if(!v)return null; if(typeof v==='string')return {s:v,r:''}; return v; }
@@ -276,18 +280,21 @@ function seedStaff(){ if(_seeded)return; _seeded=true; const out={}; let o=0;
 function render(){
   if(!STAFF||!Object.keys(STAFF).length){ $('grid').innerHTML=''; return; }
   const nd=daysInMonth(curY,curM), list=staffList();
-  const SUMS=[['inM','ในเวลา'],['a','บ่าย'],['n','ดึก'],['outM','นอกเวลาเช้า'],['cca','ศ·บ่าย'],['ccn','ศ·ดึก'],['ccm','ศ·เช้านอก']];
+  const SUMS=[['inM','ในเวลา'],['a','บ่าย'],['n','ดึก'],['outM','นอกเวลาเช้า'],['cca','ศ·บ่าย'],['ccn','ศ·ดึก'],['ccm','ศ·เช้านอก'],['off','ขอหยุด']];
+  const EMPTYSUM=SUMS.map(()=>'<td class="sumc"></td>').join('');
   let h='<thead><tr><th class="gname">เจ้าหน้าที่ ('+list.length+')</th>';
-  for(let d=1;d<=nd;d++){ const hol=isHoliday(curY,curM,d), we=isWeekend(curY,curM,d); h+=`<th class="${hol?'hol':(we?'we':'')}" title="${hol?('พิเศษ: '+esc(HOL[dstr(curY,curM,d)])):''}">${d}</th>`; }
+  for(let d=1;d<=nd;d++){ const hol=isHoliday(curY,curM,d), we=isWeekend(curY,curM,d), hi=holInfo(dstr(curY,curM,d));
+    const ttl=hi?((hi.fest?'เทศกาล x1.5: ':'วันหยุดพิเศษ: ')+esc(hi.name)):''; h+=`<th class="${hol?'hol':(we?'we':'')}" title="${ttl}">${d}${hi&&hi.fest?'<div style="font-size:8px">x1.5</div>':''}</th>`; }
   SUMS.forEach(s=>h+=`<th class="sumh">${s[1]}</th>`);
   h+='</tr></thead><tbody>';
   let lastRole=null;
   list.forEach(s=>{
     if(s.role!==lastRole){ lastRole=s.role; const r=ROLES.find(x=>x.key===s.role); h+=`<tr class="rolehdr"><td colspan="${nd+1+SUMS.length}">${esc(r?r.name:s.role)}</td></tr>`; }
     h+=`<tr data-sid="${s.id}"><td class="gname" title="${esc(s.name)}">${esc(s.name)}</td>`;
-    const sum={inM:0,a:0,n:0,outM:0,cca:0,ccn:0,ccm:0};
+    const sum={inM:0,a:0,n:0,outM:0,cca:0,ccn:0,ccm:0,off:0};
     for(let d=1;d<=nd;d++){
       const sp=isSpecial(curY,curM,d), hol=isHoliday(curY,curM,d), we=isWeekend(curY,curM,d), c=cell(s.id,d), off=(OFF[s.id]||{})[d];
+      if(off)sum.off++;
       let cls='cell'+(hol?' hol':(we?' we':'')), txt='';
       if(c){ cls+=' '+(isCC(c.s)?'cc':(c.s==='na'?'na':c.s)); txt=SHIFT_TXT[c.s]||'?';
         if(!isCC(c.s)&&c.r)txt+='<span class="rl">'+esc(ROLE_TH[c.r]||c.r)+'</span>';
@@ -309,13 +316,13 @@ function render(){
     for(let d=1;d<=nd;d++){ const sp=isSpecial(curY,curM,d); const need=(sp?TARGET.weekend:TARGET.weekday)[sf.k]||0;
       let c=0; list.forEach(s=>{ if(regHas(s.id,d,sf.k))c++; });
       h+=`<td class="${c!==need?'bad':(need?'okc':'')}" title="ต้องการ ${need}">${c}${need?'/'+need:''}</td>`; }
-    SHIFTS.forEach(()=>0); h+='<td class="sumc"></td><td class="sumc"></td><td class="sumc"></td><td class="sumc"></td><td class="sumc"></td><td class="sumc"></td><td class="sumc"></td></tr>'; });
+    h+=EMPTYSUM+'</tr>'; });
   // bottom: command-center coverage
   [['a','ศสก.บ่าย'],['n','ศสก.ดึก'],['m','ศสก.เช้านอก']].forEach(cc=>{ h+=`<tr class="sumrow cc"><td class="sumname">${cc[1]}</td>`;
     for(let d=1;d<=nd;d++){ const sp=isSpecial(curY,curM,d); const need= cc[0]==='m' ? (sp?1:0) : 1;
       let c=0; list.forEach(s=>{ if(ccHas(s.id,d,cc[0]))c++; });
       h+=`<td class="${c!==need?'bad':(need?'okc':'')}">${c}${need?'/'+need:''}</td>`; }
-    h+='<td class="sumc"></td><td class="sumc"></td><td class="sumc"></td><td class="sumc"></td><td class="sumc"></td><td class="sumc"></td><td class="sumc"></td></tr>'; });
+    h+=EMPTYSUM+'</tr>'; });
   h+='</tbody>'; $('grid').innerHTML=h; computeWarnings();
 }
 function computeWarnings(){
@@ -397,7 +404,7 @@ function drawStaff(){ $('stCount').textContent=edStaff.length;
      <button class="del" data-i="${i}">×</button></div>`; }).join('');
   $('stRows').querySelectorAll('input,select').forEach(el=>el.addEventListener('input',e=>{edStaff[+e.target.dataset.i][e.target.dataset.f]=e.target.value;}));
   $('stRows').querySelectorAll('.del').forEach(b=>b.onclick=()=>{edStaff.splice(+b.dataset.i,1);drawStaff();});
-  $('stRows').querySelectorAll('.noedit').forEach(b=>b.onclick=()=>openNoEdit(+b.dataset.no));
+  $('stRows').querySelectorAll('.noedit').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openNoEdit(+b.dataset.no);});
 }
 function openNoEdit(i){ const s=edStaff[i];
   const roleChk=ALL_ROLES.map(r=>`<label><input type="checkbox" data-r="${r}" ${s.no.indexOf(r)>=0?'checked':''}>${ROLE_TH[r]}</label>`).join('');
@@ -428,9 +435,9 @@ $('savePin').onclick=()=>{ const v=($('newPin').value||'').trim(); if(!/^\d{4,8}
 /* ---------- holidays ---------- */
 $('holBtn').onclick=()=>{ $('holModal').classList.remove('hide'); const n=bkkNow(); $('holDate').value=dstr(curY,curM,Math.min(n.getDate(),daysInMonth(curY,curM))); drawHol(); };
 function drawHol(){ const keys=Object.keys(HOL).sort();
-  $('holList').innerHTML = keys.length? keys.map(k=>`<div class="holrow"><span class="d">${k}</span><span style="flex:1">${esc(HOL[k])}</span><button class="btn sm red" data-h="${k}">ลบ</button></div>`).join('') : '<div class="note" style="background:#f8fafc;border-color:#e2e8f0;color:#64748b">ยังไม่มีวันหยุดพิเศษ</div>';
+  $('holList').innerHTML = keys.length? keys.map(k=>{ const i=holInfo(k); return `<div class="holrow"><span class="d">${k}</span><span class="chip" style="background:${i.fest?'#fce7f3':'#e2e8f0'};color:${i.fest?'#9d174d':'#475569'}">${i.fest?'เทศกาล x1.5':'หยุดเฉยๆ'}</span><span style="flex:1">${esc(i.name)}</span><button class="btn sm red" data-h="${k}">ลบ</button></div>`; }).join('') : '<div class="note" style="background:#f8fafc;border-color:#e2e8f0;color:#64748b">ยังไม่มีวันหยุดพิเศษ</div>';
   $('holList').querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>{ const k=b.dataset.h; delete HOL[k]; DB.set(PATH+'/holidays/'+k,null); drawHol(); render(); }); }
-$('holAdd').onclick=()=>{ const dt=$('holDate').value; if(!dt){toast('เลือกวันที่');return;} const nm=($('holName').value||'วันหยุดพิเศษ').trim(); HOL[dt]=nm; DB.set(PATH+'/holidays/'+dt,nm); $('holName').value=''; drawHol(); render(); toast('เพิ่มวันหยุดพิเศษแล้ว'); };
+$('holAdd').onclick=()=>{ const dt=$('holDate').value; if(!dt){toast('เลือกวันที่');return;} const fest=$('holType').value==='fest'; const nm=($('holName').value||(fest?'เทศกาล':'วันหยุดพิเศษ')).trim(); const val={name:nm,fest:fest}; HOL[dt]=val; DB.set(PATH+'/holidays/'+dt,val); $('holName').value=''; drawHol(); render(); toast('เพิ่มวันหยุดแล้ว'); };
 
 /* ---------- clear ---------- */
 $('clearBtn').onclick=()=>{ if(!canEdit())return; if(!confirm('ล้างเวรทั้งหมดของ '+monthLabel(curY,curM)+'? (วันขอหยุดยังอยู่)'))return; SH={}; DB.set(PATH+'/shift/'+ym,null); render(); toast('ล้างแล้ว'); };
@@ -446,30 +453,37 @@ async function autoDraft(){
   const fixedKeys={head:1,subhead:1,float:1};
   const pool=list.filter(s=>!fixedKeys[s.role]);
   const NEW={}; list.forEach(s=>NEW[s.id]={});
-  const load={}, loadT={}, loadHol={}, ccLoad={};
-  list.forEach(s=>{ load[s.id]=0; loadT[s.id]={m:0,a:0,n:0}; loadHol[s.id]=0; ccLoad[s.id]=0; });
-  // cross-month seed: นับเวรพิเศษ/ศูนย์สั่งการ จากเดือนก่อน (ปีใหม่คร่อมเดือน)
+  const load={}, loadT={}, loadInM={}, loadFest={}, ccLoad={};
+  list.forEach(s=>{ load[s.id]=0; loadT[s.id]={m:0,a:0,n:0}; loadInM[s.id]=0; loadFest[s.id]=0; ccLoad[s.id]=0; });
+  // cross-month seed: นับเวรเทศกาล(x1.5)/ศูนย์สั่งการ จากเดือนก่อน (ปีใหม่คร่อมเดือน)
   try{ let py=curY,pm=curM-1; if(pm<1){pm=12;py--;} const prev=await DB.once(PATH+'/shift/'+ymKey(py,pm))||{};
-    Object.keys(prev).forEach(id=>{ if(!(id in loadHol))return; const days=prev[id]||{};
+    Object.keys(prev).forEach(id=>{ if(!(id in loadFest))return; const days=prev[id]||{};
       Object.keys(days).forEach(dd=>{ const c=days[dd]; const sObj=(typeof c==='string')?{s:c}:c; if(!sObj||!sObj.s)return;
-        if(isSpecial(py,pm,+dd))loadHol[id]++; if(isCC(sObj.s))ccLoad[id]++; }); }); }catch(e){}
+        if(isFestival(py,pm,+dd))loadFest[id]++; if(isCC(sObj.s))ccLoad[id]++; }); }); }catch(e){}
   SH=NEW;
   function bb(id,d,s){ const p=NEW[id]||{}; const tb=tbase(s);
     const pa=p[d-1]&&tbase(p[d-1].s).indexOf('a')>=0; const nn=p[d+1]&&tbase(p[d+1].s).indexOf('n')>=0;
     if(tb.indexOf('n')>=0&&pa)return true; if(tb.indexOf('a')>=0&&nn)return true; return false; }
   const can=(id,d,s)=>!offAt(id,d)&&!NEW[id][d]&&!bb(id,d,s);
-  const give=(id,d,s,r,special)=>{ NEW[id][d]={s:s,r:r||''}; load[id]++; if(special)loadHol[id]++; if(isCC(s))ccLoad[id]++; else if(loadT[id][s]!==undefined)loadT[id][s]++; };
+  const give=(id,d,s,r)=>{ const sp=isSpecial(curY,curM,d), fe=isFestival(curY,curM,d);
+    NEW[id][d]={s:s,r:r||''}; load[id]++; if(fe)loadFest[id]++;
+    if(isCC(s)){ ccLoad[id]++; }
+    else { tbase(s).forEach(b=>{ if(loadT[id][b]!==undefined)loadT[id][b]++; }); if(s==='m'&&!sp)loadInM[id]++; } };
+  const canDouble=(id,d,addBase)=>{ if(offAt(id,d))return false;
+    if(addBase==='a'){ const nx=NEW[id][d+1]; if(nx&&tbase(nx.s).indexOf('n')>=0)return false; }
+    if(addBase==='n'){ const pv=NEW[id][d-1]; if(pv&&tbase(pv.s).indexOf('a')>=0)return false; }
+    return true; };
   const shortfall=[];
   const wkMornLeft={}; subs.concat(floats).forEach(s=>wkMornLeft[s.id]=2);
   for(let d=1;d<=nd;d++){
-    const special=isSpecial(curY,curM,d); const T=special?TARGET.weekend:TARGET.weekday;
+    const special=isSpecial(curY,curM,d); const festival=isFestival(curY,curM,d); const T=special?TARGET.weekend:TARGET.weekday;
     const need={m:T.m||0,a:T.a||0,n:T.n||0}; const got={m:0,a:0,n:0};
     const slotsLeft={m:slotListFor('m',special),a:slotListFor('a',special),n:slotListFor('n',special)};
     const noOf=id=>((STAFF[id]||{}).no)||[];
     const takeRole=(base,prefers,id)=>{ const arr=slotsLeft[base], no=noOf(id); for(const pr of prefers){const i=arr.indexOf(pr); if(i>=0&&no.indexOf(pr)<0){arr.splice(i,1);return pr;}} for(let i=0;i<arr.length;i++){ if(no.indexOf(arr[i])<0){const r=arr[i];arr.splice(i,1);return r;} } return null; };
     const memPref=base=> base==='m'?['EMS','refer','triage','member1','member2','lead1','lead2','incharge']:(base==='n'?['member1','member2','lead1','lead2']:['member1','member2','triage','lead1','lead2','incharge']);
     const roleFor=(st,base)=>{ const cat=st.role; if(base==='m'&&cat==='head')return takeRole(base,['head'],st.id); if(cat==='subhead')return takeRole(base,['incharge'],st.id); if(cat==='float')return takeRole(base,['lead1','lead2'],st.id); return takeRole(base,memPref(base),st.id); };
-    const place=(st,base)=>{ const r=roleFor(st,base); if(r===null)return false; give(st.id,d,base,r,special); return true; };
+    const place=(st,base)=>{ const r=roleFor(st,base); if(r===null)return false; give(st.id,d,base,r); return true; };
     // morning fixed
     if(!special){
       heads.forEach(h=>{ if(got.m<need.m&&can(h.id,d,'m')){ if(place(h,'m'))got.m++; } });
@@ -479,19 +493,31 @@ async function autoDraft(){
       subs.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(s=>{ if(got.m<need.m&&wkMornLeft[s.id]>0&&can(s.id,d,'m')){ if(place(s,'m')){got.m++;wkMornLeft[s.id]--;} } });
       floats.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(f=>{ if(got.m<need.m&&wkMornLeft[f.id]>0&&can(f.id,d,'m')){ if(place(f,'m')){got.m++;wkMornLeft[f.id]--;} } });
     }
-    // regular fill: night first; balance special days by loadHol
+    // regular fill: night first · เวรในเวลา(เช้าวันธรรมดา)=เฉลี่ยเท่ากัน(loadInM) · เทศกาล=เฉลี่ย(loadFest)
     ['n','a','m'].forEach(s=>{ let guard=0;
       while(got[s]<need[s]&&guard<pool.length*3){ guard++;
-        const cand=pool.slice().sort((x,y)=> special? ((loadHol[x.id]-loadHol[y.id])||(loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id])) : ((loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id])) );
+        const cand=pool.slice().sort((x,y)=>{
+          if(s==='m'&&!special) return (loadInM[x.id]-loadInM[y.id])||(load[x.id]-load[y.id]);
+          if(festival) return (loadFest[x.id]-loadFest[y.id])||(loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id]);
+          return (loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id]);
+        });
         let placed=false; for(const c of cand){ if(can(c.id,d,s)){ if(place(c,s)){got[s]++;placed=true;break;} } }
         if(!placed)break; }
+      // เติม "ดึก+บ่าย (na)" ให้เวรเต็ม เมื่อคนสดไม่พอ
+      if(got[s]<need[s] && (s==='a'||s==='n')){
+        const other=s==='a'?'n':'a';
+        const dbl=list.filter(p=>{ const cc=NEW[p.id][d]; return cc&&cc.s===other && canDouble(p.id,d,s); })
+          .sort((x,y)=> festival?((loadFest[x.id]-loadFest[y.id])||(load[x.id]-load[y.id])):((loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id])));
+        for(const p of dbl){ if(got[s]>=need[s])break; const old=NEW[p.id][d];
+          NEW[p.id][d]={s:'na',r:old.r||''}; load[p.id]++; if(festival)loadFest[p.id]++; loadT[p.id][s]++; got[s]++; }
+      }
       if(got[s]<need[s])shortfall.push(d+' '+(SHIFT_TXT[s])+' ขาด '+(need[s]-got[s])); });
     // command center (separate person, 1 each, out-of-hours): cc-a, cc-n every day; cc-m special days
     const ccJobs=[['a','cca'],['n','ccn']]; if(special)ccJobs.push(['m','ccm']);
     ccJobs.forEach(([base,cs])=>{
       const elig=list.filter(s=> s.role!=='head' && !(STAFF[s.id]||{}).noCC && can(s.id,d,base) );
-      elig.sort((x,y)=> special? ((loadHol[x.id]-loadHol[y.id])||(ccLoad[x.id]-ccLoad[y.id])||(load[x.id]-load[y.id])) : ((ccLoad[x.id]-ccLoad[y.id])||(load[x.id]-load[y.id])) );
-      if(elig.length){ give(elig[0].id,d,cs,CC_ROLE,special); } else shortfall.push(d+' '+SHIFT_TXT[cs]+' ไม่มีคน'); });
+      elig.sort((x,y)=> festival? ((loadFest[x.id]-loadFest[y.id])||(ccLoad[x.id]-ccLoad[y.id])||(load[x.id]-load[y.id])) : ((ccLoad[x.id]-ccLoad[y.id])||(load[x.id]-load[y.id])) );
+      if(elig.length){ give(elig[0].id,d,cs,CC_ROLE); } else shortfall.push(d+' '+SHIFT_TXT[cs]+' ไม่มีคน'); });
   }
   const payload={}; list.forEach(s=>{ if(Object.keys(NEW[s.id]).length)payload[s.id]=NEW[s.id]; });
   DB.set(PATH+'/shift/'+ym, payload); render();
