@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPHIS ER Mockup — บันทึกการรักษา</title>
+<link href="assets/favicon.ico" rel="shortcut icon">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+<link rel="stylesheet" href="assets/project.css">
+<link rel="stylesheet" href="assets/mock.css">
+<link rel="stylesheet" href="assets/case.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/mock.js"></script>
+<!-- CHANGE-13: ฐานข้อมูลกลาง (ถ้าไม่มี config จะใช้ข้อมูลในเครื่อง) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="assets/firebase-config.js"></script>
+<script src="assets/er-flow.js"></script>
+<script src="assets/triage-score.js"></script>
+</head>
+<body>
+<div id="mock-navbar"></div>
+
+<!-- CHANGE-07: หน้าบันทึกการรักษา ER (แทน opd-er-order.php แท็บ Order + Nursing Progress Note) -->
+<div class="container-fluid pt-2 pb-5">
+    <div class="d-flex align-items-center pb-2 mb-2 border-bottom">
+        <a class="btn btn-primary btn-sm mr-3" id="back" href="er-board.html"><i class="fas fa-arrow-left"></i> กลับ</a>
+        <h4 class="mb-0">บันทึกการรักษา ER</h4>
+        <div class="ml-auto d-flex align-items-center small">
+            <span class="mr-2">ทีม/เตียง</span><b class="mr-3" id="h-bed"></b>
+            <span class="mr-2">สถานะ</span>
+            <select id="exam-sel" class="form-control form-control-sm" style="width:170px">
+                <option value="wait">รอตรวจรักษา</option><option value="reexam">รอตรวจรักษาใหม่</option><option value="done">ตรวจรักษาแล้ว</option>
+            </select>
+            <span id="exam-txt" class="font-weight-bold d-none"></span>
+        </div>
+    </div>
+
+    <div class="patient-info-container alert alert-secondary py-2 mb-2" id="banner"></div>
+
+    <ul class="nav nav-pills mb-2 small" id="tabs">
+        <li class="nav-item"><a class="nav-link" target="_blank" href="er-order.html?view_by=doctor#pills-medical-history">ประวัติผู้ป่วย</a></li>
+        <li class="nav-item"><a class="nav-link active" href="#" data-tab="order">Order</a></li>
+        <li class="nav-item"><a class="nav-link" target="_blank" href="er-order.html?view_by=doctor#pills-lab">Lab</a></li>
+        <li class="nav-item"><a class="nav-link" href="#" data-tab="nn">Nursing Progress Note <span class="badge badge-secondary" id="nn-count"></span></a></li>
+        <li class="nav-item"><a class="nav-link" target="_blank" href="er-order.html?view_by=nurse#pills-vs">Vital Sign</a></li>
+        <li class="nav-item"><a class="nav-link" target="_blank" href="er-order.html?view_by=nurse#pills-io">I/O</a></li>
+        <li class="nav-item"><a class="nav-link" href="#">X-Ray <i class="fas fa-external-link-alt"></i></a></li>
+        <li class="nav-item"><a class="nav-link" href="#">Scan <i class="fas fa-external-link-alt"></i></a></li>
+        <li class="nav-item"><a class="nav-link" href="#">ประวัติการสั่งยา <i class="fas fa-external-link-alt"></i></a></li>
+        <li class="nav-item"><a class="nav-link" target="_blank" href="er-order.html?view_by=doctor#pills-EMR">EMR</a></li>
+        <li class="nav-item"><a class="nav-link" href="#">ขอเปล <i class="fas fa-external-link-alt"></i></a></li>
+        <li class="nav-item"><a class="nav-link" target="_blank" href="er-order.html?view_by=doctor#pills-opd-er-document">เอกสาร</a></li>
+    </ul>
+
+    <!-- ================= Order ================= -->
+    <div id="tab-order">
+        <div class="text-right mb-2" id="std-bar">
+            <div class="dropdown d-inline-block">
+                <button class="btn btn-secondary btn-sm dropdown-toggle" data-toggle="dropdown"><i class="fas fa-clipboard"></i> Standing order</button>
+                <div class="dropdown-menu dropdown-menu-right" id="std-menu"></div>
+            </div>
+        </div>
+        <div class="case-cols">
+            <div class="cc-col">
+                <div class="cc-head">One Day Order <a href="#" class="add" id="o-add">+Add</a></div>
+                <div class="cc-body"><div id="orders"></div><div id="o-editor"></div></div>
+            </div>
+            <div class="cc-col">
+                <div class="cc-head">Progress Note <a href="#" class="add" id="n-add">+Add</a></div>
+                <div class="cc-body">
+                    <div class="tri-sum" id="tri-sum"></div>
+                    <div id="notes"></div><div id="n-editor"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- สรุปการรักษา -->
+        <div class="text-right mt-2" id="end-bar"></div>
+        <div class="card mt-3 d-none" id="sum-card">
+            <div class="card-header py-2 d-flex align-items-center">
+                <b id="sum-title">สรุปการรักษา</b>
+                <small class="text-muted ml-2">ต้องลงครบทุกช่อง · PE เชื่อมกลับช่อง PE ของ HOSxP</small>
+                <span class="ml-auto small" id="sum-status"></span>
+            </div>
+            <div class="card-body p-2">
+                <div class="sum-grid" id="sum-grid">
+                    <div><label class="req">PH</label><textarea class="form-control form-control-sm" rows="2" data-s="ph" placeholder="โรคประจำตัว / ยาที่ใช้ / แพ้ยา"></textarea></div>
+                    <div><label class="req">CC</label><textarea class="form-control form-control-sm" rows="2" data-s="cc"></textarea></div>
+                    <div class="full"><label class="req">PI</label><textarea class="form-control form-control-sm" rows="2" data-s="pi"></textarea></div>
+                    <div class="full"><label class="req">PE <span class="hx">→ HOSxP PE</span></label><textarea class="form-control form-control-sm" rows="2" data-s="pe"></textarea></div>
+                    <div><label class="req">Dx</label><textarea class="form-control form-control-sm" rows="2" data-s="dx"></textarea></div>
+                    <div><label class="req">Mx</label><textarea class="form-control form-control-sm" rows="2" data-s="mx" placeholder="การรักษาที่ให้ใน ER"></textarea></div>
+                    <div class="full"><label class="req">Plan</label><textarea class="form-control form-control-sm" rows="2" data-s="plan" placeholder="นัด / คำแนะนำ / ยากลับบ้าน / ward ที่ admit"></textarea></div>
+                </div>
+                <div class="d-flex align-items-center mt-2" id="dispo-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= Nursing Progress Note ================= -->
+    <div id="tab-nn" class="d-none">
+        <div class="card mb-2" id="nn-form-card"><div class="card-body p-2">
+            <div class="d-flex align-items-end" style="gap:.5rem">
+                <div style="width:95px"><label class="small mb-0">เวลา</label><input type="time" class="form-control form-control-sm" id="nn-time"></div>
+                <div class="vs-in" style="flex:0 0 470px">
+                    <div><label>BT</label><input class="form-control form-control-sm" data-v="bt"></div>
+                    <div><label>PR</label><input class="form-control form-control-sm" data-v="pr"></div>
+                    <div><label>SBP</label><input class="form-control form-control-sm" data-v="sbp"></div>
+                    <div><label>DBP</label><input class="form-control form-control-sm" data-v="dbp"></div>
+                    <div><label>RR</label><input class="form-control form-control-sm" data-v="rr"></div>
+                    <div><label>SpO2</label><input class="form-control form-control-sm" data-v="spo2"></div>
+                    <div><label>Pain</label><input class="form-control form-control-sm" data-v="pain"></div>
+                </div>
+                <div class="flex-grow-1"><label class="small mb-0">Nurse note</label><textarea class="form-control form-control-sm" rows="1" id="nn-note" placeholder="พิมพ์บันทึกได้อิสระ"></textarea></div>
+                <button class="btn btn-primary btn-sm" id="nn-save"><i class="fas fa-save"></i> บันทึก</button>
+            </div>
+            <div class="small text-muted mt-1" id="nn-hint"></div>
+        </div></div>
+        <table class="table table-sm table-bordered nn-table">
+            <thead><tr>
+                <th style="width:120px">เวลา</th><th class="vs">BT</th><th class="vs">PR</th><th class="vs">BP</th><th class="vs">RR</th><th class="vs">SpO2</th><th class="vs">Pain</th>
+                <th class="sep">Nurse note</th><th style="width:150px">ผู้บันทึก</th>
+            </tr></thead>
+            <tbody id="nn-body"></tbody>
+        </table>
+    </div>
+</div>
+<!-- /CHANGE-07 -->
+
+<!-- ใบนำส่ง (ชั่วคราว) -->
+<div class="modal fade" id="admitModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header py-2"><h5 class="modal-title">ใบนำส่งผู้ป่วย Admit</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
+    <div class="modal-body">
+        <div class="alert alert-warning py-1 small">แบบฟอร์มชั่วคราว — จะเปลี่ยนเป็นแบบเดียวกับ application ใบนำส่งที่ทำไว้ก่อนหน้า</div>
+        <div class="sum-grid">
+            <div><label class="req">หอผู้ป่วย</label><select class="form-control form-control-sm" id="ad-ward"><option></option><option>อายุรกรรมชาย</option><option>อายุรกรรมหญิง</option><option>ศัลยกรรมชาย</option><option>ศัลยกรรมหญิง</option><option>ศัลยกรรมกระดูก</option><option>กุมารเวชกรรม</option><option>สูติ-นรีเวช</option><option>ICU อายุรกรรม</option><option>ICU ศัลยกรรม</option><option>CCU</option></select></div>
+            <div><label>V/S ล่าสุด</label><input class="form-control form-control-sm" id="ad-vs" readonly></div>
+            <div class="full"><label>สิ่งที่ส่งไปด้วย</label><div id="ad-with" class="small"></div></div>
+            <div class="full"><label>อาการก่อนส่ง / สิ่งที่ต้องติดตาม</label><textarea class="form-control form-control-sm" rows="2" id="ad-note"></textarea></div>
+        </div>
+    </div>
+    <div class="modal-footer py-1"><button class="btn btn-secondary btn-sm" data-dismiss="modal">ปิด</button><button class="btn btn-primary btn-sm" id="ad-send"><i class="fas fa-procedures"></i> ส่ง Admit → KPHIS IPD</button></div>
+</div></div></div>
+<div id="toast" class="t-toast"></div>
+
+<script>
+$(function () {
+    'use strict';
+    var L = TriageScore.LEVELS;
+    var FT = { sepsis: 'Sepsis', stroke45: 'Stroke FT 4.5 hr', stroke24: 'Stroke FT 24 hr', acs: 'Chest pain / ACS' };
+    var view = MOCK.param('view', 'doctor') === 'nurse' ? 'nurse' : 'doctor';
+    var me = ERFlow.ME[view], c = null, accId = null;
+
+    function esc(t) { return $('<i>').text(t == null ? '' : t).html(); }
+    function hn(h) { return String(h || '').replace(/^00/, ''); }
+    function toast(m) { $('#toast').text(m).addClass('show'); setTimeout(function () { $('#toast').removeClass('show'); }, 2500); }
+    function lvb(code) { var lv = L[code] || L.N; return '<span class="lvl-sm" style="background:' + lv.color + ';color:' + lv.text + '">' + code + '</span>'; }
+    function save() { ERFlow.save(); }
+    function closed() { return c.status === 'dc' || c.status === 'admit'; }
+    function markDoctor() { if (view === 'doctor') { if (!c.doctor) c.doctor = me; if (c.exam === 'wait') c.exam = 'done'; } }
+
+    // ชื่อผู้ใช้บน navbar (mockup: login แยกตามบทบาท)
+    $('.navbar .fa-user').parent().html('<i class="fa fa-user"></i> ' + me);
+    $('#back').attr('href', 'er-board.html?view=' + view);
+
+    // ---------- หัว + แถบผู้ป่วย ----------
+    function renderHead() {
+        var t = c.triage || {};
+        $('#h-bed').html((c.team || '-') + '/' + (c.bed || '-') + ' ' + lvb(t.level));
+        $('#exam-sel').val(c.exam || 'wait').toggleClass('d-none', view !== 'doctor' || closed());
+        $('#exam-txt').toggleClass('d-none', view === 'doctor' && !closed()).text(closed() ? (c.status === 'admit' ? 'Admit แล้ว' : 'D/C แล้ว') : ({ wait: 'รอตรวจรักษา', reexam: 'รอตรวจรักษาใหม่', done: 'ตรวจรักษาแล้ว' })[c.exam]);
+        $('#banner').html(
+            '<div class="d-flex"><div class="flex-grow-1">' +
+            '<label class="mb-0">HN : ' + hn(c.hn) + ' | VN : ' + c.vn + ' | QN : ' + c.qn + '</label> | <label class="mb-0">ชื่อ - สกุล : <b>' + esc(c.name) + '</b></label> | <label class="mb-0">อายุ : ' + c.age_y + ' ปี</label> | <label class="mb-0">สิทธิ : ' + esc(c.right) + '</label><br>' +
+            (c.allergy ? '<span class="text-danger font-weight-bold"><i class="fas fa-exclamation-triangle"></i> แพ้ยา : ' + esc(c.allergy) + '</span><br>' : '<span class="text-muted">ไม่มีประวัติแพ้ยา</span><br>') +
+            '<label class="text-primary mb-0">มาถึง : ' + ERFlow.fmt(c.arrive) + '</label> | <label class="mb-0">อยู่ใน ER ' + ERFlow.minsSince(c.arrive) + ' นาที</label>' +
+            (c.doctor ? ' | <label class="mb-0">แพทย์ผู้ตรวจ : ' + esc(c.doctor) + '</label>' : '') +
+            '</div></div>');
+    }
+    $('#exam-sel').on('change', function () { c.exam = $(this).val(); if (!c.doctor) c.doctor = me; save(); renderHead(); toast('อัปเดตสถานะแล้ว'); });
+
+    // ---------- สรุป triage (บนสุดของ Progress note) ----------
+    function renderTri() {
+        var t = c.triage || {}, g = TriageScore.gcsTotal(t);
+        var vs = [t.bt && 'BT ' + t.bt, t.pr && 'PR ' + t.pr, t.sbp && 'BP ' + t.sbp + '/' + t.dbp, t.rr && 'RR ' + t.rr, t.spo2 && 'SpO2 ' + t.spo2 + '%' + (t.on_o2 ? ' (O2)' : ''), t.dtx && 'DTX ' + t.dtx, t.pain && 'Pain ' + t.pain, g !== null && 'GCS E' + t.gcs_e + 'V' + t.gcs_v + 'M' + t.gcs_m + ' = ' + g].filter(Boolean).join(' · ');
+        var h = '<div class="d-flex justify-content-between"><b>Triage ' + lvb(t.level) + ' ' + (L[t.level] ? L[t.level].th : '') + '</b><span class="text-muted">' + (c.triagedAt ? ERFlow.fmt(c.triagedAt) + ' · ' + esc(c.triagedBy) : '') + '</span></div>' +
+            '<div>CC: ' + esc(t.cc || '-').replace(/\n/g, '<br>') + '</div>' +
+            (vs ? '<div>' + vs + '</div>' : '') +
+            ((t.news2 !== undefined || t.sirs !== undefined) ? '<div>NEWS2 ' + (t.news2 !== undefined ? t.news2 : '-') + ' · SIRS ' + (t.sirs !== undefined ? t.sirs + '/3' : '-') + '</div>' : '') +
+            ((t.fasttrack || []).length ? '<div>' + t.fasttrack.map(function (f) { return '<span class="ft-tag">' + FT[f] + '</span>'; }).join(' ') + (t.lkw ? ' LKW ' + ERFlow.fmt(t.lkw) : '') + '</div>' : '');
+        if (t.type === 'trauma') {
+            var M = { traffic: 'อุบัติเหตุจราจร', fall: 'ตกจากที่สูง', assault: 'ถูกทำร้าย', sharp: 'ของมีคม', animal: 'สัตว์กัด', other: 'อื่นๆ' };
+            h += '<div>Trauma: ' + (M[t.mech] || '') + (t.inj_time ? ' · ' + ERFlow.fmt(t.inj_time) : '') + (t.inj_place ? ' · ' + esc(t.inj_place) : '') +
+                (t.helmet ? ' · หมวกนิรภัย: ' + ({ yes: 'สวม', no: 'ไม่สวม', unk: 'ไม่ทราบ' })[t.helmet] : '') + (t.seatbelt ? ' · เข็มขัด: ' + ({ yes: 'คาด', no: 'ไม่คาด', unk: 'ไม่ทราบ' })[t.seatbelt] : '') + '</div>';
+        }
+        var hx = [t.alcohol && 'สุรา: ' + ({ no: 'ไม่ดื่ม', yes: 'ดื่ม', quit: 'เลิกแล้ว', unk: 'ไม่ทราบ' })[t.alcohol], t.smoke && 'บุหรี่: ' + ({ no: 'ไม่สูบ', yes: 'สูบ', quit: 'เลิกแล้ว', unk: 'ไม่ทราบ' })[t.smoke]].filter(Boolean).join(' · ');
+        if (hx) h += '<div class="text-muted">' + hx + '</div>';
+        $('#tri-sum').html(h);
+    }
+
+    // ---------- One Day Order (CHANGE-09: รูปแบบเดิมของ ipd-dr-order-one-day-form) ----------
+    function BTN(list, nl, sep) { return list.map(function (x) { return [x, nl, sep]; }); }
+    var SEC = [
+        { k: 'note', label: 'Note', opts: [] },
+        { k: 'off', label: 'Off' },
+        { k: 'lab', label: 'Lab', search: 1, opts: BTN(['CBC', 'BUN', 'Cr', 'Elyte', 'Ca', 'Mg', 'PO', 'PT', 'PTT', 'LFT', 'H/C x2', 'UA', 'UC', 'Trop-I', 'Lactate', 'Stool examination', 'Stool culture'], 0, ', ') },
+        { k: 'xray', label: 'X-Ray', search: 1, opts: [['CXR', 1], ['P', 0, ' ']].concat(BTN(['CXR include abdomen', 'Film acute abdomen', 'Abdomen supine', 'Abdomen upright', 'Film KUB', 'Pelvis', 'EKG'], 1)) },
+        { k: 'ivfluid', label: 'IV fluid', search: 1, opts: BTN(['0.9% NaCl', '0.45% NaCl', '5%D/W', '10%D/W', '5%D/NSS', '5%D/N/2', '5%D/N/3', '5%D/N/4', '5%D/N/5', 'Acetar', 'Ringer Lactate', '10%D/N/2', '10%D/N/3', '10%D/N/4', '10%D/N/5'], 1).concat(BTN(['500 ml', '1000 ml', '1500 ml', '100 ml', '200 ml', 'Rate ml/hr'], 0, ' ')) },
+        { k: 'record', label: 'Record', opts: BTN(['Record', 'Record V/S', 'Record I/O', 'Record CVP', 'BW OD', 'HC & Length weekly'], 1).concat(BTN(['q 2 hr', 'q 4 hr', 'q 8 hr', 'Keep', 'MAP > 65 mmHg', 'BP > 90/60 mmHg', 'Urine > 50ml', 'Urine > 100ml', 'Urine > 200ml', '8-12 mmHg'], 0, ' ')) },
+        { k: 'med', label: 'Medication', med: 1 },
+        { k: 'retain', label: 'Retain', opts: BTN(['Foley Cath', 'NG', 'OG'], 1) },
+        { k: 'oxygen', label: 'Oxygen', opts: BTN(['Oxygen box', 'HFNC', 'NIPPV', 'PTV mode', 'Vg mode'], 1) },
+        { k: 'blood', label: 'Blood', opts: BTN(['Whole Blood (WB)', 'Packed Red Cells (PRC)', 'Leukocyte Poor Packed Red Cells (LPRC)', 'Platelet Concentrate (PC)', 'Leukodepleted Pool Platelet Concentrate (LDPPC)', 'Fresh Frozen Plasma (FFP)', 'Cryoprecipitate ( Cryo )'], 1) },
+        { k: 'other', label: 'Other', opts: BTN(['DTX', 'HCT', 'MB', 'BG', 'NPO'], 1) },
+        { k: 'discharge', label: 'Discharge', opts: BTN(['Discharge', 'Follow Up', 'Refer Back รพช'], 1) }
+    ];
+    var DRUGS = ['ASPIRIN 300 MG TAB', 'CLOPIDOGREL 75 MG TAB', 'ISOSORBIDE DINITRATE 5 MG SL TAB', 'MORPHINE 10 MG/ML INJ', 'HEPARIN 5,000 UNIT/ML INJ', 'CEFTRIAXONE 1 G INJ', 'PARACETAMOL 500 MG TAB', 'PARACETAMOL 120 MG/5 ML SYR', 'ONDANSETRON 4 MG/2 ML INJ', 'OMEPRAZOLE 40 MG INJ', 'DEXAMETHASONE 4 MG/ML INJ', 'BERODUAL NB', 'ADRENALINE 1 MG/ML INJ', '50% GLUCOSE 50 ML INJ', 'TETANUS TOXOID INJ', 'DICLOFENAC 75 MG/3 ML INJ', 'AMOXICILLIN 500 MG CAP', 'DIAZEPAM 10 MG/2 ML INJ'];
+    var STD = {
+        'Chest pain / ACS': [['xray', 'EKG', '', 1], ['lab', 'CBC, BUN, Cr, Elyte, Trop-I', '', 1], ['med', 'ASPIRIN 300 MG TAB', '1 tab เคี้ยวทันที', 1], ['record', 'Record V/S q 15 min', '', 0], ['other', 'On cardiac monitor', '', 0], ['oxygen', 'O2 cannula 3 LPM keep SpO2 ≥ 90%', '', 0], ['xray', 'CXR portable', '', 0]],
+        'Sepsis bundle (1 ชม.)': [['lab', 'H/C x2, Lactate, CBC, BUN, Cr, Elyte, LFT', '', 1], ['ivfluid', '0.9% NaCl 30 ml/kg IV ถ้า SBP < 90 หรือ lactate ≥ 4', '', 1], ['med', '', 'ATB ภายใน 1 ชม. (ระบุชนิด/ขนาด)', 1], ['record', 'Record V/S q 15 min', '', 0], ['retain', 'Foley Cath', '', 0], ['record', 'Record I/O', '', 0]],
+        'Stroke fast track': [['other', 'DTX', '', 1], ['xray', 'CT brain non-contrast', '', 1], ['lab', 'CBC, PT, PTT, BUN, Cr, Elyte', '', 1], ['other', 'NPO', '', 0], ['record', 'Record V/S + neuro sign q 15 min', '', 0]],
+        'Trauma (primary survey)': [['other', 'C-spine protection', '', 1], ['ivfluid', '0.9% NaCl 1000 ml', '', 1], ['lab', 'CBC, G/M', '', 1], ['other', 'FAST', '', 1], ['xray', 'Film C-spine, CXR, Pelvis', '', 0], ['med', 'TETANUS TOXOID INJ', '0.5 ml IM', 0]],
+        'Asthma / COPD AE': [['med', 'BERODUAL NB', '1 NB q 20 min x 3', 1], ['oxygen', 'O2 keep SpO2 88-92% (COPD) / ≥ 94% (asthma)', '', 1], ['xray', 'CXR', '', 0], ['record', 'Record V/S q 30 min', '', 0]]
+    };
+    function allergyHit(name) {
+        if (!c.allergy || !name) return false;
+        return c.allergy.split(',').some(function (a) { var k = $.trim(a.split('=')[0]).toUpperCase(); return k && name.toUpperCase().indexOf(k) >= 0; });
+    }
+    function blocks() {
+        var m = {}, out = [];
+        (c.orders || []).forEach(function (o) {
+            if (o.draft && view !== 'doctor') return;
+            var k = o.block || o.at; if (!m[k]) { m[k] = { at: k, by: o.by, items: [] }; out.push(m[k]); } m[k].items.push(o);
+        });
+        return out.sort(function (a, b) { return new Date(a.at) - new Date(b.at); });
+    }
+    function itemHtml(o) {
+        var med = o.cat === 'med';
+        var t = (o.cat === 'off' ? '<b>Off</b> ' : '') + esc(o.text) + (o.sig ? (o.text ? '<br>' : '') + esc(o.sig) : '') + (o.stat ? ' <b>(Stat)</b>' : '') + (o.off ? ' <b>(Off)</b>' : '');
+        if (med && allergyHit(o.text)) t += '<br><small class="text-danger">แพ้ยา/เฝ้าระวัง</small>';
+        var r = '';
+        if (!o.draft && !o.off && !closed()) {
+            if (view === 'doctor') { if (o.cat !== 'off' && o.cat !== 'note') r = '<a href="#" data-off="' + o.id + '">Off</a>'; }
+            else r = o.acceptedAt ? '<small class="text-muted">รับ ' + ERFlow.hm(o.acceptedAt) + '</small>' : '<button class="btn btn-danger btn-sm py-0" data-acc="' + o.id + '">รับ</button>';
+        }
+        var pend = view === 'nurse' && !o.acceptedAt && !o.off && !o.draft;
+        return '<div class="oi' + (med ? ' med' : '') + (o.off ? ' off' : '') + (pend ? ' pend nurse' : '') + '"><span class="t">' + t + '</span><span class="s">' + r + '</span></div>';
+    }
+    function renderOrders() {
+        var bs = blocks();
+        $('#orders').html(bs.length ? bs.map(function (b) {
+            var draft = b.items.some(function (o) { return o.draft; });
+            var acc = b.items.filter(function (o) { return o.acceptedAt; }).sort(function (x, y) { return new Date(y.acceptedAt) - new Date(x.acceptedAt); })[0];
+            return '<div class="blk' + (draft ? ' draft' : '') + '"><div class="blk-time">' + ERFlow.fmt(b.at).replace(' ', ', ') + ' น.</div>' + b.items.map(itemHtml).join('') +
+                '<div class="blk-foot">' + esc(b.by) + ', ' + ERFlow.fmt(b.at).replace(' ', ', ') + ' น.' +
+                (acc ? '<br>(RN) ' + esc(acc.acceptedBy) + ', ' + ERFlow.fmt(acc.acceptedAt).replace(' ', ', ') + ' น.' : '') +
+                (draft && view === 'doctor' ? '<br><a href="#" data-bconf="' + b.at + '">[Confirm]</a> <a href="#" data-bedit="' + b.at + '">[Edit]</a> <a href="#" data-bdel="' + b.at + '">[Delete]</a>' : '') +
+                '</div></div>';
+        }).join('') : '<div class="text-muted small">ยังไม่มี order</div>');
+    }
+
+    // ----- ฟอร์ม order ใหม่ -----
+    var lastFocus = {};
+    function openForm() {
+        if (view !== 'doctor' || closed()) return false;
+        if ($('#odf').length) return true;
+        var h = '<div id="odf" class="pt-2 border-top">';
+        SEC.forEach(function (s) {
+            h += '<div class="mb-1" data-sec="' + s.k + '"><span class="font-weight-bold">' + s.label + '</span> ';
+            if (s.k === 'off') h += '<small class="text-muted ml-1">— Off มีผลเมื่อกด Save แล้วกด "ยืนยัน" ใบ Order นี้</small>';
+            else if (s.med) h += '<button type="button" class="btn btn-secondary btn-sm mb-1" data-addrow="med"><i class="fas fa-plus"></i><i class="fas fa-search"></i></button>';
+            else h += '<button type="button" class="btn btn-secondary btn-sm mb-1" data-addrow="' + s.k + '"><i class="fas fa-plus"></i></button>' + (s.search ? ' <button type="button" class="btn btn-secondary btn-sm mb-1" data-search="' + s.k + '"><i class="fas fa-search"></i></button>' : '');
+            h += '<div class="rows"></div>';
+            if (s.opts && s.opts.length) h += '<div class="opts">' + s.opts.map(function (o, i) { return '<button type="button" class="btn btn-secondary btn-sm mb-1 mr-1" data-opt="' + s.k + '|' + i + '">' + esc(o[0]) + '</button>'; }).join('') + '</div>';
+            h += '</div>';
+        });
+        h += '<datalist id="druglist">' + DRUGS.map(function (d) { return '<option value="' + esc(d) + '">'; }).join('') + '</datalist>';
+        h += '<div class="mt-2"><button type="button" class="btn btn-primary" id="o-save">Save</button> <button type="button" class="btn btn-secondary" id="o-cancel">Cancel</button></div></div>';
+        $('#o-editor').html(h); lastFocus = {};
+        return true;
+    }
+    function statBox(on) { return '<div class="input-group-append"><label class="input-group-text mb-0"><input type="checkbox" class="mr-1 o-stat"' + (on ? ' checked' : '') + '>Stat</label><button class="btn btn-danger btn-sm o-del" type="button"><i class="fas fa-minus"></i></button></div>'; }
+    function addRow(k, text, sig, stat, ref) {
+        var $r, $rows = $('#odf [data-sec="' + k + '"] .rows');
+        if (k === 'med') {
+            $r = $('<div class="orow-med mb-1" data-cat="med"><div class="input-group"><input class="form-control form-control-sm o-drug" list="druglist" placeholder="ค้นหา / พิมพ์ชื่อยา">' + statBox(stat) + '</div>' +
+                '<textarea class="form-control form-control-sm o-sig" rows="1" placeholder="วิธีใช้ เช่น 1 tab oral ทันที"></textarea></div>');
+            $r.find('.o-drug').val(text || ''); $r.find('.o-sig').val(sig || '');
+        } else if (k === 'off') {
+            $r = $('<div class="input-group mb-1" data-cat="off" data-ref="' + ref + '"><textarea class="form-control form-control-sm o-text" rows="1" readonly></textarea><div class="input-group-append"><button class="btn btn-danger btn-sm o-del" type="button"><i class="fas fa-minus"></i></button></div></div>');
+            $r.find('.o-text').val(text);
+        } else {
+            $r = $('<div class="input-group mb-1" data-cat="' + k + '"><textarea class="form-control form-control-sm o-text" rows="2"></textarea>' + (k === 'note' ? '<div class="input-group-append"><button class="btn btn-danger btn-sm o-del" type="button"><i class="fas fa-minus"></i></button></div>' : statBox(stat)) + '</div>');
+            $r.find('.o-text').val(text || '');
+        }
+        $rows.append($r); lastFocus[k] = $r;
+        return $r;
+    }
+    $('#o-add').on('click', function (e) {
+        e.preventDefault(); if (view !== 'doctor') return toast('เฉพาะแพทย์สั่ง order');
+        if (openForm()) $('#odf')[0].scrollIntoView({ block: 'start' });
+    });
+    $('#o-editor').on('click', '[data-addrow]', function () { var k = $(this).data('addrow'), $r = addRow(k, ''); $r.find('textarea, input').first().focus(); });
+    $('#o-editor').on('click', '[data-search]', function () { toast('ค้นหารายการ (ระบบจริงเปิดหน้าค้นหาของ KPHIS)'); });
+    $('#o-editor').on('focus', '[data-cat] textarea, [data-cat] input', function () { var $r = $(this).closest('[data-cat]'); lastFocus[$r.data('cat')] = $r; });
+    $('#o-editor').on('click', '[data-opt]', function () {
+        var p = $(this).data('opt').split('|'), k = p[0], o = SEC.filter(function (s) { return s.k === k; })[0].opts[+p[1]];
+        var $r = lastFocus[k];
+        if (o[1] || !$r || !$r.closest('body').length) { addRow(k, o[0]); return; }
+        var $t = $r.find('.o-text'), v = $t.val();
+        $t.val(v ? v + (o[2] || ' ') + o[0] : o[0]);
+    });
+    $('#o-editor').on('click', '.o-del', function () { $(this).closest('[data-cat]').remove(); });
+    $('#o-editor').on('click', '#o-cancel', function () { $('#o-editor').empty(); });
+    $('#o-editor').on('click', '#o-save', function () {
+        var at = new Date().toISOString(), items = [];
+        $('#odf [data-cat]').each(function () {
+            var $r = $(this), k = $r.data('cat'), stat = $r.find('.o-stat').prop('checked') || false;
+            if (k === 'med') {
+                var d = $.trim($r.find('.o-drug').val()), sg = $.trim($r.find('.o-sig').val());
+                if (d || sg) items.push({ cat: 'med', text: d, sig: sg, stat: stat });
+            } else {
+                var t = $.trim($r.find('.o-text').val());
+                if (t) items.push({ cat: k, text: t, stat: stat, ref: $r.data('ref') || null });
+            }
+        });
+        if (!items.length) return toast('ยังไม่มีรายการ');
+        items.forEach(function (o) { o.id = ERFlow.uid('o'); o.block = at; o.at = at; o.by = me; o.draft = true; o.acceptedAt = null; });
+        c.orders = (c.orders || []).concat(items); save();
+        $('#o-editor').empty(); renderOrders(); toast('Save แล้ว — กด [Confirm] เพื่อยืนยันใบ order');
+    });
+    function blockItems(at) { return (c.orders || []).filter(function (o) { return (o.block || o.at) === at; }); }
+    $('#orders').on('click', '[data-bconf]', function (e) {
+        e.preventDefault(); var at = $(this).data('bconf'), n = 0;
+        blockItems(at).forEach(function (o) {
+            o.draft = false; n++;
+            if (o.cat === 'off' && o.ref) c.orders.forEach(function (x) { if (x.id === o.ref) { x.off = true; x.offAt = new Date().toISOString(); } });
+        });
+        markDoctor(); save(); renderAll(); toast('ยืนยัน order แล้ว — แจ้งพยาบาล ' + n + ' รายการ');
+    });
+    $('#orders').on('click', '[data-bdel]', function (e) {
+        e.preventDefault(); var at = $(this).data('bdel');
+        c.orders = c.orders.filter(function (o) { return (o.block || o.at) !== at; }); save(); renderOrders();
+    });
+    $('#orders').on('click', '[data-bedit]', function (e) {
+        e.preventDefault(); var at = $(this).data('bedit'), its = blockItems(at);
+        c.orders = c.orders.filter(function (o) { return (o.block || o.at) !== at; }); save(); renderOrders();
+        openForm(); its.forEach(function (o) { addRow(o.cat || 'other', o.text, o.sig, o.stat, o.ref); });
+        $('#odf')[0].scrollIntoView({ block: 'start' });
+    });
+    // standing order → เติมลงฟอร์ม
+    $('#std-menu').html(Object.keys(STD).map(function (k) { return '<a class="dropdown-item" href="#" data-std="' + esc(k) + '">' + esc(k) + '</a>'; }).join('') +
+        '<div class="dropdown-divider"></div><span class="dropdown-item-text small text-muted">ตัวอย่าง — แก้ไขได้ก่อน Save</span>');
+    $('#std-menu').on('click', '[data-std]', function (e) {
+        e.preventDefault(); if (!openForm()) return;
+        STD[$(this).data('std')].forEach(function (x) { addRow(x[0], x[1], x[2], x[3]); });
+        $('#odf')[0].scrollIntoView({ block: 'start' }); toast('เติม standing order ลงฟอร์มแล้ว');
+    });
+    // Off รายการเดิม → ลงช่อง Off ของฟอร์ม
+    $('#orders').on('click', '[data-off]', function (e) {
+        e.preventDefault(); var id = $(this).data('off'), o = c.orders.filter(function (x) { return x.id === id; })[0];
+        if (!openForm()) return;
+        if ($('#odf [data-cat="off"][data-ref="' + id + '"]').length) return;
+        addRow('off', o.text + (o.sig ? ' ' + o.sig : ''), '', false, id);
+        $('#odf [data-sec="off"]')[0].scrollIntoView({ block: 'center' });
+    });
+    // พยาบาลรับ order → ไปหน้า nurse note อัตโนมัติ
+    $('#orders').on('click', '[data-acc]', function () {
+        var id = $(this).data('acc'), o = c.orders.filter(function (x) { return x.id === id; })[0];
+        o.acceptedAt = new Date().toISOString(); o.acceptedBy = me; accId = o.id; save();
+        renderOrders();
+        showTab('nn');
+        $('#nn-time').val(ERFlow.hm(new Date()));
+        $('#nn-note').val('รับ order: ' + (o.cat === 'off' ? 'Off ' : '') + o.text + (o.sig ? ' ' + o.sig : '') + (o.stat ? ' (Stat)' : '') + ' — ').focus();
+        $('#nn-hint').html('<i class="fas fa-info-circle"></i> รับ order แล้ว ' + ERFlow.hm(o.acceptedAt) + ' — บันทึกเวลาทำหัตถการ / V/S แล้วกดบันทึก · <a href="#" data-tab-go="order">กลับไปหน้า Order</a>');
+    });
+
+    // ---------- Progress note ----------
+    function renderNotes() {
+        var ns = (c.notes || []).slice().sort(function (a, b) { return new Date(a.at) - new Date(b.at); });
+        $('#notes').html(ns.map(function (n) {
+            var mine = n.by === me && !closed();
+            return '<div class="blk" data-note="' + n.id + '"><div class="blk-time">' + ERFlow.fmt(n.at) + ' น. (' + (n.role === 'nurse' ? 'Nurse' : 'Doctor') + ')</div>' +
+                '<div class="note-text">' + esc(n.text) + '</div>' +
+                '<div class="blk-foot">' + esc(n.by) + ', ' + ERFlow.fmt(n.editedAt || n.at) + ' น.' + (n.editedAt ? ' (แก้ไข)' : '') + (mine ? '<br><a href="#" data-edit="' + n.id + '">[Edit]</a> <a href="#" data-del="' + n.id + '">[Delete]</a>' : '') + '</div></div>';
+        }).join('') || '<div class="text-muted small mb-2">ยังไม่มี progress note</div>');
+    }
+    function noteEditor(n) {
+        if (closed()) return;
+        $('#n-editor').html('<div class="editor"><div class="small font-weight-bold mb-1">' + (n ? 'แก้ไข note' : 'Progress note ใหม่ — ' + ERFlow.fmt(new Date())) + '</div>' +
+            '<textarea class="form-control form-control-sm" rows="5" id="n-text" placeholder="S:\nO:\nA:\nP:">' + esc(n ? n.text : '') + '</textarea>' +
+            '<div class="text-right mt-1"><button class="btn btn-light btn-sm" id="n-cancel">ยกเลิก</button> <button class="btn btn-primary btn-sm" id="n-confirm" data-id="' + (n ? n.id : '') + '"><i class="fas fa-check"></i> ยืนยัน</button></div></div>');
+        $('#n-text').focus();
+    }
+    $('#n-add').on('click', function (e) { e.preventDefault(); noteEditor(); });
+    $('#notes').on('click', '[data-edit]', function (e) { e.preventDefault(); var id = $(this).data('edit'); noteEditor(c.notes.filter(function (n) { return n.id === id; })[0]); });
+    $('#notes').on('click', '[data-del]', function (e) {
+        e.preventDefault(); var id = $(this).data('del');
+        c.notes = c.notes.filter(function (n) { return n.id !== id; }); save(); renderNotes();
+    });
+    $('#n-editor').on('click', '#n-cancel', function () { $('#n-editor').empty(); });
+    $('#n-editor').on('click', '#n-confirm', function () {
+        var t = $.trim($('#n-text').val()), id = $(this).data('id');
+        if (!t) return toast('ยังไม่มีข้อความ');
+        if (id) c.notes.forEach(function (n) { if (n.id === id) { n.text = t; n.editedAt = new Date().toISOString(); } });
+        else c.notes.push({ id: ERFlow.uid('n'), at: new Date().toISOString(), by: me, role: view, text: t });
+        markDoctor(); save(); $('#n-editor').empty(); renderAll(); toast('บันทึก note แล้ว');
+    });
+
+    // ---------- สรุปการรักษา + D/C / Admit (CHANGE-09: ซ่อนไว้ ขึ้นเมื่อกด D/C หรือ Admit) ----------
+    var SK = ['ph', 'cc', 'pi', 'pe', 'dx', 'mx', 'plan'], sumMode = null;
+    var DL = { dc: 'D/C', admit: 'Admit' };
+    function sumVal() { var s = {}; SK.forEach(function (k) { s[k] = $.trim($('[data-s="' + k + '"]').val()); }); return s; }
+    function sumDone(s) { return SK.every(function (k) { return s[k]; }); }
+    function renderSum() {
+        var s = c.summary || {}, d = c.dispo, show = !!(sumMode || d || closed());
+        $('#sum-card').toggleClass('d-none', !show);
+        var type = sumMode || (d && d.type) || c.disposition;
+        $('#sum-title').text('สรุปการรักษา' + (type ? ' — ' + DL[type] : ''));
+        SK.forEach(function (k) {
+            var v = s[k] !== undefined ? s[k] : (k === 'cc' ? (c.triage || {}).cc || '' : k === 'dx' ? c.dx || '' : k === 'ph' && c.allergy ? 'แพ้ยา: ' + c.allergy : '');
+            $('[data-s="' + k + '"]').val(v).prop('readonly', view !== 'doctor' || closed() || !!d);
+        });
+        // ปุ่มด้านล่างหน้า Order (แพทย์)
+        $('#end-bar').html(view === 'doctor' && !closed() && !d && !sumMode
+            ? '<button class="btn btn-outline-success btn-sm mr-1" data-open="dc"><i class="fas fa-home"></i> D/C</button><button class="btn btn-outline-primary btn-sm" data-open="admit"><i class="fas fa-procedures"></i> Admit</button>'
+            : '');
+        updDispo();
+    }
+    function updDispo() {
+        var s = sumVal(), done = sumDone(s), d = c.dispo, h = '';
+        var miss = SK.filter(function (k) { return !s[k]; }).map(function (k) { return k.toUpperCase(); });
+        $('#sum-status').html(c.summary && c.summary.at ? 'บันทึกโดย ' + esc(c.summary.by) + ' ' + ERFlow.fmt(c.summary.at) : '');
+        if (closed()) {
+            h = '<div class="text-muted"><i class="fas fa-check-circle"></i> ' + (c.status === 'admit' ? 'Admit แล้ว — ส่งข้อมูลไป KPHIS IPD' + (c.admitForm ? ' (' + esc(c.admitForm.ward) + ')' : '') : 'D/C แล้ว — บันทึก KPHIS ER + HOSxP') + ' · ' + ERFlow.fmt(c.endAt) + ' · ' + esc(c.endBy || '') + '</div>';
+        } else if (view === 'doctor') {
+            if (d) h = '<span class="mr-2">สั่ง <b>' + DL[d.type] + '</b> แล้ว · ' + ERFlow.fmt(d.at) + ' · รอพยาบาลดำเนินการ</span><button class="btn btn-light btn-sm" id="dispo-cancel">ยกเลิกคำสั่ง</button>';
+            else if (sumMode) h = '<button class="btn btn-' + (sumMode === 'dc' ? 'success' : 'primary') + ' btn-sm mr-1" id="dispo-ok"' + (done ? '' : ' disabled') + '>ยืนยัน ' + DL[sumMode] + '</button>' +
+                '<button class="btn btn-light btn-sm" id="dispo-close">ยกเลิก</button>' + (done ? '' : '<span class="small text-danger ml-2">ลงให้ครบก่อน: ' + miss.join(', ') + '</span>');
+        } else if (d) {
+            if (d.type === 'dc') h = '<span class="mr-2">แพทย์สั่ง <b>D/C</b> · ' + esc(d.by) + ' ' + ERFlow.fmt(d.at) + '</span><button class="btn btn-success btn-sm" id="do-dc"><i class="fas fa-home"></i> จำหน่าย D/C (บันทึก KPHIS ER + HOSxP)</button>';
+            else h = '<span class="mr-2">แพทย์สั่ง <b>Admit</b> · ' + esc(d.by) + ' ' + ERFlow.fmt(d.at) + '</span><button class="btn btn-primary btn-sm" id="do-admit"><i class="fas fa-file-medical"></i> บันทึกใบนำส่ง</button>';
+        }
+        $('#dispo-bar').html(h);
+    }
+    $('#sum-grid').on('input', 'textarea', function () { if (view === 'doctor' && sumMode) updDispo(); });
+    function saveSum() { var s = sumVal(); s.by = me; s.at = new Date().toISOString(); c.summary = s; if (s.dx) c.dx = s.dx; markDoctor(); save(); }
+    $('#end-bar').on('click', '[data-open]', function () {
+        sumMode = $(this).data('open'); renderSum(); $('#sum-card')[0].scrollIntoView({ block: 'start' });
+        var first = SK.filter(function (k) { return !$('[data-s="' + k + '"]').val(); })[0]; if (first) $('[data-s="' + first + '"]').focus();
+    });
+    $('#dispo-bar').on('click', '#dispo-close', function () { saveSum(); sumMode = null; renderAll(); });
+    $('#dispo-bar').on('click', '#dispo-ok', function () {
+        saveSum(); c.dispo = { type: sumMode, by: me, at: new Date().toISOString() }; c.exam = 'done'; sumMode = null; save();
+        renderAll(); toast('สั่ง ' + DL[c.dispo.type] + ' แล้ว — แจ้งพยาบาล');
+    });
+    $('#dispo-bar').on('click', '#dispo-cancel', function () { c.dispo = null; save(); renderAll(); });
+    function finish(type) { c.status = type; c.disposition = type; c.endAt = new Date().toISOString(); c.endBy = me; save(); renderAll(); }
+    $('#dispo-bar').on('click', '#do-dc', function () { finish('dc'); toast('D/C แล้ว — บันทึก KPHIS ER และ HOSxP (mockup)'); });
+    $('#dispo-bar').on('click', '#do-admit', function () {
+        var last = lastVs();
+        $('#ad-vs').val(last ? 'BT ' + (last.bt || '-') + ' PR ' + (last.pr || '-') + ' BP ' + (last.sbp || '-') + '/' + (last.dbp || '-') + ' RR ' + (last.rr || '-') + ' SpO2 ' + (last.spo2 || '-') + '%' : '');
+        $('#ad-with').html(['IV fluid', 'O2', 'Foley cath', 'NG tube', 'ET tube', 'ฟิล์ม X-ray / CD', 'ผล Lab', 'ยาที่ติดตัวผู้ป่วย'].map(function (x) { return '<label class="mr-3 mb-0"><input type="checkbox" value="' + x + '"> ' + x + '</label>'; }).join(''));
+        $('#admitModal').modal('show');
+    });
+    $('#ad-send').on('click', function () {
+        if (!$('#ad-ward').val()) return toast('เลือกหอผู้ป่วย');
+        c.admitForm = { ward: $('#ad-ward').val(), vs: $('#ad-vs').val(), with: $('#ad-with :checked').map(function () { return this.value; }).get(), note: $('#ad-note').val(), by: me, at: new Date().toISOString() };
+        $('#admitModal').modal('hide'); finish('admit'); toast('ส่ง Admit แล้ว — คัดลอกข้อมูลไป KPHIS IPD (mockup)');
+    });
+
+    // ---------- Nursing progress note (timeline) ----------
+    function lastVs() {
+        var all = (c.nnotes || []).filter(function (n) { return n.pr || n.sbp; }).sort(function (a, b) { return new Date(b.at) - new Date(a.at); });
+        return all[0] || c.triage;
+    }
+    function renderNN() {
+        var t = c.triage || {};
+        var rows = (c.nnotes || []).slice();
+        if (c.triagedAt) rows.push({ at: c.triagedAt, by: c.triagedBy, bt: t.bt, pr: t.pr, sbp: t.sbp, dbp: t.dbp, rr: t.rr, spo2: t.spo2, pain: t.pain, note: 'Triage ระดับ ' + (t.level || '-') + ' — ' + (t.cc || '').replace(/\n/g, ' · '), tri: true });
+        (c.orders || []).forEach(function (o) { if (o.acceptedAt && !(c.nnotes || []).some(function (n) { return n.orderId === o.id; })) rows.push({ at: o.acceptedAt, by: o.acceptedBy, note: 'รับ order: ' + o.text, auto: true }); });
+        rows.sort(function (a, b) { return new Date(a.at) - new Date(b.at); });
+        $('#nn-count').text((c.nnotes || []).length || '');
+        $('#nn-body').html(rows.map(function (n) {
+            return '<tr' + (n.tri ? ' class="hl"' : '') + '><td>' + ERFlow.fmt(n.at) + '</td><td class="vs">' + (n.bt || '') + '</td><td class="vs">' + (n.pr || '') + '</td><td class="vs">' + (n.sbp ? n.sbp + '/' + (n.dbp || '') : '') + '</td><td class="vs">' + (n.rr || '') + '</td><td class="vs">' + (n.spo2 || '') + '</td><td class="vs">' + (n.pain || '') + '</td>' +
+                '<td class="sep note-text' + (n.auto ? ' text-muted' : '') + '">' + esc(n.note) + '</td><td class="small">' + esc(n.by) + '</td></tr>';
+        }).join(''));
+        $('#nn-form-card').toggleClass('d-none', closed());
+    }
+    $('#nn-save').on('click', function () {
+        var tm = $('#nn-time').val() || ERFlow.hm(new Date()), d = new Date(); d.setHours(+tm.split(':')[0], +tm.split(':')[1], 0, 0);
+        var n = { id: ERFlow.uid('v'), at: d.toISOString(), by: me, note: $.trim($('#nn-note').val()) };
+        $('#nn-form-card [data-v]').each(function () { n[$(this).data('v')] = $.trim($(this).val()); });
+        if (!n.note && !n.pr && !n.sbp && !n.bt) return toast('ยังไม่มีข้อมูล');
+        if (accId) { n.orderId = accId; accId = null; }
+        c.nnotes.push(n); save();
+        $('#nn-form-card [data-v]').val(''); $('#nn-note').val(''); $('#nn-hint').empty(); $('#nn-time').val(ERFlow.hm(new Date()));
+        renderNN(); toast('บันทึก nurse note แล้ว');
+    });
+
+    // ---------- tabs ----------
+    function showTab(t) {
+        $('#tabs [data-tab]').removeClass('active').filter('[data-tab="' + t + '"]').addClass('active');
+        $('#tab-order').toggleClass('d-none', t !== 'order'); $('#tab-nn').toggleClass('d-none', t !== 'nn');
+        if (t === 'nn' && !$('#nn-time').val()) $('#nn-time').val(ERFlow.hm(new Date()));
+    }
+    $('#tabs').on('click', '[data-tab]', function (e) { e.preventDefault(); showTab($(this).data('tab')); });
+    $(document).on('click', '[data-tab-go]', function (e) { e.preventDefault(); showTab($(this).data('tab-go')); });
+
+    function renderAll() {
+        renderHead(); renderTri(); renderOrders(); renderNotes(); renderSum(); renderNN();
+        var lock = closed();
+        $('#o-add').toggle(view === 'doctor' && !lock); $('#std-bar').toggleClass('d-none', view !== 'doctor' || lock); $('#n-add').toggle(!lock);
+    }
+
+    c = ERFlow.get(MOCK.param('id', ''));
+    if (!c) {
+        var first = ERFlow.cases('triaged')[0];
+        if (first) { location.replace('er-case.html?id=' + first.id + '&view=' + view); return; }
+        $('.container-fluid').html('<div class="alert alert-light border m-3">ไม่พบเคส — <a href="er-board.html">กลับกระดาน</a></div>'); return;
+    }
+    renderAll();
+    if (location.hash === '#nn') showTab('nn');
+    // CHANGE-13: เครื่องอื่นบันทึก → อัปเดตหน้า (ยกเว้นตอนกำลังพิมพ์ฟอร์ม)
+    window.addEventListener('erflow-remote', function () {
+        if ($('#odf').length || $('#n-text').length || sumMode || $('#admitModal').hasClass('show')) return;
+        if (!ERFlow.get(c.id)) return;
+        renderAll();
+    });
+});
+</script>
+</body>
+</html>
