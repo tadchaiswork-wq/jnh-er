@@ -1,0 +1,206 @@
+<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPHIS ER Mockup — ตั้งค่าเตียง ER</title>
+<link href="assets/favicon.ico" rel="shortcut icon">
+<link rel="stylesheet" href="assets/theme.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" href="assets/project.css"><link rel="stylesheet" href="assets/mock.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap4.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment-with-locales.min.js"></script>
+<script src="assets/mock.js"></script></head><body>
+<div id="mock-navbar"></div>
+<div class="container-fluid mt-3">
+    <h4>ตั้งค่าเตียง ER</h4>
+    <p class="text-muted mb-3">เตียงที่เปิดใช้งานจะแสดงในช่อง "เตียง" ตอนเพิ่มใบ Order ER (เตียงที่เคยใช้แล้วลบไม่ได้ ให้ปิดใช้งานแทน)</p>
+    <div class="row">
+        <div class="col-lg-5 mb-3">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>ประเภทเตียง</strong>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="openBedTypeModal(null)"><i class="fas fa-plus"></i> เพิ่มประเภท</button>
+                </div>
+                <div class="card-body p-2">
+                    <table class="table table-sm table-bordered table-hover mb-0">
+                        <thead>
+                            <tr><th>ลำดับ</th><th>รหัส</th><th>ชื่อประเภท</th><th>จำนวนเตียง</th><th>สถานะ</th><th></th></tr>
+                        </thead>
+                        <tbody id="bed_type_table_body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-7 mb-3">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>เตียง</strong>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="openBedModal(null)"><i class="fas fa-plus"></i> เพิ่มเตียง</button>
+                </div>
+                <div class="card-body p-2">
+                    <table class="table table-sm table-bordered table-hover mb-0">
+                        <thead>
+                            <tr><th>ลำดับ</th><th>ประเภท</th><th>เตียง</th><th>แสดงในรายการ</th><th>สถานะ</th><th></th></tr>
+                        </thead>
+                        <tbody id="bed_table_body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="bedTypeModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <form class="modal-content" onsubmit="return MOCK.notice('บันทึกประเภทเตียง')">
+            <div class="modal-header">
+                <h5 class="modal-title" id="bedTypeModalTitle">ประเภทเตียง</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="bed_type_code">รหัสประเภท (ไม่เกิน 10 ตัวอักษร, แก้ภายหลังไม่ได้)</label>
+                    <input type="text" class="form-control" id="bed_type_code" maxlength="10" required>
+                </div>
+                <div class="form-group">
+                    <label for="bed_type_name">ชื่อประเภท (แสดงหน้าเลขเตียง เช่น Resus, Urgent)</label>
+                    <input type="text" class="form-control" id="bed_type_name" maxlength="100" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col">
+                        <label for="bed_type_color">สี</label>
+                        <input type="color" class="form-control" id="bed_type_color" value="#007bff">
+                    </div>
+                    <div class="form-group col">
+                        <label for="bed_type_display_order">ลำดับ</label>
+                        <input type="number" class="form-control" id="bed_type_display_order">
+                    </div>
+                    <div class="form-group col">
+                        <label for="bed_type_active">สถานะ</label>
+                        <select class="form-control" id="bed_type_active">
+                            <option value="Y">ใช้งาน</option>
+                            <option value="N">ปิดใช้งาน</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">ยกเลิก</button>
+                <button type="submit" class="btn btn-primary">บันทึก</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="modal fade" id="bedModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <form class="modal-content" onsubmit="return MOCK.notice('บันทึกเตียง')">
+            <div class="modal-header">
+                <h5 class="modal-title" id="bedModalTitle">เตียง</h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="bed_bed_type">ประเภทเตียง</label>
+                    <select class="form-control" id="bed_bed_type" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="bed_bedno">เลขเตียง</label>
+                    <input type="text" class="form-control" id="bed_bedno" maxlength="20" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col">
+                        <label for="bed_display_order">ลำดับ</label>
+                        <input type="number" class="form-control" id="bed_display_order">
+                    </div>
+                    <div class="form-group col">
+                        <label for="bed_active">สถานะ</label>
+                        <select class="form-control" id="bed_active">
+                            <option value="Y">ใช้งาน</option>
+                            <option value="N">ปิดใช้งาน</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">ยกเลิก</button>
+                <button type="submit" class="btn btn-primary">บันทึก</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// ข้อมูลสมมติ (รูปแบบเดียวกับ setting-er-bed-data.php)
+var bedTypes = [
+    {bed_type: 'R', bed_type_name: 'Resus', bed_type_color: '#e51616', display_order: 1, active: 'Y'},
+    {bed_type: 'U', bed_type_name: 'Urgent', bed_type_color: '#ff7024', display_order: 2, active: 'Y'},
+    {bed_type: 'O', bed_type_name: 'Obs', bed_type_color: '#07689F', display_order: 3, active: 'Y'},
+    {bed_type: 'F', bed_type_name: 'Fast Track', bed_type_color: '#11a39a', display_order: 4, active: 'Y'},
+    {bed_type: 'COVID', bed_type_name: 'แยกโรค', bed_type_color: '#6c757d', display_order: 5, active: 'N'}
+];
+var beds = [];
+[['R', 2], ['U', 4], ['O', 4], ['F', 2], ['COVID', 1]].forEach(function (x) {
+    for (var i = 1; i <= x[1]; i++) beds.push({opd_er_bed_id: beds.length + 1, bed_type: x[0], bedno: String(i), display_order: i, active: (x[0] == 'COVID' || (x[0] == 'O' && i == 4)) ? 'N' : 'Y'});
+});
+function typeOf(code) { return bedTypes.filter(function (t) { return t.bed_type == code; })[0] || {}; }
+function activeBadge(active) {
+    return active === 'N'
+        ? $('<span>', {'class': 'badge badge-secondary', text: 'ปิดใช้งาน'})
+        : $('<span>', {'class': 'badge badge-success', text: 'ใช้งาน'});
+}
+function colorBadge(color, text) {
+    return $('<span>', {'class': 'badge', style: 'color: white; background-color: ' + (color || '#6c757d') + ';', text: text});
+}
+function renderBedTypes() {
+    var body = $('#bed_type_table_body').empty();
+    bedTypes.forEach(function (t) {
+        var count = beds.filter(function (b) { return b.bed_type == t.bed_type; }).length;
+        $('<tr>').append(
+            $('<td>', {text: t.display_order}),
+            $('<td>', {text: t.bed_type}),
+            $('<td>').append(colorBadge(t.bed_type_color, t.bed_type_name)),
+            $('<td>', {text: count}),
+            $('<td>').append(activeBadge(t.active)),
+            $('<td>').append($('<button>', {type: 'button', 'class': 'btn btn-outline-primary btn-sm', text: 'แก้ไข', click: function () { openBedTypeModal(t); }}))
+        ).appendTo(body);
+    });
+    var select = $('#bed_bed_type').empty();
+    bedTypes.forEach(function (t) {
+        select.append($('<option>', {value: t.bed_type, text: t.bed_type_name + (t.active === 'N' ? ' (ปิดใช้งาน)' : '')}));
+    });
+}
+function renderBeds() {
+    var body = $('#bed_table_body').empty();
+    beds.forEach(function (b) {
+        var t = typeOf(b.bed_type);
+        $('<tr>').append(
+            $('<td>', {text: b.display_order}),
+            $('<td>', {text: t.bed_type_name || b.bed_type}),
+            $('<td>', {text: b.bedno}),
+            $('<td>').append(colorBadge(t.bed_type_color, (t.bed_type_name || '') + ' ' + b.bedno)),
+            $('<td>').append(activeBadge(b.active)),
+            $('<td>').append($('<button>', {type: 'button', 'class': 'btn btn-outline-primary btn-sm', text: 'แก้ไข', click: function () { openBedModal(b); }}))
+        ).appendTo(body);
+    });
+}
+function openBedTypeModal(t) {
+    $('#bedTypeModalTitle').text(t ? 'แก้ไขประเภทเตียง' : 'เพิ่มประเภทเตียง');
+    $('#bed_type_code').val(t ? t.bed_type : '').prop('readonly', !!t);
+    $('#bed_type_name').val(t ? t.bed_type_name : '');
+    $('#bed_type_color').val(t && t.bed_type_color ? t.bed_type_color : '#007bff');
+    $('#bed_type_display_order').val(t ? t.display_order : bedTypes.length + 1);
+    $('#bed_type_active').val(t ? (t.active === 'N' ? 'N' : 'Y') : 'Y');
+    $('#bedTypeModal').modal('show');
+}
+function openBedModal(b) {
+    $('#bedModalTitle').text(b ? 'แก้ไขเตียง' : 'เพิ่มเตียง');
+    $('#bed_bed_type').val(b ? b.bed_type : bedTypes[0].bed_type);
+    $('#bed_bedno').val(b ? b.bedno : '');
+    $('#bed_display_order').val(b ? b.display_order : beds.length + 1);
+    $('#bed_active').val(b ? (b.active === 'N' ? 'N' : 'Y') : 'Y');
+    $('#bedModal').modal('show');
+}
+$(function () { renderBedTypes(); renderBeds(); });
+</script>
+<div class="mock-ribbon">MOCKUP — ข้อมูลสมมติ · <a href="index.html">สารบัญ</a></div>
+</body></html>
