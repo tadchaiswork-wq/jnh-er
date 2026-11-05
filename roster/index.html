@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<script src="../time-sync.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>จัดเวรพยาบาล ER — JNH</title>
+<link rel="icon" href="icon.svg">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f766e">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="../firebase-config.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+:root{--bg:#f1f5f9;--panel:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--brand:#0f766e;--brand-d:#115e59;
+ --m:#2563eb;--m-bg:#dbeafe;--a:#d97706;--a-bg:#fef3c7;--n:#7c3aed;--n-bg:#ede9fe;--off:#64748b;--off-bg:#e2e8f0;--bad:#dc2626;--bad-bg:#fee2e2;--ok:#16a34a;
+ --shadow:0 1px 3px rgba(15,23,42,.07),0 6px 18px rgba(15,23,42,.06)}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);color:var(--ink);font-family:'Sarabun',system-ui,sans-serif;font-size:15px}
+button,select,input{font-family:inherit;font-size:15px}
+.hdr{background:var(--brand-d);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:30}
+.hdr .t{font-size:17px;font-weight:800;flex:1;line-height:1.15}
+.hdr .t small{display:block;font-size:11px;font-weight:500;color:#99f6e4}
+.gear{background:rgba(255,255,255,.16);border:none;color:#fff;border-radius:10px;width:40px;height:40px;font-size:18px;cursor:pointer}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:56px;z-index:20}
+.mnav{display:flex;align-items:center;gap:6px}
+.mnav button{border:1px solid var(--line);background:#fff;border-radius:9px;width:34px;height:34px;font-size:16px;cursor:pointer}
+.mnav b{min-width:120px;text-align:center;font-size:15px}
+.btn{border:none;border-radius:10px;padding:9px 14px;font-weight:700;cursor:pointer;background:var(--brand);color:#fff}
+.btn.sm{padding:7px 11px;font-size:13.5px;border-radius:9px}
+.btn.gray{background:#e2e8f0;color:#334155}.btn.ok{background:var(--ok)}.btn.red{background:var(--bad)}
+.btn.ghost{background:#fff;color:var(--brand-d);border:1px solid var(--line)}
+.sel{border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;background:#fff;max-width:230px}
+.pill{font-size:12px;padding:3px 10px;border-radius:999px;background:#ccfbf1;color:#115e59;font-weight:700}
+.hint{font-size:12.5px;color:var(--muted);padding:6px 14px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:#475569;padding:6px 14px}
+.legend i{display:inline-block;width:20px;height:16px;border-radius:5px;vertical-align:-3px;margin-right:4px;font-style:normal;text-align:center;font-weight:800;font-size:11px;line-height:16px}
+.lm{background:var(--m-bg);color:var(--m)}.la{background:var(--a-bg);color:var(--a)}.ln{background:var(--n-bg);color:var(--n)}.lo{background:var(--off-bg);color:var(--off)}
+/* matrix */
+.wrap{overflow:auto;max-height:calc(100vh - 170px);border-top:1px solid var(--line)}
+table.grid{border-collapse:separate;border-spacing:0;font-size:13px}
+table.grid th,table.grid td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+.gname{position:sticky;left:0;z-index:5;background:#fff;text-align:left!important;padding:4px 8px;min-width:132px;max-width:132px;overflow:hidden;text-overflow:ellipsis;font-weight:600;border-right:2px solid #cbd5e1}
+thead .gname{z-index:7}
+thead th{position:sticky;top:0;z-index:6;background:#f8fafc;color:#334155;font-weight:700;padding:3px 0;min-width:30px}
+thead th.we{background:#fde68a;color:#92400e}
+.rolehdr td{background:#f1f5f9;font-weight:800;color:var(--brand-d);text-align:left;padding:4px 8px;position:sticky;left:0}
+.cell{min-width:30px;height:30px;cursor:pointer;font-weight:800;font-size:12px;padding:0}
+.cell.we{background:#fffbeb}
+.cell.m{background:var(--m-bg);color:var(--m)}.cell.a{background:var(--a-bg);color:var(--a)}.cell.n{background:var(--n-bg);color:var(--n)}
+.cell.off{background:var(--off-bg);color:var(--off)}
+.cell.offreq{box-shadow:inset 0 0 0 2px var(--off)}
+.cell.warn{box-shadow:inset 0 0 0 2px var(--bad)}
+.cell.me{outline:2px solid var(--brand);outline-offset:-2px}
+.sumrow td{background:#f8fafc;font-weight:700;font-size:11.5px;color:#475569}
+.sumrow td.bad{background:var(--bad-bg);color:var(--bad)}
+.sumrow td.okc{color:var(--ok)}
+.sumname{position:sticky;left:0;background:#f1f5f9!important;text-align:left!important;padding:3px 8px;font-weight:800;color:#334155}
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:20px 12px;overflow:auto}
+.ov.hide{display:none}
+.modal{background:#fff;border-radius:16px;max-width:620px;width:100%;padding:20px;box-shadow:var(--shadow)}
+.modal h3{color:var(--brand-d);margin-bottom:4px}
+.modal .close{float:right;background:#f1f5f9;border:none;border-radius:9px;width:34px;height:34px;font-size:18px;cursor:pointer}
+.fld{margin:10px 0}.fld label{display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:5px}
+.fld input,.fld select{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px}
+.strow{display:grid;grid-template-columns:1fr 150px 34px;gap:6px;margin-bottom:6px}
+.strow input,.strow select{border:1px solid var(--line);border-radius:8px;padding:8px}
+.strow .del{background:var(--bad-bg);color:var(--bad);border:none;border-radius:8px;cursor:pointer;font-size:16px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0f172a;color:#fff;padding:11px 18px;border-radius:12px;font-weight:700;z-index:80;opacity:0;transition:.25s;max-width:92vw;text-align:center}
+.toast.show{opacity:1}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.tabs button{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 13px;font-weight:700;color:#64748b;cursor:pointer}
+.tabs button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.note{background:#f0fdfa;border:1px solid #99f6e4;color:#115e59;border-radius:10px;padding:9px 12px;font-size:13px;margin:8px 0}
+.warnbox{background:var(--bad-bg);border:1px solid #fca5a5;color:#991b1b;border-radius:10px;padding:9px 12px;font-size:13px;margin:8px 0;white-space:pre-line;display:none}
+.warnbox.show{display:block}
+.cfg{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:8px 12px;font-size:12.5px;margin:8px 14px;display:none}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="t">🗓️ จัดเวรพยาบาล ER<small id="fbstate">กำลังเชื่อมต่อ…</small></div>
+  <button class="gear" id="gearBtn" title="Admin">⚙️</button>
+</div>
+
+<div class="cfg" id="cfg">⚠️ ยังไม่ได้ตั้งค่า Firebase — บันทึกเฉพาะเครื่องนี้ (ยังไม่แชร์ข้ามเครื่อง)</div>
+
+<div class="bar">
+  <div class="mnav">
+    <button id="mPrev">‹</button><b id="mLabel">—</b><button id="mNext">›</button>
+  </div>
+  <label style="font-size:13px;color:#475569;font-weight:700">ฉันคือ:</label>
+  <select class="sel" id="meSel"><option value="">— เลือกชื่อเพื่อขอวันหยุด —</option></select>
+  <span class="pill" id="modePill">โหมดดู</span>
+  <span style="flex:1"></span>
+  <span id="adminTools" style="display:none;gap:8px" >
+    <button class="btn sm ghost" id="autoBtn">✨ ออโต้ร่างเวร</button>
+    <button class="btn sm gray" id="clearBtn">ล้างเดือนนี้</button>
+    <button class="btn sm gray" id="printBtn">🖨 พิมพ์</button>
+  </span>
+</div>
+<div class="hint" id="modeHint">เลือกชื่อของคุณด้านบน แล้วแตะวันในแถวของตัวเองเพื่อ “ขอหยุด (off)” · ส่วนการลงเวรจริงทำโดย Admin</div>
+<div class="legend">
+  <span><i class="lm">ช</i>เช้า 08–16</span><span><i class="la">บ</i>บ่าย 16–24</span><span><i class="ln">ด</i>ดึก 00–08</span>
+  <span><i class="lo">off</i>ขอหยุด</span><span>กรอบแดง = ผิดกฎ (เวรติด/จำนวนไม่ครบ)</span>
+</div>
+<div class="warnbox" id="warnbox"></div>
+<div class="wrap"><table class="grid" id="grid"></table></div>
+
+<!-- admin gate -->
+<div class="ov hide" id="gate"><div class="modal" style="max-width:360px">
+  <button class="close" data-close>×</button><h3>เข้าสู่โหมด Admin</h3>
+  <div class="fld"><label>รหัส Admin</label><input id="pin" type="password" inputmode="numeric" placeholder="••••"></div>
+  <button class="btn" id="pinOk" style="width:100%">เข้าสู่ระบบ</button>
+</div></div>
+
+<!-- admin panel -->
+<div class="ov hide" id="panel"><div class="modal">
+  <button class="close" data-close>×</button><h3>⚙️ ตั้งค่า Admin</h3>
+  <div class="tabs" id="tabs">
+    <button data-tab="staff" class="on">👥 เจ้าหน้าที่</button>
+    <button data-tab="roles">🏷️ ตำแหน่ง (role)</button>
+    <button data-tab="target">🎯 จำนวนต่อเวร</button>
+    <button data-tab="pass">🔑 รหัส</button>
+  </div>
+  <div id="tab-staff">
+    <div class="note">เพิ่ม/ลบ/แก้ชื่อเจ้าหน้าที่ และกำหนดตำแหน่ง · ปัจจุบัน <b id="stCount">0</b> คน</div>
+    <div id="stRows"></div>
+    <button class="btn sm ghost" id="addStaff">+ เพิ่มเจ้าหน้าที่</button>
+    <div style="margin-top:14px"><button class="btn ok" id="saveStaff" style="width:100%">💾 บันทึกรายชื่อ</button></div>
+  </div>
+  <div id="tab-roles" style="display:none">
+    <div class="note">ตำแหน่ง/role — ใช้จัดกลุ่มและกำหนดบทบาทในเวร · เพิ่ม role ใหม่ได้</div>
+    <div id="rlRows"></div>
+    <button class="btn sm ghost" id="addRole">+ เพิ่มตำแหน่ง</button>
+    <div style="margin-top:14px"><button class="btn ok" id="saveRoles" style="width:100%">💾 บันทึกตำแหน่ง</button></div>
+  </div>
+  <div id="tab-target" style="display:none">
+    <div class="note">จำนวนคนที่ต้องมีในแต่ละเวร (ระบบใช้ตรวจว่าครบ/ขาด และตอนออโต้ร่าง)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px" id="tgTable"></table>
+    <div class="note" style="background:#f8fafc;border-color:#e2e8f0;color:#475569">องค์ประกอบอ้างอิง (เวรเช้าในเวลา 9: head·incharge·EMS·refer·member×2·lead×2·triage · บ่าย/เช้านอกเวลา 6: incharge·lead×2·member×2·triage · ดึก 4: lead×2·member×2)</div>
+    <div style="margin-top:12px"><button class="btn ok" id="saveTarget" style="width:100%">💾 บันทึกจำนวน</button></div>
+  </div>
+  <div id="tab-pass" style="display:none">
+    <div class="fld"><label>เปลี่ยนรหัส Admin (ตัวเลข 4–8 หลัก)</label>
+      <div style="display:flex;gap:8px"><input id="newPin" inputmode="numeric" placeholder="รหัสใหม่"><button class="btn" id="savePin">เปลี่ยน</button></div></div>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== JNH ER — จัดเวรพยาบาล (roster) ===================== */
+const PATH='roster';
+const SHIFTS=[{k:'m',th:'เช้า',code:'ช'},{k:'a',th:'บ่าย',code:'บ'},{k:'n',th:'ดึก',code:'ด'}];
+const SHIFTBYK={m:SHIFTS[0],a:SHIFTS[1],n:SHIFTS[2]};
+const DEFAULT_ROLES=[
+  {key:'head',name:'Head',short:'Head'},
+  {key:'subhead',name:'Subhead (Incharge)',short:'Subhead'},
+  {key:'float',name:'ลอยเช้า (Lead)',short:'ลอยเช้า'},
+  {key:'member',name:'Member',short:'Member'},
+];
+const DEFAULT_TARGET={weekday:{m:9,a:6,n:4},weekend:{m:6,a:6,n:4}};
+const TH_MON=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+/* ---------- state ---------- */
+let ROLES=DEFAULT_ROLES.slice(), TARGET=JSON.parse(JSON.stringify(DEFAULT_TARGET));
+let STAFF={};           // id -> {name, role, order}
+let SH={};              // id -> {day -> 'm'|'a'|'n'}  (assigned, current month)
+let OFF={};             // id -> {day -> true}          (requested off, current month)
+let SETTINGS={adminPass:'1234'};
+let admin=false, meId='', ym='', curY, curM;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1900);}
+function uid(){return 's'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
+
+/* ---------- firebase / storage ---------- */
+const cfg=window.FIREBASE_CONFIG||{};
+const FB_OK=cfg.apiKey&&!/PASTE/.test(cfg.apiKey||'')&&cfg.databaseURL&&!/PASTE/.test(cfg.databaseURL||'');
+let db=null;
+function firebaseReady(){ if(typeof firebase==='undefined')return null; const app=firebase.apps.length?firebase.app():firebase.initializeApp(cfg); db=firebase.database(app); return app; }
+const LS={get(k,d){try{const v=localStorage.getItem('jnhroster_'+k);return v?JSON.parse(v):d;}catch(e){return d;}},set(k,v){try{localStorage.setItem('jnhroster_'+k,JSON.stringify(v));}catch(e){}}};
+const DB={
+  on(path,cb){ if(db)db.ref(path).on('value',s=>cb(s.val())); else cb(LS.get(path,null)); },
+  set(path,val){ if(db)return db.ref(path).set(val); LS.set(path,val); return Promise.resolve(); },
+  off(path){ if(db)db.ref(path).off(); }
+};
+function setFB(t){ const e=$('fbstate'); if(e)e.textContent=t; }
+
+/* ---------- date helpers (Asia/Bangkok) ---------- */
+function bkkNow(){ return new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Bangkok'})); }
+function daysInMonth(y,m){ return new Date(y,m,0).getDate(); }           // m=1..12
+function dow(y,m,d){ return new Date(y,m-1,d).getDay(); }                 // 0=Sun..6=Sat
+function isWeekend(y,m,d){ const w=dow(y,m,d); return w===0||w===6; }
+function ymKey(y,m){ return y+'-'+String(m).padStart(2,'0'); }
+function monthLabel(y,m){ return 'เวรเดือน '+TH_MON[m]+' '+(y+543); }
+
+/* ---------- init ---------- */
+function boot(){
+  if(!FB_OK){ $('cfg').style.display='block'; setFB('ออฟไลน์'); } else { firebaseReady(); }
+  const n=bkkNow(); curY=n.getFullYear(); curM=n.getMonth()+1; loadMonth();
+  DB.on(PATH+'/roles', v=>{ ROLES=(Array.isArray(v)&&v.length)?v:DEFAULT_ROLES.slice(); renderMeSel(); render(); });
+  DB.on(PATH+'/target', v=>{ TARGET=v&&v.weekday?v:JSON.parse(JSON.stringify(DEFAULT_TARGET)); render(); });
+  DB.on(PATH+'/staff', v=>{ STAFF=v||{}; if(!Object.keys(STAFF).length) seedStaff(); renderMeSel(); render(); });
+  DB.on(PATH+'/settings', v=>{ if(v)SETTINGS=Object.assign({adminPass:'1234'},v); });
+  if(db){ db.ref('.info/connected').on('value',s=>setFB(s.val()?'● ออนไลน์':'● ออฟไลน์')); }
+}
+function loadMonth(){
+  ym=ymKey(curY,curM); $('mLabel').textContent=monthLabel(curY,curM);
+  DB.off(PATH+'/shift/'+ym); DB.off(PATH+'/off/'+ym);
+  DB.on(PATH+'/shift/'+ym, v=>{ SH=v||{}; render(); });
+  DB.on(PATH+'/off/'+ym, v=>{ OFF=v||{}; render(); });
+}
+let _seeded=false;
+function seedStaff(){
+  if(_seeded) return; _seeded=true;   // bootstrap default roster once when empty
+  const out={}; let o=0;
+  const add=(name,role)=>{ const id=uid(); out[id]={name,role,order:o++}; };
+  add('หัวหน้าเวร','head'); add('รองหัวหน้าเวร','subhead');
+  for(let i=1;i<=4;i++) add('ลอยเช้า '+i,'float');
+  for(let i=1;i<=17;i++) add('พยาบาล '+i,'member');
+  STAFF=out; if(db) DB.set(PATH+'/staff',out); else { LS.set(PATH+'/staff',out); }
+}
+
+/* ---------- staff ordering ---------- */
+function roleIndex(k){ const i=ROLES.findIndex(r=>r.key===k); return i<0?99:i; }
+function staffList(){
+  return Object.keys(STAFF).map(id=>Object.assign({id},STAFF[id]))
+    .sort((a,b)=>{ const ri=roleIndex(a.role)-roleIndex(b.role); if(ri)return ri; return (a.order||0)-(b.order||0)||a.name.localeCompare(b.name,'th'); });
+}
+function renderMeSel(){
+  const cur=$('meSel').value;
+  $('meSel').innerHTML='<option value="">— เลือกชื่อเพื่อขอวันหยุด —</option>'+
+    staffList().map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  if(cur&&STAFF[cur])$('meSel').value=cur;
+}
+
+/* ---------- rules ---------- */
+const ADJ={ // which shifts are back-to-back (16h). returns forbidden pairs
+  // same day adjacency: n(00-08)->m(08-16), m(08-16)->a(16-24)
+  // cross day: a(16-24 of d) -> n(00-08 of d+1)
+};
+function assignedAt(id,y,m,d){ if(d<1||d>daysInMonth(y,m))return null; return (SH[id]||{})[d]||null; }
+// does giving shift s to id on day d create a 16h back-to-back?
+function backToBack(id,d,s){
+  const prev=(SH[id]||{});
+  const sameDay=prev[d];
+  // within same day: order n < m < a
+  if(s==='m'&&(sameDay==='n'))return true;
+  if(s==='n'&&(sameDay==='m'))return true;
+  if(s==='a'&&(sameDay==='m'))return true;
+  if(s==='m'&&(sameDay==='a'))return true; // m & a adjacent either way
+  if(s==='a'&&(sameDay==='n'))return false; // n(00-08) and a(16-24) not adjacent
+  if(s==='n'&&(sameDay==='a'))return false;
+  // cross-day: a(d) then n(d+1); or n(d) preceded by a(d-1)
+  if(s==='n' && prev[d-1]==='a') return true;
+  if(s==='a' && prev[d+1]==='n') return true;
+  return false;
+}
+
+/* ---------- render matrix ---------- */
+function render(){
+  if(!STAFF||!Object.keys(STAFF).length){ $('grid').innerHTML=''; return; }
+  const nd=daysInMonth(curY,curM), list=staffList();
+  let h='<thead><tr><th class="gname">เจ้าหน้าที่ ('+list.length+')</th>';
+  for(let d=1;d<=nd;d++){ const we=isWeekend(curY,curM,d); h+=`<th class="${we?'we':''}">${d}</th>`; }
+  h+='</tr></thead><tbody>';
+  let lastRole=null;
+  list.forEach(s=>{
+    if(s.role!==lastRole){ lastRole=s.role; const r=ROLES.find(x=>x.key===s.role); h+=`<tr class="rolehdr"><td colspan="${nd+1}">${esc(r?r.name:s.role)}</td></tr>`; }
+    h+=`<tr data-sid="${s.id}"><td class="gname" title="${esc(s.name)}">${esc(s.name)}</td>`;
+    for(let d=1;d<=nd;d++){
+      const we=isWeekend(curY,curM,d), sh=(SH[s.id]||{})[d], off=(OFF[s.id]||{})[d];
+      let cls='cell'+(we?' we':''), txt='';
+      if(sh){ cls+=' '+sh; txt=SHIFTBYK[sh].code; if(off)cls+=' offreq'; if(backToBack(s.id,d,sh))cls+=' warn'; }
+      else if(off){ cls+=' off'; txt='off'; }
+      if(s.id===meId)cls+=' me';
+      h+=`<td class="${cls}" data-sid="${s.id}" data-d="${d}">${txt}</td>`;
+    }
+    h+='</tr>';
+  });
+  // summary rows per shift
+  SHIFTS.forEach(sf=>{
+    h+=`<tr class="sumrow"><td class="sumname">รวม${sf.th}</td>`;
+    for(let d=1;d<=nd;d++){
+      const we=isWeekend(curY,curM,d); const need=(we?TARGET.weekend:TARGET.weekday)[sf.k]||0;
+      let c=0; list.forEach(s=>{ if((SH[s.id]||{})[d]===sf.k)c++; });
+      const bad=c!==need; h+=`<td class="${bad?'bad':(need?'okc':'')}" title="ต้องการ ${need}">${c}${need?'/'+need:''}</td>`;
+    }
+    h+='</tr>';
+  });
+  h+='</tbody>';
+  $('grid').innerHTML=h;
+  computeWarnings();
+}
+
+/* ---------- warnings summary ---------- */
+function computeWarnings(){
+  const nd=daysInMonth(curY,curM), list=staffList(); const msgs=[];
+  // back-to-back
+  let bb=0;
+  list.forEach(s=>{ for(let d=1;d<=nd;d++){ const sh=(SH[s.id]||{})[d]; if(sh&&backToBack(s.id,d,sh))bb++; } });
+  if(bb) msgs.push('⚠ พบเวรติดกัน (16 ชม.) '+bb+' จุด — ดูช่องกรอบแดง');
+  // off conflicts (assigned on a requested-off day)
+  let oc=0; list.forEach(s=>{ for(let d=1;d<=nd;d++){ if((SH[s.id]||{})[d]&&(OFF[s.id]||{})[d])oc++; } });
+  if(oc) msgs.push('⚠ ลงเวรทับวันขอหยุด '+oc+' จุด');
+  const box=$('warnbox'); if(msgs.length){ box.textContent=msgs.join('\n'); box.classList.add('show'); } else box.classList.remove('show');
+}
+
+/* ---------- cell interaction ---------- */
+$('grid').addEventListener('click',e=>{
+  const td=e.target.closest('td.cell'); if(!td)return;
+  const sid=td.dataset.sid, d=+td.dataset.d;
+  if(admin){
+    const cur=(SH[sid]||{})[d]||'';
+    const next={'' :'m','m':'a','a':'n','n':''}[cur];
+    setShift(sid,d,next);
+  } else {
+    if(sid!==meId){ toast('เลือกชื่อของคุณด้านบนก่อน แล้วแตะในแถวของตัวเอง'); return; }
+    toggleOff(sid,d);
+  }
+});
+function setShift(sid,d,val){
+  SH[sid]=SH[sid]||{}; if(val)SH[sid][d]=val; else delete SH[sid][d];
+  DB.set(PATH+'/shift/'+ym+'/'+sid+'/'+d, val||null);
+  render();
+}
+function toggleOff(sid,d){
+  OFF[sid]=OFF[sid]||{}; const nv=!OFF[sid][d];
+  if(nv)OFF[sid][d]=true; else delete OFF[sid][d];
+  DB.set(PATH+'/off/'+ym+'/'+sid+'/'+d, nv||null);
+  render();
+}
+
+/* ---------- me selector ---------- */
+$('meSel').addEventListener('change',e=>{
+  meId=e.target.value;
+  const on=!!meId && !admin;
+  $('modePill').textContent= admin?'โหมด Admin':(on?'โหมดขอวันหยุด':'โหมดดู');
+  $('modeHint').textContent= on? 'แตะวันในแถวของคุณ (ไฮไลต์เขียว) เพื่อสลับ “ขอหยุด (off)” · แตะซ้ำเพื่อยกเลิก'
+    : (admin?'แตะช่องเพื่อวนเวร เช้า→บ่าย→ดึก→ว่าง · แถวสรุปด้านล่างบอกจำนวนต่อเวร (แดง=ไม่ครบ)':'เลือกชื่อของคุณเพื่อขอวันหยุด');
+  render();
+});
+
+/* ---------- month nav ---------- */
+$('mPrev').onclick=()=>{ curM--; if(curM<1){curM=12;curY--;} loadMonth(); };
+$('mNext').onclick=()=>{ curM++; if(curM>12){curM=1;curY++;} loadMonth(); };
+
+/* ---------- admin ---------- */
+$('gearBtn').onclick=()=>{ if(admin){ openPanel(); } else { $('pin').value=''; $('gate').classList.remove('hide'); setTimeout(()=>$('pin').focus(),50);} };
+$('pinOk').onclick=()=>{ if($('pin').value===(SETTINGS.adminPass||'1234')){ admin=true; $('gate').classList.add('hide'); $('adminTools').style.display='inline-flex'; $('modePill').textContent='โหมด Admin'; $('meSel').value=''; meId=''; $('modeHint').textContent='แตะช่องเพื่อวนเวร เช้า→บ่าย→ดึก→ว่าง · แถวสรุปด้านล่างบอกจำนวนต่อเวร (แดง=ไม่ครบ)'; render(); openPanel(); } else toast('รหัสไม่ถูกต้อง'); };
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{$('gate').classList.add('hide');$('panel').classList.add('hide');});
+[$('gate'),$('panel')].forEach(m=>m.addEventListener('click',e=>{if(e.target===m){$('gate').classList.add('hide');$('panel').classList.add('hide');}}));
+$('pin').addEventListener('keydown',e=>{if(e.key==='Enter')$('pinOk').click();});
+
+function openPanel(){ $('panel').classList.remove('hide'); showTab('staff'); }
+$('tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)showTab(b.dataset.tab);});
+function showTab(t){
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  ['staff','roles','target','pass'].forEach(x=>$('tab-'+x).style.display=x===t?'':'none');
+  if(t==='staff')renderStaffRows(); if(t==='roles')renderRoleRows(); if(t==='target')renderTarget();
+}
+
+/* staff editor */
+let edStaff=[];
+function renderStaffRows(){
+  edStaff=staffList().map(s=>({id:s.id,name:s.name,role:s.role,order:s.order}));
+  $('stCount').textContent=edStaff.length;
+  const opts=r=>ROLES.map(x=>`<option value="${x.key}" ${x.key===r?'selected':''}>${esc(x.name)}</option>`).join('');
+  $('stRows').innerHTML=edStaff.map((s,i)=>`<div class="strow">
+     <input value="${esc(s.name)}" data-i="${i}" data-f="name" placeholder="ชื่อ-สกุล">
+     <select data-i="${i}" data-f="role">${opts(s.role)}</select>
+     <button class="del" data-i="${i}">×</button></div>`).join('');
+  $('stRows').querySelectorAll('input,select').forEach(el=>el.addEventListener('input',e=>{edStaff[+e.target.dataset.i][e.target.dataset.f]=e.target.value;}));
+  $('stRows').querySelectorAll('.del').forEach(b=>b.onclick=()=>{edStaff.splice(+b.dataset.i,1);renderStaffRowsKeep();});
+}
+function renderStaffRowsKeep(){ // re-render from edStaff without reloading from STAFF
+  $('stCount').textContent=edStaff.length;
+  const opts=r=>ROLES.map(x=>`<option value="${x.key}" ${x.key===r?'selected':''}>${esc(x.name)}</option>`).join('');
+  $('stRows').innerHTML=edStaff.map((s,i)=>`<div class="strow">
+     <input value="${esc(s.name)}" data-i="${i}" data-f="name" placeholder="ชื่อ-สกุล">
+     <select data-i="${i}" data-f="role">${opts(s.role)}</select>
+     <button class="del" data-i="${i}">×</button></div>`).join('');
+  $('stRows').querySelectorAll('input,select').forEach(el=>el.addEventListener('input',e=>{edStaff[+e.target.dataset.i][e.target.dataset.f]=e.target.value;}));
+  $('stRows').querySelectorAll('.del').forEach(b=>b.onclick=()=>{edStaff.splice(+b.dataset.i,1);renderStaffRowsKeep();});
+}
+$('addStaff').onclick=()=>{ edStaff.push({id:uid(),name:'',role:ROLES[ROLES.length-1]?ROLES[ROLES.length-1].key:'member',order:edStaff.length}); renderStaffRowsKeep(); $('stRows').lastChild.querySelector('input').focus(); };
+$('saveStaff').onclick=()=>{
+  const out={}; let o=0;
+  edStaff.forEach(s=>{ const nm=(s.name||'').trim(); if(!nm)return; out[s.id||uid()]={name:nm,role:s.role||'member',order:o++}; });
+  STAFF=out; DB.set(PATH+'/staff',out); toast('บันทึกรายชื่อแล้ว ('+Object.keys(out).length+' คน)'); renderMeSel(); render();
+};
+
+/* roles editor */
+let edRoles=[];
+function renderRoleRows(){
+  edRoles=ROLES.map(r=>({key:r.key,name:r.name}));
+  $('rlRows').innerHTML=edRoles.map((r,i)=>`<div class="strow" style="grid-template-columns:1fr 34px">
+     <input value="${esc(r.name)}" data-i="${i}" placeholder="ชื่อตำแหน่ง">
+     <button class="del" data-i="${i}">×</button></div>`).join('');
+  $('rlRows').querySelectorAll('input').forEach(el=>el.addEventListener('input',e=>{edRoles[+e.target.dataset.i].name=e.target.value;}));
+  $('rlRows').querySelectorAll('.del').forEach(b=>b.onclick=()=>{edRoles.splice(+b.dataset.i,1);renderRoleRows2();});
+}
+function renderRoleRows2(){
+  $('rlRows').innerHTML=edRoles.map((r,i)=>`<div class="strow" style="grid-template-columns:1fr 34px">
+     <input value="${esc(r.name)}" data-i="${i}" placeholder="ชื่อตำแหน่ง">
+     <button class="del" data-i="${i}">×</button></div>`).join('');
+  $('rlRows').querySelectorAll('input').forEach(el=>el.addEventListener('input',e=>{edRoles[+e.target.dataset.i].name=e.target.value;}));
+  $('rlRows').querySelectorAll('.del').forEach(b=>b.onclick=()=>{edRoles.splice(+b.dataset.i,1);renderRoleRows2();});
+}
+$('addRole').onclick=()=>{ edRoles.push({key:'r'+Date.now().toString(36),name:''}); renderRoleRows2(); $('rlRows').lastChild.querySelector('input').focus(); };
+$('saveRoles').onclick=()=>{
+  const out=edRoles.filter(r=>(r.name||'').trim()).map(r=>({key:r.key,name:r.name.trim()}));
+  if(!out.length){ toast('ต้องมีอย่างน้อย 1 ตำแหน่ง'); return; }
+  ROLES=out; DB.set(PATH+'/roles',out); toast('บันทึกตำแหน่งแล้ว'); render();
+};
+
+/* target editor */
+function renderTarget(){
+  const row=(lbl,grp)=>`<tr><td style="padding:6px;font-weight:700">${lbl}</td>`+
+    SHIFTS.map(sf=>`<td style="padding:6px"><label style="font-size:12px;color:#64748b">${sf.th}</label><br><input type="number" min="0" style="width:60px;border:1px solid var(--line);border-radius:8px;padding:6px" data-g="${grp}" data-k="${sf.k}" value="${(TARGET[grp]||{})[sf.k]||0}"></td>`).join('')+'</tr>';
+  $('tgTable').innerHTML='<tr><th style="text-align:left;padding:6px">ประเภทวัน</th>'+SHIFTS.map(s=>`<th style="padding:6px">${s.th}</th>`).join('')+'</tr>'+
+    row('วันธรรมดา (จ–ศ)','weekday')+row('เสาร์–อาทิตย์','weekend');
+}
+$('saveTarget').onclick=()=>{
+  const t={weekday:{},weekend:{}};
+  $('tgTable').querySelectorAll('input[data-g]').forEach(inp=>{ t[inp.dataset.g][inp.dataset.k]=Math.max(0,+inp.value||0); });
+  TARGET=t; DB.set(PATH+'/target',t); toast('บันทึกจำนวนต่อเวรแล้ว'); render();
+};
+
+$('savePin').onclick=()=>{ const v=($('newPin').value||'').trim(); if(!/^\d{4,8}$/.test(v)){toast('รหัสต้องเป็นเลข 4–8 หลัก');return;} SETTINGS.adminPass=v; DB.set(PATH+'/settings/adminPass',v); $('newPin').value=''; toast('เปลี่ยนรหัสแล้ว'); };
+
+/* ---------- clear ---------- */
+$('clearBtn').onclick=()=>{ if(!admin)return; if(!confirm('ล้างเวรที่ลงไว้ทั้งหมดของ '+monthLabel(curY,curM)+'? (วันขอหยุดยังอยู่)'))return;
+  SH={}; DB.set(PATH+'/shift/'+ym,null); render(); toast('ล้างเวรเดือนนี้แล้ว'); };
+
+/* ---------- AUTO DRAFT ---------- */
+$('autoBtn').onclick=()=>{ if(!admin)return; if(!confirm('ออโต้ร่างเวรเดือน '+monthLabel(curY,curM)+'? จะเขียนทับเวรที่ลงไว้ (เคารพวันขอหยุด แล้วค่อยแก้เองได้)'))return; autoDraft(); };
+function offAt(id,d){ return !!(OFF[id]||{})[d]; }
+function autoDraft(){
+  const nd=daysInMonth(curY,curM), list=staffList();
+  const byRole=k=>list.filter(s=>s.role===k);
+  const heads=byRole('head'), subs=byRole('subhead'), floats=byRole('float');
+  const fixedKeys={head:1,subhead:1,float:1};
+  const pool=list.filter(s=>!fixedKeys[s.role]);        // member + custom roles
+  const NEW={}; list.forEach(s=>NEW[s.id]={});
+  const load={}; list.forEach(s=>load[s.id]=0);
+  SH=NEW;  // start fresh
+  const can=(id,d,s)=>{ if(offAt(id,d))return false; if(NEW[id][d])return false; if(bb(id,d,s))return false; return true; };
+  function bb(id,d,s){ const p=NEW[id]||{}; const sd=p[d];
+    if(s==='m'&&(sd==='n'||sd==='a'))return true; if(s==='n'&&sd==='m')return true; if(s==='a'&&sd==='m')return true;
+    if(s==='n'&&p[d-1]==='a')return true; if(s==='a'&&p[d+1]==='n')return true; return false; }
+  const give=(id,d,s)=>{ NEW[id][d]=s; load[id]++; };
+  const shortfall=[];
+  // weekend-morning quota for subhead/float: 2 each per month
+  const wkMornLeft={}; subs.concat(floats).forEach(s=>wkMornLeft[s.id]=2);
+  let fRot=0, poolRot=0;
+  for(let d=1;d<=nd;d++){
+    const we=isWeekend(curY,curM,d); const T=we?TARGET.weekend:TARGET.weekday;
+    const need={m:T.m||0,a:T.a||0,n:T.n||0};
+    const got={m:0,a:0,n:0};
+    // --- morning fixed ---
+    if(!we){
+      heads.forEach(h=>{ if(got.m<need.m&&can(h.id,d,'m')){give(h.id,d,'m');got.m++;} });
+      subs.forEach(s=>{ if(got.m<need.m&&can(s.id,d,'m')){give(s.id,d,'m');got.m++;} });
+      // floats: fill morning lead slots by rotation
+      let guard=0;
+      while(got.m<need.m && guard<floats.length*2 && floats.length){
+        const f=floats[fRot%floats.length]; fRot++; guard++;
+        if(can(f.id,d,'m')){ give(f.id,d,'m'); got.m++; }
+      }
+    } else {
+      // weekend morning: use subhead/float weekend quota (incharge + leads), then pool
+      subs.forEach(s=>{ if(got.m<need.m&&wkMornLeft[s.id]>0&&can(s.id,d,'m')){give(s.id,d,'m');got.m++;wkMornLeft[s.id]--;} });
+      let guard=0;
+      while(got.m<need.m && guard<floats.length*2 && floats.length){
+        const f=floats[fRot%floats.length]; fRot++; guard++;
+        if(wkMornLeft[f.id]>0&&can(f.id,d,'m')){ give(f.id,d,'m'); got.m++; wkMornLeft[f.id]--; }
+      }
+    }
+    // --- fill all shifts from pool (least-loaded), m first then a then n ---
+    ['m','a','n'].forEach(s=>{
+      let guard=0;
+      while(got[s]<need[s] && guard<pool.length*3){
+        guard++;
+        // pick least-loaded eligible
+        const cand=pool.slice().sort((x,y)=>load[x.id]-load[y.id]);
+        let placed=false;
+        for(const c of cand){ if(can(c.id,d,s)){ give(c.id,d,s); got[s]++; placed=true; break; } }
+        if(!placed) break;
+      }
+      if(got[s]<need[s]) shortfall.push(d+' '+SHIFTBYK[s].th+' ขาด '+(need[s]-got[s]));
+    });
+  }
+  // persist
+  const payload={}; list.forEach(s=>{ if(Object.keys(NEW[s.id]).length)payload[s.id]=NEW[s.id]; });
+  DB.set(PATH+'/shift/'+ym, payload);
+  render();
+  if(shortfall.length) toast('ร่างเสร็จ · มีจุดที่คนไม่พอ '+shortfall.length+' จุด (ดูกรอบแดงแถวสรุป)');
+  else toast('ออโต้ร่างเวรเสร็จ · ครบทุกเวร ✓');
+}
+
+/* ---------- print ---------- */
+$('printBtn').onclick=()=>window.print();
+
+let booted=false;
+function startApp(){ if(booted)return; booted=true; boot(); }
+if(typeof firebase!=='undefined'){ startApp(); } else { window.addEventListener('load',startApp); setTimeout(startApp,2500); }
+</script>
+</body>
+</html>
