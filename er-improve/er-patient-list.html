@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPHIS ER Mockup — รายการผู้ป่วย ER</title>
+<link href="assets/favicon.ico" rel="shortcut icon">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" href="assets/project.css">
+<link rel="stylesheet" href="assets/mock.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap4.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment-with-locales.min.js"></script>
+<script src="assets/mock.js"></script>
+</head>
+<body>
+<div id="mock-navbar"></div>
+
+<!-- จำลองจาก opd-er-order-list.php -->
+<div class="container-fluid">
+    <form>
+        <div class="alert alert-secondary row" role="alert">
+            <div class="form-row">
+                <div class="form-group col-auto">
+                    <label for="order_date">วันที่บันทึกรายการ</label>
+                    <div><input type="date" class="form-control" id="order_date"></div>
+                </div>
+                <div class="form-group col-auto">
+                    <label for="hn">HN</label>
+                    <input type="text" class="form-control" id="hn" size="10">
+                </div>
+                <div class="form-group col-auto">
+                    <label for="vstdate">วันที่ส่งตรวจ</label>
+                    <div><input type="date" class="form-control" id="vstdate"></div>
+                </div>
+                <div class="form-group col-auto">
+                    <label for="qn">QN</label>
+                    <input type="text" class="form-control" id="qn" size="5">
+                </div>
+                <div class="form-group col-auto">
+                    <label for="bedno">เตียง</label>
+                    <div>
+                        <select class="form-control" style="width: 150px;" id="bedno">
+                            <option value="" style="color: #696f74; background-color: white;">เลือก</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group col-auto">
+                    <label for="er_patient_status">สถานะ</label>
+                    <div>
+                        <select class="form-control" id="er_patient_status">
+                            <option value="in_er" selected="selected">ผู้ป่วยใน ER</option>
+                            <optgroup label="Discharge แล้ว">
+                                <option value="7">Discharge แล้ว</option>
+                                <option value="7_1">Discharge แล้ว - กลับบ้าน</option>
+                                <option value="7_2">Discharge แล้ว - Admit</option>
+                                <option value="7_3">Discharge แล้ว - เสียชีวิต</option>
+                                <option value="7_4">Discharge แล้ว - ส่ง OPD</option>
+                            </optgroup>
+                            <option value="">ทุกสถานะ</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group col-auto" id="add_order_col">
+                    <label>&nbsp;</label>
+                    <button type="button" class="btn btn-primary form-control" data-toggle="modal" data-target="#addOpdErOrderModal">
+                        <i class="fa fa-plus" aria-hidden="true"></i> เพิ่มใบ Order ใหม่
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<div class="container-fluid">
+    <div class="mb-2">
+        <span class="mr-2">มุมมอง:</span>
+        <div class="btn-group btn-group-sm" role="group" id="view_by_group">
+            <a class="btn btn-secondary" data-view="doctor" href="?view_by=doctor">แพทย์</a>
+            <a class="btn btn-secondary" data-view="nurse" href="?view_by=nurse">พยาบาล</a>
+            <a class="btn btn-secondary" data-view="pharmacist" href="?view_by=pharmacist">เภสัชกร</a>
+            <a class="btn btn-secondary" data-view="other" href="?view_by=other">อื่นๆ</a>
+        </div>
+        <small class="text-muted ml-3" id="nurse_legend" style="display:none;">
+            สีแถว (มุมมองพยาบาล):
+            <span class="badge table-orange border">มี STAT Order ที่ยังไม่รับ</span>
+            <span class="badge table-success border">มี Order Discharge ที่ยังไม่รับ</span>
+            <span class="badge table-warning border">มี Order ที่ยังไม่รับ</span>
+        </small>
+    </div>
+    <div class="row">
+        <div class="col">
+            <table id="opd_er_order_master_table" class="table table-striped table-bordered table-sm table-hover">
+                <thead>
+                <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">เตียง</th>
+                    <th scope="col">เวลาที่มาถึง</th>
+                    <th scope="col">HN</th>
+                    <th scope="col">QN</th>
+                    <th scope="col">ชื่อ-นามสกุล</th>
+                    <th scope="col">อายุ</th>
+                    <th scope="col">แพทย์เจ้าของไข้</th>
+                    <th scope="col">เวลา Order ล่าสุด</th>
+                    <th scope="col">MEWS</th>
+                    <th scope="col">สถานะ</th>
+                    <th scope="col">เวลาส่งตรวจ</th>
+                </tr>
+                </thead>
+                <tbody id="opd_er_order_master_table_body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="addOpdErOrderModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">เพิ่มใบ Order ใหม่</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <form>
+                    <div class="form-group mb-2 mr-2">
+                        <label for="new_vn" class="mr-2">Visit</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control form-control-sm" readonly size="40" value="VN 691104091122 | 04/11/2569 09:11 | HN 000778899 นางสาวมาลี ใจงาม">
+                            <div class="input-group-append">
+                                <button class="btn btn-sm btn-secondary" type="button" data-mock-action="ค้นหา Visit"><i class="fas fa-search"></i></button>
+                                <button class="btn btn-sm btn-danger" type="button"><i class="fas fa-times"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group mb-2 mr-2">
+                        <label for="new_note" class="mr-2">Note</label>
+                        <textarea class="form-control" id="new_note" rows="3" cols="50">ปวดท้องด้านขวาล่าง 6 ชม.</textarea>
+                    </div>
+                    <div class="form-group mb-2 mr-2">
+                        <label for="new_order_bedno" class="mr-2">เตียง</label>
+                        <div>
+                            <select class="form-control form-control-sm" style="width: 150px;" id="new_order_bedno">
+                                <option value="" style="color: #696f74; background-color: white;">เลือก</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">ยกเลิก</button>
+                <button type="button" class="btn btn-primary" data-mock-action="บันทึกใบ Order ใหม่">บันทึก</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mock-ribbon">MOCKUP — ข้อมูลสมมติ · <a href="index.html">สารบัญ</a></div>
+
+<script>
+// ---------- ข้อมูลสมมติ ----------
+var BEDS = [
+    {id: 1, name: 'Resus 1', color: '#e51616'}, {id: 2, name: 'Resus 2', color: '#e51616'},
+    {id: 3, name: 'Urgent 1', color: '#ff7024'}, {id: 4, name: 'Urgent 2', color: '#ff7024'}, {id: 5, name: 'Urgent 3', color: '#ff7024'},
+    {id: 6, name: 'Semi 1', color: '#e6b728'}, {id: 7, name: 'Semi 2', color: '#e6b728'},
+    {id: 8, name: 'Obs 1', color: '#45c351'}, {id: 9, name: 'Obs 2', color: '#45c351'}
+];
+var PATIENTS = [
+    {bed: 'Resus 1', color: '#e51616', arrive: '2026-11-04 08:30', hn: '000123456', qn: '15', name: 'นายสมชาย ตัวอย่างดี', note: 'Chest pain 1 ชม. ก่อนมา, EKG ST elevation V1-V4', age: '58 ปี', dr: 'นพ.วิชัย รักษาดี', last: '2026-11-04 10:40', mews: 3, status: 'กำลังรักษา', row: 'table-orange', vst: '2026-11-04 08:30'},
+    {bed: 'Resus 2', color: '#e51616', arrive: '2026-11-04 09:05', hn: '000245781', qn: '18', name: 'นางบุญมี สุขใจ', note: 'Dyspnea, COPD AE, on O2 mask c bag 10 LPM', age: '72 ปี', dr: 'พญ.สุดา ใจเย็น', last: '2026-11-04 09:50', mews: 5, status: 'กำลังรักษา', row: 'table-warning', vst: '2026-11-04 09:05'},
+    {bed: 'Urgent 1', color: '#ff7024', arrive: '2026-11-04 09:20', hn: '000331209', qn: '21', name: 'เด็กชายภูมิ ทดลองใช้', note: 'ไข้สูง ชัก 1 ครั้ง ที่บ้าน', age: '2 ปี', dr: 'พญ.สุดา ใจเย็น', last: '2026-11-04 09:35', mews: 2, status: 'รอผล Lab', row: '', vst: '2026-11-04 09:20'},
+    {bed: 'Urgent 2', color: '#ff7024', arrive: '2026-11-04 09:48', hn: '000412378', qn: '24', name: 'นายประเสริฐ มีสุข', note: 'MVA, laceration wound Rt. forearm 5 cm', age: '34 ปี', dr: 'นพ.อนันต์ ช่วยชีวิต', last: '2026-11-04 10:05', mews: 0, status: 'กำลังรักษา', row: 'table-success', vst: '2026-11-04 09:48'},
+    {bed: 'Semi 1', color: '#e6b728', arrive: '2026-11-04 10:02', hn: '000527741', qn: '27', name: 'นางสาวกานดา แสงดี', note: 'Abdominal pain RLQ r/o appendicitis', age: '25 ปี', dr: 'นพ.อนันต์ ช่วยชีวิต', last: '2026-11-04 10:20', mews: 1, status: 'รอ Consult', row: '', vst: '2026-11-04 10:02'},
+    {bed: 'Obs 1', color: '#45c351', arrive: '2026-11-04 07:15', hn: '000611002', qn: '9', name: 'นายสุรชัย ทองคำ', note: 'Hypoglycemia, DTX 45 mg% → หลังให้ 50% glucose 50 ml DTX 120', age: '66 ปี', dr: 'นพ.วิชัย รักษาดี', last: '2026-11-04 08:00', mews: 0, status: 'สังเกตอาการ', row: '', vst: '2026-11-04 07:15'},
+    {bed: 'Obs 2', color: '#45c351', arrive: '2026-11-04 10:30', hn: '000704455', qn: '30', name: 'นางมณี ศรีสวัสดิ์', note: 'Vertigo, N/V', age: '49 ปี', dr: '', last: null, mews: null, status: 'รอตรวจ', row: '', vst: '2026-11-04 10:30'}
+];
+
+function thaiDT(s) {
+    if (!s) return '';
+    var m = moment(s, 'YYYY-MM-DD HH:mm');
+    return m.format('DD/MM/') + (parseInt(m.format('YYYY'), 10) + 543) + m.format(', HH:mm');
+}
+
+$(function () {
+    var view_by = MOCK.param('view_by', 'doctor');
+    $('#view_by_group [data-view="' + view_by + '"]').removeClass('btn-secondary').addClass('btn-primary');
+    if (view_by === 'nurse') $('#nurse_legend').show();
+    if (view_by !== 'doctor' && view_by !== 'nurse') $('#add_order_col').hide();
+
+    BEDS.forEach(function (b) {
+        $('#bedno, #new_order_bedno').append($('<option/>', {value: b.id, text: b.name, style: 'color: white; background-color: ' + b.color + ';'}));
+    });
+
+    PATIENTS.forEach(function (v, i) {
+        $('<tr/>', {
+            style: 'cursor: pointer;',
+            'class': view_by === 'nurse' ? v.row : '',
+            html: [
+                $('<td/>', {text: i + 1}),
+                $('<td/>', {'class': 'text-center', html: $('<div/>', {
+                    'class': 'badge text-white text-center',
+                    style: 'font-weight:bold; font-size:100%; width:80px; background-color: ' + v.color + ';',
+                    text: v.bed
+                })}),
+                $('<td/>', {html: [$('<span/>', {'class': 'd-none', text: v.arrive}), $('<span/>', {style: 'white-space: pre-wrap;', text: thaiDT(v.arrive)})]}),
+                $('<td/>', {text: v.hn}),
+                $('<td/>', {text: v.qn}),
+                $('<td/>', {html: [
+                    $('<div/>', {'class': 'font-weight-bold', text: v.name}),
+                    $('<div/>', {'class': 'text-truncate', style: 'white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;', text: v.note})
+                ]}),
+                $('<td/>', {text: v.age}),
+                $('<td/>', {text: v.dr}),
+                $('<td/>', {html: [$('<span/>', {'class': 'd-none', text: v.last || ''}), $('<span/>', {text: thaiDT(v.last)})]}),
+                $('<td/>', {'class': 'text-center', html: v.mews !== null ? $('<div/>', {
+                    'class': 'badge text-white', style: 'font-weight:bold; font-size:100%; background-color: ' + MOCK.mewsColor(v.mews) + ';', text: v.mews
+                }) : ''}),
+                $('<td/>', {html: $('<div/>', {text: v.status})}),
+                $('<td/>', {text: thaiDT(v.vst)})
+            ]
+        }).click(function () {
+            location.href = 'er-order.html?view_by=' + view_by;
+        }).appendTo('#opd_er_order_master_table_body');
+    });
+
+    $('#opd_er_order_master_table').DataTable({
+        paging: false, autoWidth: false,
+        columnDefs: [{width: '25px', targets: 0}, {width: '20px', targets: 1}],
+        language: {search: 'ค้นหา:', info: 'แสดง _START_ ถึง _END_ จาก _TOTAL_ รายการ', zeroRecords: 'ไม่พบข้อมูล'}
+    });
+});
+</script>
+</body>
+</html>
