@@ -202,7 +202,14 @@ function enableAllAudio(){
   // EMS: ปลดล็อกเสียงในกล่อง EMS ด้วย (เสียงเตือน/ประกาศ ALS/ILS ทำงานทันทีเหมือน Fast Track)
   try{ const ew=document.getElementById("emsFrame").contentWindow; if(ew&&ew.ensureAudio) ew.ensureAudio(); }catch(e){}
 }
-["pointerdown","keydown","touchstart"].forEach(ev=>document.addEventListener(ev, enableAllAudio, {once:true}));
+/* เข้า full screen อัตโนมัติเมื่อผู้ใช้แตะจอครั้งแรก (ต้องมี user gesture) — ปุ่ม ⛶ เต็มจอ ยังใช้สลับเข้า/ออกได้เหมือนเดิม */
+function goFullscreenOnce(){
+  try{ const el=document.documentElement;
+    if(!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+  }catch(e){}
+}
+function onFirstGesture(){ enableAllAudio(); goFullscreenOnce(); }
+["pointerdown","keydown","touchstart"].forEach(ev=>document.addEventListener(ev, onFirstGesture, {once:true}));
 
 /* ================= แจ้งเตือน Activate เด่นทั้งจอ =================
    อ่านเคสสดจากกล่อง EMS (same-origin) → ถ้ามีเคส activate ที่ยัง "ไม่รับทราบ"
@@ -230,7 +237,7 @@ const POSITIONS=[
   {key:"incharge",name:"Incharge",icon:"👨‍⚕️"},
   {key:"nurse_aid",name:"Nurse aid",icon:"👩‍⚕️"},
   {key:"emt",name:"EMT",icon:"🚑"},
-  {key:"vehicle_staff",name:"พขร (ตรวจ Alcohol)",icon:"🚐"},
+  {key:"vehicle_staff",name:"เจ้าหน้าที่ยานพาหนะ",icon:"🚐"},
   {key:"member1",name:"Member 1 ห้อง CPR",icon:"🏥"},
   {key:"member2",name:"Member 2 รถ CPR",icon:"🛒"},
   {key:"bag_ab1",name:"กระเป๋า A/B ใบ 1",icon:"🎒"},
@@ -282,14 +289,15 @@ function render(){
     if(p.key===ALC_KEY){
       const alc=(records[ALC_KEY]||{}).alc||{}; const r=alc.result;
       const stat = r==="none"?"done":(r==="found"?"bad":"zero");
-      const txt  = r==="none"?"ไม่พบ":(r==="found"?"พบ":"—");
+      const txt  = r==="none"?"ปกติ":(r==="found"?"เกินมาตรฐาน":"—");
+      const whoTxt = alc.driver?("🧑‍✈️ "+escapeHtml(alc.driver)+((r==="found"&&alc.backup)?(" → สำรอง "+escapeHtml(alc.backup)):"")):"ยังไม่ได้ตรวจ";
       const el=document.createElement("div"); el.className="sq "+stat;
       el.innerHTML=`${stat==="done"?'<span class="chk">✅</span>':stat==="bad"?'<span class="chk">⚠️</span>':''}
         <div class="emo">${p.icon}</div>
         <div class="sqinfo">
           <div class="nm">${p.name}</div>
-          <div class="pc">${txt}</div>
-          <div class="who">${alc.driver?("🧑‍✈️ "+escapeHtml(alc.driver)):"ยังไม่ได้ตรวจ"}</div>
+          <div class="pc" style="font-size:17px">${txt}</div>
+          <div class="who">${whoTxt}</div>
         </div>`;
       list.appendChild(el);
       return;
