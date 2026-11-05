@@ -33,6 +33,10 @@
     "triagekpi": {
       ".read": true,
       ".write": true
+    },
+    "roster": {
+      ".read": true,
+      ".write": true
     }
   }
 }
