@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPHIS ER Mockup — กระดานผู้ป่วย ER</title>
+<link href="assets/favicon.ico" rel="shortcut icon">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+<link rel="stylesheet" href="assets/project.css">
+<link rel="stylesheet" href="assets/mock.css">
+<link rel="stylesheet" href="assets/board.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/mock.js"></script>
+<!-- CHANGE-13: ฐานข้อมูลกลาง (ถ้าไม่มี config จะใช้ข้อมูลในเครื่อง) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="assets/firebase-config.js"></script>
+<script src="assets/er-flow.js"></script>
+<script src="assets/triage-score.js"></script>
+</head>
+<body>
+<div id="mock-navbar"></div>
+
+<!-- CHANGE-03: กระดานผู้ป่วย ER (แพทย์ / พยาบาล) -->
+<div class="container-fluid pt-2 pb-5">
+
+    <div class="d-flex align-items-center mb-2">
+        <h4 class="mb-0 mr-3"><i class="fas fa-th-list text-primary"></i> กระดานผู้ป่วย ER</h4>
+
+        <div class="ml-auto text-right small">
+            <div id="shift-now" class="font-weight-bold"></div>
+            <div class="text-muted" id="clock"></div>
+        </div>
+    </div>
+
+    <!-- แจ้งเตือน -->
+    <div id="alerts"></div>
+
+    <div class="d-flex align-items-center mb-2">
+        <ul class="nav nav-tabs flex-grow-1" id="tabs">
+            <li class="nav-item"><a class="nav-link active" href="#" data-t="in">ผู้ป่วยใน ER <span class="badge badge-primary" id="n-in"></span></a></li>
+            <li class="nav-item"><a class="nav-link" href="#" data-t="end">จบเคสในเวร <span class="badge badge-secondary" id="n-end"></span></a></li>
+        </ul>
+        <select id="shift-sel" class="form-control form-control-sm ml-2 d-none" style="width:230px"></select>
+        <select id="sort-sel" class="form-control form-control-sm ml-2" style="width:220px">
+            <option value="level">เรียงตาม: ระดับความรุนแรง</option><option value="team">เรียงตาม: ทีมรักษา</option><option value="bed">เรียงตาม: เลขเตียง</option><option value="qn">เรียงตาม: QN</option>
+        </select>
+        <select id="team-sel" class="form-control form-control-sm ml-2" style="width:120px">
+            <option value="">ทุกทีม</option><option value="1">ทีม 1</option><option value="2">ทีม 2</option><option value="3">ทีม 3</option>
+        </select>
+        <input id="search" class="form-control form-control-sm ml-2" style="width:200px" placeholder="ค้นหา ชื่อ / HN / QN">
+    </div>
+
+    <table class="table table-sm board-table mb-1">
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+    </table>
+    <div class="small text-muted" id="foot"></div>
+</div>
+<!-- /CHANGE-03 -->
+<div id="toast" class="t-toast"></div>
+
+<script>
+$(function () {
+    'use strict';
+    var L = TriageScore.LEVELS, ORDER = ['R', 'E', 'U', 'L', 'N'];
+    var FT = { sepsis: 'Sepsis', stroke45: 'Stroke 4.5h', stroke24: 'Stroke 24h', acs: 'ACS' };
+    var EXAM = { wait: { t: 'รอตรวจรักษา', c: 'st-wait', o: 0 }, reexam: { t: 'รอตรวจรักษาใหม่', c: 'st-re', o: 1 }, done: { t: 'ตรวจรักษาแล้ว', c: 'st-done', o: 2 } };
+    var BEDS = ['Resus 1', 'Resus 2', 'Urgent 1', 'Urgent 2', 'Urgent 3', 'Semi 1', 'Semi 2', 'Semi 3', 'Obs 1', 'Obs 2', 'Obs 3', 'Obs 4'];
+    var view = MOCK.param('view', 'doctor'), tab = 'in', lvFilter = '', shiftKey = '';
+
+    function esc(t) { return $('<i>').text(t || '').html(); }
+    function hn(h) { return String(h || '').replace(/^00/, ''); }   // CHANGE-06: ตัด 00 สองตัวหน้า
+    function num(x) { var n = parseInt(x, 10); return isNaN(n) ? 99999 : n; }
+    function lvOf(c) { return (c.triage && c.triage.level) || 'N'; }
+    function los(c) { var m = ERFlow.minsSince(c.arrive); return Math.floor(m / 60) + ':' + ('0' + (m % 60)).slice(-2); }
+    function pending(c) { return (c.orders || []).filter(function (o) { return !o.acceptedAt && !o.off && !o.draft; }); }
+    function toast(m) { $('#toast').text(m).addClass('show'); setTimeout(function () { $('#toast').removeClass('show'); }, 2500); }
+
+    function setView(v) {
+        view = v; render();
+    }
+
+    // ---------- เวร ----------
+    function shiftOptions() {
+        var now = ERFlow.shiftOf(new Date()), out = [now];
+        for (var i = 1; i <= 2; i++) out.push(ERFlow.shiftOf(new Date(now.start.getTime() - i * 8 * 3600000 + 60000)));
+        return out;
+    }
+    function shiftLabel(s) { return 'เวร' + s.name + ' ' + ERFlow.fmt(s.start).slice(0, 10) + ' ' + ERFlow.hm(s.start) + '–' + ERFlow.hm(s.end); }
+
+    // ---------- แจ้งเตือน fast track ----------
+    function renderAlerts() {
+        var st = ERFlow.load();
+        var list = (st.notifications || []).filter(function (n) { return n.type === 'fasttrack' && !(n.ack && n.ack[view]); });
+        $('#alerts').html(list.map(function (n) {
+            var c = ERFlow.get(n.caseId); if (!c) return '';
+            return '<div class="alert d-flex align-items-center py-2 mb-2 ft-alert">' +
+                '<i class="fas fa-bolt mr-2 text-danger blink"></i><div class="flex-grow-1"><b>Fast Track: ' + n.ft.map(function (f) { return FT[f]; }).join(', ') + '</b> — ' +
+                lvb(n.level) + ' ' + esc(c.name) + ' ' + c.age_y + ' ปี · QN ' + c.qn + ' · ' + esc((c.triage || {}).cc).split('\n')[0] +
+                ' <span class="small text-muted">(triage ' + ERFlow.hm(n.at) + ')</span></div>' +
+                '<button class="btn btn-sm btn-outline-danger" data-ack="' + n.id + '">รับทราบ</button></div>';
+        }).join(''));
+    }
+    $('#alerts').on('click', '[data-ack]', function () {
+        var st = ERFlow.load(), id = $(this).data('ack');
+        st.notifications.forEach(function (n) { if (n.id === id) { n.ack = n.ack || {}; n.ack[view] = new Date().toISOString(); } });
+        ERFlow.save(); render(); toast('รับทราบแล้ว');
+    });
+
+    function lvb(code) { var lv = L[code] || L.N; return '<span class="lvl-sm" style="background:' + lv.color + ';color:' + lv.text + '">' + code + '</span>'; }
+
+    // ---------- tiles ----------
+    function renderTiles(inEr) {
+        var cnt = {}; ORDER.forEach(function (k) { cnt[k] = 0; }); inEr.forEach(function (c) { cnt[lvOf(c)]++; });
+        var waitN = inEr.filter(function (c) { return c.exam === 'wait'; }).length;
+        var pendN = inEr.reduce(function (a, c) { return a + pending(c).length; }, 0);
+        var triN = ERFlow.cases('wait_triage').length;
+        var h = ORDER.map(function (k) {
+            var lv = L[k];
+            return '<div class="tile' + (lvFilter === k ? ' sel' : '') + (lvFilter && lvFilter !== k ? ' dim' : '') + '" data-lv="' + k + '" style="background:' + lv.color + ';color:' + lv.text + (k === 'N' ? ';border:2px solid #adb5bd' : '') + '">' +
+                '<div class="tn">' + cnt[k] + '</div><div class="tl">' + k + ' · ' + lv.th + '</div></div>';
+        }).join('');
+        h += '<div class="tile tile-info"><div class="tn">' + inEr.length + '</div><div class="tl">ผู้ป่วยใน ER</div></div>';
+        h += '<div class="tile tile-info"><div class="tn text-danger">' + waitN + '</div><div class="tl">รอตรวจรักษา</div></div>';
+        h += '<a href="er-triage.html" class="tile tile-info"><div class="tn">' + triN + '</div><div class="tl">รอ triage</div></a>';
+        if (view === 'nurse') h += '<div class="tile tile-info' + (pendN ? ' tile-alert' : '') + '"><div class="tn">' + pendN + '</div><div class="tl">Order รอรับ</div></div>';
+        $('#tiles').html(h);
+    }
+    $('#tiles').on('click', '[data-lv]', function () { var k = $(this).data('lv'); lvFilter = lvFilter === k ? '' : k; render(); });
+
+    // ---------- ตาราง ----------
+    function cols() {
+        var c = ['#', 'ทีม', 'เตียง', 'HN', 'QN', 'ชื่อ - สกุล', 'อายุ', 'CC', 'Dx', 'สถานะการรักษา', 'Lab', 'X-ray', 'แพทย์ผู้ตรวจ'];
+        if (view === 'nurse') c.push('Order');
+        c.push(tab === 'in' ? 'ใน ER' : 'จำหน่าย');
+        return c;
+    }
+    function row(c, i) {
+        var lv = L[lvOf(c)], t = c.triage || {}, p = pending(c), stat = p.some(function (o) { return o.stat; });
+        var ex = EXAM[c.exam] || EXAM.wait;
+        var bed = c.bed || tab !== 'in'
+            ? '<span class="bed" style="background:' + lv.color + ';color:' + lv.text + (lv.code === 'N' ? ';border:1px solid #adb5bd' : '') + '">' + (c.bed || '-') + '</span>'
+            : '<input class="bed-in" data-bed="' + c.id + '" placeholder="+ เตียง" style="border-color:' + lv.color + '" title="ใส่เลขเตียงแล้วกด Enter">';   // CHANGE-12
+        var lab = c.lab && c.lab.total ? c.lab.reported + '/' + c.lab.total : '-';
+        var xr = c.xray === 'done' ? 'ถ่ายแล้ว' : c.xray === 'wait' ? 'รอ' : '-';
+        var ft = (t.fasttrack || []).map(function (f) { return ' <span class="ft-tag' + (tab === 'in' ? ' blink' : '') + '">' + FT[f] + '</span>'; }).join('');   // CHANGE-10: FT กระพริบ
+        if (view === 'doctor' && tab === 'in' && c.exam === 'wait') ft = ' <span class="new-tag blink">New</span>' + ft;   // CHANGE-10: เคสใหม่
+        var cc = esc((t.cc || '').replace(/\n/g, ' · '));
+        var status = tab === 'in' ? ex.t : (c.disposition === 'admit' ? 'Admit' : 'D/C');
+        var cells = [
+            i + 1, c.team || '-', bed, hn(c.hn), c.qn,
+            esc(c.name) + ft, c.age_y + ' ปี',
+            '<div class="cc" title="' + cc + '">' + cc + '</div>',
+            c.dx ? '<div class="dx" title="' + esc(c.dx) + '">' + esc(c.dx) + '</div>' : '-',
+            status, lab, xr, c.doctor ? esc(c.doctor) : '-'
+        ];
+        if (view === 'nurse') cells.push(p.length ? '<span class="pend' + (stat ? ' text-danger font-weight-bold' : '') + '" title="' + esc(p.map(function (o) { return (o.stat ? '[STAT] ' : '') + o.text; }).join('\n')) + '">' + p.length + (stat ? ' STAT' : '') + '</span>' : '-');
+        cells.push(tab === 'in' ? los(c) : ERFlow.hm(c.endAt));
+        var cls = (view === 'nurse' && tab === 'in' && p.length) ? (stat ? ' row-stat' : ' row-pend') : '';
+        if (tab === 'in' && c.exam === 'wait') {   // ยังไม่ได้รับการตรวจรักษา
+            if (view !== 'doctor') cls += ' row-wait';
+        }
+        return '<tr class="b-row' + cls + '" data-id="' + c.id + '">' + cells.map(function (x) { return '<td>' + x + '</td>'; }).join('') + '</tr>';
+    }
+
+    function render() {
+        ERFlow.refresh();
+        var all = ERFlow.cases();
+        var inEr = all.filter(function (c) { return c.status === 'triaged'; });
+        var sh = shiftOptions(), cur = sh.filter(function (s) { return s.key === shiftKey; })[0] || sh[0];
+        var ended = all.filter(function (c) { return (c.status === 'dc' || c.status === 'admit') && c.endAt && new Date(c.endAt) >= cur.start && new Date(c.endAt) < cur.end; });
+        $('#shift-now').text(shiftLabel(sh[0]));
+        $('#shift-sel').html(sh.map(function (s) { return '<option value="' + s.key + '"' + (s.key === cur.key ? ' selected' : '') + '>' + shiftLabel(s) + '</option>'; }).join('')).toggleClass('d-none', tab !== 'end');
+        $('#n-in').text(inEr.length); $('#n-end').text(ended.length);
+        renderAlerts();
+
+        var list = tab === 'in' ? inEr : ended, team = $('#team-sel').val(), q = $.trim($('#search').val()).toLowerCase();
+        list = list.filter(function (c) {
+            if (lvFilter && lvOf(c) !== lvFilter) return false;
+            if (team && String(c.team) !== team) return false;
+            if (q && (c.name + ' ' + c.hn + ' ' + c.qn).toLowerCase().indexOf(q) < 0) return false;
+            return true;
+        });
+        var C = cols();
+        $('#thead').html(C.map(function (x) { return '<th>' + x + '</th>'; }).join(''));
+        var h = '', srt = $('#sort-sel').val();
+        var byExam = function (a, b) { return ((EXAM[a.exam] || EXAM.wait).o - (EXAM[b.exam] || EXAM.wait).o) || (new Date(a.arrive) - new Date(b.arrive)); };
+        if (tab === 'end') list.sort(function (a, b) { return new Date(b.endAt) - new Date(a.endAt); });
+        else if (srt === 'team') list.sort(function (a, b) { return (num(a.team) - num(b.team)) || (num(a.bed) - num(b.bed)) || (num(a.qn) - num(b.qn)); });
+        else if (srt === 'bed') list.sort(function (a, b) { return (num(a.bed) - num(b.bed)) || (num(a.qn) - num(b.qn)); });
+        else if (srt === 'qn') list.sort(function (a, b) { return num(a.qn) - num(b.qn); });
+        else list.sort(function (a, b) { return (ORDER.indexOf(lvOf(a)) - ORDER.indexOf(lvOf(b))) || byExam(a, b); });
+        h = list.map(function (c, i) { return row(c, i); }).join('');
+        $('#tbody').html(h || '<tr><td colspan="' + C.length + '" class="text-center text-muted py-4">ไม่มีผู้ป่วย</td></tr>');
+        $('#foot').html(tab === 'in' ? ({ level: 'เรียงตามระดับ R → N และในแต่ละระดับ: รอตรวจรักษา → รอตรวจรักษาใหม่ → ตรวจรักษาแล้ว', team: 'เรียงตามทีม → เตียง', bed: 'เรียงตามเลขเตียง', qn: 'เรียงตาม QN' })[srt] + (view === 'doctor' ? ' · New = เคสใหม่ยังไม่ได้ตรวจรักษา' : ' · แถวสีเทา = ยังไม่ได้รับการตรวจรักษา') + ' · กดที่แถวเพื่อเข้าเคส' + (view === 'nurse' ? ' · แถวกระพริบ = มี Order ที่ยังไม่กดรับ' : '') : 'เคสที่ D/C หรือ Admit ใน' + shiftLabel(cur));
+    }
+
+    $('#tabs').on('click', 'a', function (e) { e.preventDefault(); tab = $(this).data('t'); $('#tabs a').removeClass('active'); $(this).addClass('active'); render(); });
+    $('#shift-sel').on('change', function () { shiftKey = $(this).val(); render(); });
+    $('#team-sel, #sort-sel').on('change', render); $('#search').on('input', render);
+    $('#tbody').on('change', '.bed-sel', function (e) {
+        var c = ERFlow.get($(this).data('bed')); c.bed = $(this).val(); ERFlow.save(); render(); toast('จัดเตียง ' + c.bed + ' ให้ ' + c.name);
+    });
+    $('#tbody').on('click', '.bed-sel', function (e) { e.stopPropagation(); });
+    // CHANGE-12: ใส่เลขเตียงบนกระดาน (กรณี triage ยังไม่ได้ใส่)
+    $('#tbody').on('click', '.bed-in', function (e) { e.stopPropagation(); });
+    $('#tbody').on('keydown', '.bed-in', function (e) { if (e.key === 'Enter') { e.preventDefault(); $(this).trigger('change'); } });
+    $('#tbody').on('change', '.bed-in', function () {
+        var v = $.trim($(this).val()); if (!v) return;
+        var c = ERFlow.get($(this).data('bed')); c.bed = v; ERFlow.save(); render(); toast('เตียง ' + v + ' — ' + c.name);
+    });
+    $('#tbody').on('click', '.b-row', function () {
+        // หน้าเคส (One day order / Progress note) — ส่วนถัดไป
+        location.href = 'er-case.html?id=' + $(this).data('id') + '&view=' + view;
+    });
+
+    // ข้อมูลจากแท็บอื่น (เช่นหน้า Triage) → อัปเดตทันที
+    window.addEventListener('storage', render);
+    setInterval(function () { $('#clock').text('อัปเดต ' + ERFlow.hm(new Date())); render(); }, 15000);
+    $('#clock').text('อัปเดต ' + ERFlow.hm(new Date()));
+    setView(view === 'nurse' ? 'nurse' : 'doctor');
+});
+</script>
+</body>
+</html>
