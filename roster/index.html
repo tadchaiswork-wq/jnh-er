@@ -189,7 +189,9 @@ const ALL_ROLES=['head','incharge','EMS','refer','triage','lead1','lead2','membe
 const DEFAULT_ROLES=[{key:'head',name:'Head'},{key:'subhead',name:'Subhead (Incharge)'},{key:'float',name:'ลอยเช้า (Lead)'},{key:'member',name:'Member'}];
 const DEFAULT_TARGET={weekday:{m:9,a:6,n:4},weekend:{m:6,a:6,n:4}};
 const SLOTS={ mwk:['head','incharge','lead1','lead2','EMS','refer','triage','member1','member2'],
-  six:['incharge','lead1','lead2','triage','member1','member2'], night:['lead1','lead2','member1','member2'] };
+  six:['incharge','lead1','lead2','triage','member1','member2'],            // เช้านอกเวลา (incharge สำคัญ)
+  afternoon:['lead1','lead2','triage','member1','member2','incharge'],      // บ่าย: incharge อยู่ท้าย = ตัดออกก่อนเมื่อคนไม่ครบ
+  night:['lead1','lead2','member1','member2'] };
 const TH_MON=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const CC_ROLE='cc';
 
@@ -240,8 +242,8 @@ function dayViol(id,d){ const c=cell(id,d); if(!c)return false; const p=tbase(c.
   if(p.indexOf('n')>=0 && hasTime(id,d-1,'a')) return true;
   if(p.indexOf('a')>=0 && hasTime(id,d+1,'n')) return true;
   return false; }
-function slotListFor(base,special){ if(base==='m')return (special?SLOTS.six:SLOTS.mwk).slice(); if(base==='a')return SLOTS.six.slice(); if(base==='n')return SLOTS.night.slice(); return []; }
-function roleOptsFor(s,special){ if(s==='m')return special?SLOTS.six:SLOTS.mwk; if(s==='a')return SLOTS.six; if(s==='n')return SLOTS.night; if(s==='na')return SLOTS.six; return []; }
+function slotListFor(base,special){ if(base==='m')return (special?SLOTS.six:SLOTS.mwk).slice(); if(base==='a')return SLOTS.afternoon.slice(); if(base==='n')return SLOTS.night.slice(); return []; }
+function roleOptsFor(s,special){ if(s==='m')return special?SLOTS.six:SLOTS.mwk; if(s==='a')return SLOTS.afternoon; if(s==='n')return SLOTS.night; if(s==='na')return SLOTS.afternoon; return []; }
 
 /* ---------- staff ---------- */
 function roleIndex(k){ const i=ROLES.findIndex(r=>r.key===k); return i<0?99:i; }
@@ -474,7 +476,7 @@ async function autoDraft(){
     if(addBase==='n'){ const pv=NEW[id][d-1]; if(pv&&tbase(pv.s).indexOf('a')>=0)return false; }
     return true; };
   const shortfall=[];
-  const wkMornLeft={}; subs.concat(floats).forEach(s=>wkMornLeft[s.id]=2);
+  const wkMornLeft={}, wkUsed={}, wkDone={}; subs.concat(floats).forEach(s=>{wkMornLeft[s.id]=2; wkUsed[s.id]=new Set(); wkDone[s.id]=0;});
   for(let d=1;d<=nd;d++){
     const special=isSpecial(curY,curM,d); const festival=isFestival(curY,curM,d); const T=special?TARGET.weekend:TARGET.weekday;
     const need={m:T.m||0,a:T.a||0,n:T.n||0}; const got={m:0,a:0,n:0};
@@ -490,8 +492,11 @@ async function autoDraft(){
       subs.forEach(s=>{ if(got.m<need.m&&can(s.id,d,'m')){ if(place(s,'m'))got.m++; } });
       floats.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(f=>{ if(got.m<need.m&&can(f.id,d,'m')){ if(place(f,'m'))got.m++; } });
     } else {
-      subs.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(s=>{ if(got.m<need.m&&wkMornLeft[s.id]>0&&can(s.id,d,'m')){ if(place(s,'m')){got.m++;wkMornLeft[s.id]--;} } });
-      floats.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(f=>{ if(got.m<need.m&&wkMornLeft[f.id]>0&&can(f.id,d,'m')){ if(place(f,'m')){got.m++;wkMornLeft[f.id]--;} } });
+      // เช้านอกเวลา (เสาร์อาทิตย์/พิเศษ): subhead+ลอยเช้า โควตา 2/เดือน · กระจายทุกสัปดาห์ · ห้ามอยู่ทั้ง ส+อา สัปดาห์เดียว
+      const wday=dow(curY,curM,d); const wid = wday===6?d : (wday===0?d-1 : 0);  // id ของสุดสัปดาห์ (เสาร์=ตัวเอง, อาทิตย์=เสาร์ก่อนหน้า)
+      const pickWk=arr=>arr.slice().filter(s=>wkMornLeft[s.id]>0 && !(wid&&wkUsed[s.id].has(wid))).sort((a,b)=>(wkDone[a.id]-wkDone[b.id])||(load[a.id]-load[b.id]));
+      pickWk(subs).forEach(s=>{ if(got.m<need.m&&can(s.id,d,'m')){ if(place(s,'m')){got.m++;wkMornLeft[s.id]--;wkDone[s.id]++;if(wid)wkUsed[s.id].add(wid);} } });
+      pickWk(floats).forEach(f=>{ if(got.m<need.m&&can(f.id,d,'m')){ if(place(f,'m')){got.m++;wkMornLeft[f.id]--;wkDone[f.id]++;if(wid)wkUsed[f.id].add(wid);} } });
     }
     // regular fill: night first · เวรในเวลา(เช้าวันธรรมดา)=เฉลี่ยเท่ากัน(loadInM) · เทศกาล=เฉลี่ย(loadFest)
     ['n','a','m'].forEach(s=>{ let guard=0;
