@@ -1,0 +1,17 @@
+/* ส่วนเสริมเฉพาะ mockup (ไม่มีในระบบจริง) */
+.mockup-badge { font-size: 60%; vertical-align: middle; }
+.mock-patient-img {
+    width: 120px; height: 140px; display: flex; align-items: center; justify-content: center;
+    font-size: 64px; color: #9aa9b5; background: #eef2f5;
+}
+.mock-ribbon {
+    position: fixed; right: 12px; bottom: 12px; z-index: 2000;
+    background: rgba(255, 193, 7, .95); color: #333; padding: 4px 10px; border-radius: .25rem;
+    font-size: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+.mock-ribbon a { color: #07689F; font-weight: bold; }
+/* จากหน้า opd-er-order.php */
+#order-table th { width: 30%; }
+td.order-table-row { height: 55px !important; }
+ul.dash { list-style: none; margin-left: 0; padding-left: 1em; margin-bottom: 0; }
+ul.dash > li:before { display: inline-block; content: "-"; width: 1em; margin-left: -1em; }
