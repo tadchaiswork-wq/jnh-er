@@ -287,8 +287,8 @@ function render(){
   let full=0, counted=0;
   POSITIONS.forEach(p=>{
     if(p.key===ALC_KEY){
-      const list=(records[ALC_KEY]||{}).alcList||{};
-      const arr=Object.keys(list).map(k=>list[k]).filter(Boolean);
+      const alcL=(records[ALC_KEY]||{}).alcList||{};
+      const arr=Object.keys(alcL).map(k=>alcL[k]).filter(Boolean);
       const total=arr.length, found=arr.filter(a=>a.result==="found").length;
       const stat = total===0?"zero":(found>0?"bad":"done");
       const txt  = total===0?"—":(found>0?("พบ "+found+" คน"):("ไม่พบ "+total+" คน"));
