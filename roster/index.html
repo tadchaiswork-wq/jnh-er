@@ -50,6 +50,16 @@ thead th.we{background:#fde68a;color:#92400e}
 .cell{min-width:30px;height:30px;cursor:pointer;font-weight:800;font-size:12px;padding:0}
 .cell.we{background:#fffbeb}
 .cell.m{background:var(--m-bg);color:var(--m)}.cell.a{background:var(--a-bg);color:var(--a)}.cell.n{background:var(--n-bg);color:var(--n)}
+.cell.na{background:linear-gradient(135deg,var(--n-bg) 50%,var(--a-bg) 50%);color:#5b21b6}
+.cell{min-width:44px}
+.cell .rl{display:block;font-size:8.5px;font-weight:700;opacity:.85;line-height:1.05;margin-top:1px}
+#pop{position:absolute;z-index:70;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:10px;width:226px;display:none}
+#pop .pop-nm{font-size:12px;font-weight:700;color:#334155;margin-bottom:6px}
+#pop .pop-sh{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+#pop .pop-sh button{flex:1;min-width:46px;border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 4px;font-size:12.5px;font-weight:700;cursor:pointer}
+#pop .pop-sh button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+#pop .pop-r{font-size:12.5px;color:#475569;display:flex;align-items:center;gap:6px}
+#pop .pop-r select{flex:1;border:1px solid var(--line);border-radius:8px;padding:6px}
 .cell.off{background:var(--off-bg);color:var(--off)}
 .cell.offreq{box-shadow:inset 0 0 0 2px var(--off)}
 .cell.warn{box-shadow:inset 0 0 0 2px var(--bad)}
@@ -105,7 +115,7 @@ thead th.we{background:#fde68a;color:#92400e}
 <div class="hint" id="modeHint">เลือกชื่อของคุณด้านบน แล้วแตะวันในแถวของตัวเองเพื่อ “ขอหยุด (off)” · ส่วนการลงเวรจริงทำโดย Admin</div>
 <div class="legend">
   <span><i class="lm">ช</i>เช้า 08–16</span><span><i class="la">บ</i>บ่าย 16–24</span><span><i class="ln">ด</i>ดึก 00–08</span>
-  <span><i class="lo">off</i>ขอหยุด</span><span>กรอบแดง = ผิดกฎ (เวรติด/จำนวนไม่ครบ)</span>
+  <span>ด+บ = ดึก+บ่ายวันเดียวกัน (ได้ ไม่ผิดกฎ)</span><span><i class="lo">off</i>ขอหยุด</span><span>กรอบแดง = ผิดกฎ (บ่าย→ดึกวันถัดไป)</span>
 </div>
 <div class="warnbox" id="warnbox"></div>
 <div class="wrap"><table class="grid" id="grid"></table></div>
@@ -150,6 +160,7 @@ thead th.we{background:#fde68a;color:#92400e}
   </div>
 </div></div>
 
+<div id="pop"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -239,28 +250,24 @@ function renderMeSel(){
   if(cur&&STAFF[cur])$('meSel').value=cur;
 }
 
-/* ---------- rules ---------- */
-const ADJ={ // which shifts are back-to-back (16h). returns forbidden pairs
-  // same day adjacency: n(00-08)->m(08-16), m(08-16)->a(16-24)
-  // cross day: a(16-24 of d) -> n(00-08 of d+1)
-};
-function assignedAt(id,y,m,d){ if(d<1||d>daysInMonth(y,m))return null; return (SH[id]||{})[d]||null; }
-// does giving shift s to id on day d create a 16h back-to-back?
-function backToBack(id,d,s){
-  const prev=(SH[id]||{});
-  const sameDay=prev[d];
-  // within same day: order n < m < a
-  if(s==='m'&&(sameDay==='n'))return true;
-  if(s==='n'&&(sameDay==='m'))return true;
-  if(s==='a'&&(sameDay==='m'))return true;
-  if(s==='m'&&(sameDay==='a'))return true; // m & a adjacent either way
-  if(s==='a'&&(sameDay==='n'))return false; // n(00-08) and a(16-24) not adjacent
-  if(s==='n'&&(sameDay==='a'))return false;
-  // cross-day: a(d) then n(d+1); or n(d) preceded by a(d-1)
-  if(s==='n' && prev[d-1]==='a') return true;
-  if(s==='a' && prev[d+1]==='n') return true;
-  return false;
-}
+/* ---------- shift model ----------
+   cell(id,d) = {s,r} · s ∈ 'm'|'a'|'n'|'na' (na = ดึก+บ่าย วันเดียวกัน มีเช้าคั่น 8 ชม. ไม่ผิดกฎ) · r = role */
+const SHIFT_TXT={m:'ช',a:'บ',n:'ด',na:'ด+บ'};
+const ROLE_TH={head:'Head',incharge:'Incharge',EMS:'EMS',refer:'Refer',triage:'Triage',lead:'Lead',member:'Member'};
+function cell(id,d){ const v=(SH[id]||{})[d]; if(!v)return null; if(typeof v==='string')return {s:v,r:''}; return v; }
+function baseParts(s){ return s==='na'?['n','a']:[s]; }
+function hasBase(id,d,base){ const c=cell(id,d); return !!c && baseParts(c.s).indexOf(base)>=0; }
+// ชนเวร 16 ชม. = บ่าย(d) ต่อ ดึก(d+1) เท่านั้น
+function dayViol(id,d){ const c=cell(id,d); if(!c)return false; const p=baseParts(c.s);
+  if(p.indexOf('n')>=0 && hasBase(id,d-1,'a')) return true;
+  if(p.indexOf('a')>=0 && hasBase(id,d+1,'n')) return true;
+  return false; }
+/* role slots ต่อเวร (ตามองค์ประกอบ) */
+const SLOTS={ mwk:['head','incharge','lead','lead','EMS','refer','triage','member','member'],
+  six:['incharge','lead','lead','triage','member','member'], night:['lead','lead','member','member'] };
+function slotListFor(base,weekend){ if(base==='m')return (weekend?SLOTS.six:SLOTS.mwk).slice(); if(base==='a')return SLOTS.six.slice(); if(base==='n')return SLOTS.night.slice(); return []; }
+const ROLE_OPTS={ m_wk:['head','incharge','EMS','refer','triage','lead','member'], six:['incharge','lead','triage','member'], night:['lead','member'] };
+function roleOptsFor(s,weekend){ if(s==='m')return weekend?ROLE_OPTS.six:ROLE_OPTS.m_wk; if(s==='a')return ROLE_OPTS.six; if(s==='n')return ROLE_OPTS.night; if(s==='na')return ['incharge','lead','triage','member']; return []; }
 
 /* ---------- render matrix ---------- */
 function render(){
@@ -274,9 +281,9 @@ function render(){
     if(s.role!==lastRole){ lastRole=s.role; const r=ROLES.find(x=>x.key===s.role); h+=`<tr class="rolehdr"><td colspan="${nd+1}">${esc(r?r.name:s.role)}</td></tr>`; }
     h+=`<tr data-sid="${s.id}"><td class="gname" title="${esc(s.name)}">${esc(s.name)}</td>`;
     for(let d=1;d<=nd;d++){
-      const we=isWeekend(curY,curM,d), sh=(SH[s.id]||{})[d], off=(OFF[s.id]||{})[d];
+      const we=isWeekend(curY,curM,d), c=cell(s.id,d), off=(OFF[s.id]||{})[d];
       let cls='cell'+(we?' we':''), txt='';
-      if(sh){ cls+=' '+sh; txt=SHIFTBYK[sh].code; if(off)cls+=' offreq'; if(backToBack(s.id,d,sh))cls+=' warn'; }
+      if(c){ cls+=' '+(c.s==='na'?'na':c.s); txt=SHIFT_TXT[c.s]+(c.r?'<span class="rl">'+esc(ROLE_TH[c.r]||c.r)+'</span>':''); if(off)cls+=' offreq'; if(dayViol(s.id,d))cls+=' warn'; }
       else if(off){ cls+=' off'; txt='off'; }
       if(s.id===meId)cls+=' me';
       h+=`<td class="${cls}" data-sid="${s.id}" data-d="${d}">${txt}</td>`;
@@ -288,7 +295,7 @@ function render(){
     h+=`<tr class="sumrow"><td class="sumname">รวม${sf.th}</td>`;
     for(let d=1;d<=nd;d++){
       const we=isWeekend(curY,curM,d); const need=(we?TARGET.weekend:TARGET.weekday)[sf.k]||0;
-      let c=0; list.forEach(s=>{ if((SH[s.id]||{})[d]===sf.k)c++; });
+      let c=0; list.forEach(s=>{ if(hasBase(s.id,d,sf.k))c++; });
       const bad=c!==need; h+=`<td class="${bad?'bad':(need?'okc':'')}" title="ต้องการ ${need}">${c}${need?'/'+need:''}</td>`;
     }
     h+='</tr>';
@@ -303,10 +310,10 @@ function computeWarnings(){
   const nd=daysInMonth(curY,curM), list=staffList(); const msgs=[];
   // back-to-back
   let bb=0;
-  list.forEach(s=>{ for(let d=1;d<=nd;d++){ const sh=(SH[s.id]||{})[d]; if(sh&&backToBack(s.id,d,sh))bb++; } });
-  if(bb) msgs.push('⚠ พบเวรติดกัน (16 ชม.) '+bb+' จุด — ดูช่องกรอบแดง');
+  list.forEach(s=>{ for(let d=1;d<=nd;d++){ if(dayViol(s.id,d))bb++; } });
+  if(bb) msgs.push('⚠ พบเวรติดกัน (บ่าย→ดึกวันถัดไป) '+bb+' จุด — ดูช่องกรอบแดง');
   // off conflicts (assigned on a requested-off day)
-  let oc=0; list.forEach(s=>{ for(let d=1;d<=nd;d++){ if((SH[s.id]||{})[d]&&(OFF[s.id]||{})[d])oc++; } });
+  let oc=0; list.forEach(s=>{ for(let d=1;d<=nd;d++){ if(cell(s.id,d)&&(OFF[s.id]||{})[d])oc++; } });
   if(oc) msgs.push('⚠ ลงเวรทับวันขอหยุด '+oc+' จุด');
   const box=$('warnbox'); if(msgs.length){ box.textContent=msgs.join('\n'); box.classList.add('show'); } else box.classList.remove('show');
 }
@@ -315,20 +322,38 @@ function computeWarnings(){
 $('grid').addEventListener('click',e=>{
   const td=e.target.closest('td.cell'); if(!td)return;
   const sid=td.dataset.sid, d=+td.dataset.d;
-  if(admin){
-    const cur=(SH[sid]||{})[d]||'';
-    const next={'' :'m','m':'a','a':'n','n':''}[cur];
-    setShift(sid,d,next);
-  } else {
+  if(admin){ openPop(td,sid,d); }
+  else {
     if(sid!==meId){ toast('เลือกชื่อของคุณด้านบนก่อน แล้วแตะในแถวของตัวเอง'); return; }
     toggleOff(sid,d);
   }
 });
-function setShift(sid,d,val){
-  SH[sid]=SH[sid]||{}; if(val)SH[sid][d]=val; else delete SH[sid][d];
-  DB.set(PATH+'/shift/'+ym+'/'+sid+'/'+d, val||null);
+function setCell(sid,d,s,r){
+  SH[sid]=SH[sid]||{}; if(s){ SH[sid][d]={s:s,r:r||''}; } else delete SH[sid][d];
+  DB.set(PATH+'/shift/'+ym+'/'+sid+'/'+d, s?{s:s,r:r||''}:null);
   render();
 }
+function pickDefaultRole(sid,s,we){ const st=STAFF[sid]; const cat=st?st.role:'';
+  if(s==='m'&&!we){ if(cat==='head')return 'head'; if(cat==='subhead')return 'incharge'; if(cat==='float')return 'lead'; return 'member'; }
+  if(cat==='subhead')return 'incharge'; if(cat==='float')return 'lead'; return 'member'; }
+/* popover: เลือกเวร + role */
+function openPop(td,sid,d){
+  const we=isWeekend(curY,curM,d); const c=cell(sid,d)||{s:'',r:''}; const pop=$('pop');
+  const shBtns=[['','ว่าง'],['m','เช้า'],['a','บ่าย'],['n','ดึก'],['na','ดึก+บ่าย']].map(([k,l])=>`<button data-s="${k}" class="${c.s===k?'on':''}">${l}</button>`).join('');
+  const ropts=roleOptsFor(c.s||'m',we).map(r=>`<option value="${r}" ${c.r===r?'selected':''}>${esc(ROLE_TH[r]||r)}</option>`).join('');
+  pop.innerHTML=`<div class="pop-nm">${esc((STAFF[sid]||{}).name||'')} · วันที่ ${d}</div>
+    <div class="pop-sh">${shBtns}</div>
+    <div class="pop-r">บทบาท (role): <select id="popRole"><option value="">—</option>${ropts}</select></div>`;
+  pop.style.display='block';
+  const rect=td.getBoundingClientRect();
+  pop.style.left=Math.max(6,Math.min(rect.left,window.innerWidth-236))+'px';
+  pop.style.top=(rect.bottom+window.scrollY+4)+'px';
+  pop.dataset.sid=sid; pop.dataset.d=d;
+  pop.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{ const s=b.dataset.s; setCell(sid,d,s, s?pickDefaultRole(sid,s,we):''); openPop(td,sid,d); });
+  const rs=$('popRole'); if(rs) rs.onchange=ev=>{ const cc=cell(sid,d); if(cc)setCell(sid,d,cc.s,ev.target.value); };
+}
+function closePop(){ const p=$('pop'); if(p)p.style.display='none'; }
+document.addEventListener('click',e=>{ if(!e.target.closest('#pop') && !e.target.closest('td.cell')) closePop(); });
 function toggleOff(sid,d){
   OFF[sid]=OFF[sid]||{}; const nv=!OFF[sid][d];
   if(nv)OFF[sid][d]=true; else delete OFF[sid][d];
@@ -342,7 +367,7 @@ $('meSel').addEventListener('change',e=>{
   const on=!!meId && !admin;
   $('modePill').textContent= admin?'โหมด Admin':(on?'โหมดขอวันหยุด':'โหมดดู');
   $('modeHint').textContent= on? 'แตะวันในแถวของคุณ (ไฮไลต์เขียว) เพื่อสลับ “ขอหยุด (off)” · แตะซ้ำเพื่อยกเลิก'
-    : (admin?'แตะช่องเพื่อวนเวร เช้า→บ่าย→ดึก→ว่าง · แถวสรุปด้านล่างบอกจำนวนต่อเวร (แดง=ไม่ครบ)':'เลือกชื่อของคุณเพื่อขอวันหยุด');
+    : (admin?'แตะช่องเพื่อเลือกเวร + บทบาท (role) · แถวสรุปบอกจำนวนต่อเวร (แดง=ไม่ครบ)':'เลือกชื่อของคุณเพื่อขอวันหยุด');
   render();
 });
 
@@ -352,7 +377,7 @@ $('mNext').onclick=()=>{ curM++; if(curM>12){curM=1;curY++;} loadMonth(); };
 
 /* ---------- admin ---------- */
 $('gearBtn').onclick=()=>{ if(admin){ openPanel(); } else { $('pin').value=''; $('gate').classList.remove('hide'); setTimeout(()=>$('pin').focus(),50);} };
-$('pinOk').onclick=()=>{ if($('pin').value===(SETTINGS.adminPass||'1234')){ admin=true; $('gate').classList.add('hide'); $('adminTools').style.display='inline-flex'; $('modePill').textContent='โหมด Admin'; $('meSel').value=''; meId=''; $('modeHint').textContent='แตะช่องเพื่อวนเวร เช้า→บ่าย→ดึก→ว่าง · แถวสรุปด้านล่างบอกจำนวนต่อเวร (แดง=ไม่ครบ)'; render(); openPanel(); } else toast('รหัสไม่ถูกต้อง'); };
+$('pinOk').onclick=()=>{ if($('pin').value===(SETTINGS.adminPass||'1234')){ admin=true; $('gate').classList.add('hide'); $('adminTools').style.display='inline-flex'; $('modePill').textContent='โหมด Admin'; $('meSel').value=''; meId=''; $('modeHint').textContent='แตะช่องเพื่อเลือกเวร + บทบาท (role) · แถวสรุปบอกจำนวนต่อเวร (แดง=ไม่ครบ)'; render(); openPanel(); } else toast('รหัสไม่ถูกต้อง'); };
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{$('gate').classList.add('hide');$('panel').classList.add('hide');});
 [$('gate'),$('panel')].forEach(m=>m.addEventListener('click',e=>{if(e.target===m){$('gate').classList.add('hide');$('panel').classList.add('hide');}}));
 $('pin').addEventListener('keydown',e=>{if(e.key==='Enter')$('pinOk').click();});
@@ -452,10 +477,10 @@ function autoDraft(){
   const loadT={}; list.forEach(s=>loadT[s.id]={m:0,a:0,n:0});  // เฉลี่ยตามชนิดเวร
   SH=NEW;  // start fresh
   const can=(id,d,s)=>{ if(offAt(id,d))return false; if(NEW[id][d])return false; if(bb(id,d,s))return false; return true; };
-  function bb(id,d,s){ const p=NEW[id]||{}; const sd=p[d];
-    if(s==='m'&&(sd==='n'||sd==='a'))return true; if(s==='n'&&sd==='m')return true; if(s==='a'&&sd==='m')return true;
-    if(s==='n'&&p[d-1]==='a')return true; if(s==='a'&&p[d+1]==='n')return true; return false; }
-  const give=(id,d,s)=>{ NEW[id][d]=s; load[id]++; loadT[id][s]++; };
+  function bb(id,d,s){ const p=NEW[id]||{}; const cd=p[d]&&p[d].s, pn=p[d-1]&&p[d-1].s, nx=p[d+1]&&p[d+1].s;
+    if(s==='m'&&(cd==='n'||cd==='a'))return true; if(s==='n'&&cd==='m')return true; if(s==='a'&&cd==='m')return true;
+    if(s==='n'&&pn==='a')return true; if(s==='a'&&nx==='n')return true; return false; }
+  const give=(id,d,s,r)=>{ NEW[id][d]={s:s,r:r||''}; load[id]++; loadT[id][s]++; };
   const shortfall=[];
   // weekend-morning quota for subhead/float: 2 each per month
   const wkMornLeft={}; subs.concat(floats).forEach(s=>wkMornLeft[s.id]=2);
@@ -463,26 +488,28 @@ function autoDraft(){
     const we=isWeekend(curY,curM,d); const T=we?TARGET.weekend:TARGET.weekday;
     const need={m:T.m||0,a:T.a||0,n:T.n||0};
     const got={m:0,a:0,n:0};
+    const slotsLeft={m:slotListFor('m',we),a:slotListFor('a',we),n:slotListFor('n',we)};
+    const takeRole=(base,prefers)=>{ const arr=slotsLeft[base]; for(const pr of prefers){const i=arr.indexOf(pr); if(i>=0){arr.splice(i,1);return pr;}} return arr.length?arr.shift():'member'; };
+    const memPref=base=> base==='m'?['EMS','refer','triage','member','lead','incharge']:(base==='n'?['member','lead']:['member','triage','lead','incharge']);
+    const roleFor=(cat,base)=>{ if(base==='m'&&cat==='head')return takeRole(base,['head']); if(cat==='subhead')return takeRole(base,['incharge']); if(cat==='float')return takeRole(base,['lead']); return takeRole(base,memPref(base)); };
+    const place=(st,base)=>give(st.id,d,base,roleFor(st.role,base));
     // --- morning fixed ---
     if(!we){
-      heads.forEach(h=>{ if(got.m<need.m&&can(h.id,d,'m')){give(h.id,d,'m');got.m++;} });
-      subs.forEach(s=>{ if(got.m<need.m&&can(s.id,d,'m')){give(s.id,d,'m');got.m++;} });
-      // floats: เติม lead เช้า โดยเลือกคนที่ทำงานน้อยสุดก่อน (เฉลี่ยทั่วถึง)
-      floats.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(f=>{ if(got.m<need.m&&can(f.id,d,'m')){give(f.id,d,'m');got.m++;} });
+      heads.forEach(h=>{ if(got.m<need.m&&can(h.id,d,'m')){place(h,'m');got.m++;} });
+      subs.forEach(s=>{ if(got.m<need.m&&can(s.id,d,'m')){place(s,'m');got.m++;} });
+      floats.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(f=>{ if(got.m<need.m&&can(f.id,d,'m')){place(f,'m');got.m++;} });
     } else {
-      // weekend morning: subhead/float ใช้โควตา 2 วัน/เดือน เลือกคนโหลดน้อยสุดก่อน
-      subs.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(s=>{ if(got.m<need.m&&wkMornLeft[s.id]>0&&can(s.id,d,'m')){give(s.id,d,'m');got.m++;wkMornLeft[s.id]--;} });
-      floats.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(f=>{ if(got.m<need.m&&wkMornLeft[f.id]>0&&can(f.id,d,'m')){give(f.id,d,'m');got.m++;wkMornLeft[f.id]--;} });
+      subs.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(s=>{ if(got.m<need.m&&wkMornLeft[s.id]>0&&can(s.id,d,'m')){place(s,'m');got.m++;wkMornLeft[s.id]--;} });
+      floats.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(f=>{ if(got.m<need.m&&wkMornLeft[f.id]>0&&can(f.id,d,'m')){place(f,'m');got.m++;wkMornLeft[f.id]--;} });
     }
-    // --- เติมเวรจาก pool: เฉลี่ย "ชนิดเวร" ให้พอ ๆ กัน (คนที่มีเวรชนิดนี้น้อยสุดก่อน แล้วค่อยดูโหลดรวม)
-    //     เติม "ดึก" ก่อน เพราะติดข้อจำกัดบ่าย→ดึกมากสุด จะได้กระจายทั่วถึง ---
+    // --- เติมเวรจาก pool: เฉลี่ยชนิดเวร (เติมดึกก่อน) + ใส่ role ตามองค์ประกอบ ---
     ['n','a','m'].forEach(s=>{
       let guard=0;
       while(got[s]<need[s] && guard<pool.length*3){
         guard++;
         const cand=pool.slice().sort((x,y)=>(loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id]));
         let placed=false;
-        for(const c of cand){ if(can(c.id,d,s)){ give(c.id,d,s); got[s]++; placed=true; break; } }
+        for(const c of cand){ if(can(c.id,d,s)){ place(c,s); got[s]++; placed=true; break; } }
         if(!placed) break;
       }
       if(got[s]<need[s]) shortfall.push(d+' '+SHIFTBYK[s].th+' ขาด '+(need[s]-got[s]));
