@@ -449,16 +449,16 @@ function autoDraft(){
   const pool=list.filter(s=>!fixedKeys[s.role]);        // member + custom roles
   const NEW={}; list.forEach(s=>NEW[s.id]={});
   const load={}; list.forEach(s=>load[s.id]=0);
+  const loadT={}; list.forEach(s=>loadT[s.id]={m:0,a:0,n:0});  // เฉลี่ยตามชนิดเวร
   SH=NEW;  // start fresh
   const can=(id,d,s)=>{ if(offAt(id,d))return false; if(NEW[id][d])return false; if(bb(id,d,s))return false; return true; };
   function bb(id,d,s){ const p=NEW[id]||{}; const sd=p[d];
     if(s==='m'&&(sd==='n'||sd==='a'))return true; if(s==='n'&&sd==='m')return true; if(s==='a'&&sd==='m')return true;
     if(s==='n'&&p[d-1]==='a')return true; if(s==='a'&&p[d+1]==='n')return true; return false; }
-  const give=(id,d,s)=>{ NEW[id][d]=s; load[id]++; };
+  const give=(id,d,s)=>{ NEW[id][d]=s; load[id]++; loadT[id][s]++; };
   const shortfall=[];
   // weekend-morning quota for subhead/float: 2 each per month
   const wkMornLeft={}; subs.concat(floats).forEach(s=>wkMornLeft[s.id]=2);
-  let fRot=0, poolRot=0;
   for(let d=1;d<=nd;d++){
     const we=isWeekend(curY,curM,d); const T=we?TARGET.weekend:TARGET.weekday;
     const need={m:T.m||0,a:T.a||0,n:T.n||0};
@@ -467,28 +467,19 @@ function autoDraft(){
     if(!we){
       heads.forEach(h=>{ if(got.m<need.m&&can(h.id,d,'m')){give(h.id,d,'m');got.m++;} });
       subs.forEach(s=>{ if(got.m<need.m&&can(s.id,d,'m')){give(s.id,d,'m');got.m++;} });
-      // floats: fill morning lead slots by rotation
-      let guard=0;
-      while(got.m<need.m && guard<floats.length*2 && floats.length){
-        const f=floats[fRot%floats.length]; fRot++; guard++;
-        if(can(f.id,d,'m')){ give(f.id,d,'m'); got.m++; }
-      }
+      // floats: เติม lead เช้า โดยเลือกคนที่ทำงานน้อยสุดก่อน (เฉลี่ยทั่วถึง)
+      floats.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(f=>{ if(got.m<need.m&&can(f.id,d,'m')){give(f.id,d,'m');got.m++;} });
     } else {
-      // weekend morning: use subhead/float weekend quota (incharge + leads), then pool
-      subs.forEach(s=>{ if(got.m<need.m&&wkMornLeft[s.id]>0&&can(s.id,d,'m')){give(s.id,d,'m');got.m++;wkMornLeft[s.id]--;} });
-      let guard=0;
-      while(got.m<need.m && guard<floats.length*2 && floats.length){
-        const f=floats[fRot%floats.length]; fRot++; guard++;
-        if(wkMornLeft[f.id]>0&&can(f.id,d,'m')){ give(f.id,d,'m'); got.m++; wkMornLeft[f.id]--; }
-      }
+      // weekend morning: subhead/float ใช้โควตา 2 วัน/เดือน เลือกคนโหลดน้อยสุดก่อน
+      subs.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(s=>{ if(got.m<need.m&&wkMornLeft[s.id]>0&&can(s.id,d,'m')){give(s.id,d,'m');got.m++;wkMornLeft[s.id]--;} });
+      floats.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(f=>{ if(got.m<need.m&&wkMornLeft[f.id]>0&&can(f.id,d,'m')){give(f.id,d,'m');got.m++;wkMornLeft[f.id]--;} });
     }
-    // --- fill all shifts from pool (least-loaded), m first then a then n ---
+    // --- เติมเวรจาก pool: เฉลี่ย "ชนิดเวร" ให้พอ ๆ กัน (คนที่มีเวรชนิดนี้น้อยสุดก่อน แล้วค่อยดูโหลดรวม) ---
     ['m','a','n'].forEach(s=>{
       let guard=0;
       while(got[s]<need[s] && guard<pool.length*3){
         guard++;
-        // pick least-loaded eligible
-        const cand=pool.slice().sort((x,y)=>load[x.id]-load[y.id]);
+        const cand=pool.slice().sort((x,y)=>(loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id]));
         let placed=false;
         for(const c of cand){ if(can(c.id,d,s)){ give(c.id,d,s); got[s]++; placed=true; break; } }
         if(!placed) break;
