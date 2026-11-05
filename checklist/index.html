@@ -210,6 +210,15 @@
   .drvrow input{flex:1;border:1px solid var(--line);border-radius:8px;padding:9px;font-family:inherit;font-size:14px}
   .drvrow .del{background:var(--danger-l);color:var(--danger);border:none;border-radius:8px;width:40px;font-size:16px;flex:0 0 auto}
   .hsq.bad{background:var(--danger)!important;color:#fff}
+  .alc-list{display:flex;flex-direction:column;gap:8px}
+  .alc-item{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff}
+  .alc-item.neg{background:#f6fef9;border-color:#bbf7d0} .alc-item.pos{background:#fff7f7;border-color:#fecaca}
+  .alc-no{width:22px;height:22px;flex:0 0 auto;border-radius:50%;background:#f1f5f9;color:#64748b;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .alc-badge{flex:0 0 auto;font-weight:800;font-size:13px;padding:3px 10px;border-radius:999px}
+  .alc-badge.neg{background:var(--ok-l);color:#15803d} .alc-badge.pos{background:var(--danger-l);color:#b91c1c}
+  .alc-nm{flex:1;min-width:0;font-weight:600;font-size:15px;display:flex;flex-direction:column}
+  .alc-bk{font-size:12px;color:#b45309;font-weight:600}
+  .alc-del{flex:0 0 auto;border:none;background:none;color:var(--danger);font-size:17px;cursor:pointer;padding:4px 6px}
 </style>
 </head>
 <body>
@@ -338,10 +347,12 @@ const POSITIONS = [
 const SEED_MAP = {emt:"emt", member1:"member1", member2:"member2", bag_ab1:"bag_ab_single", bag_ab2:"bag_ab_single", bag_cd1:"bag_cd_single", bag_cd2:"bag_cd_single"};
 const ALC_KEY = "vehicle_staff";   // ตำแหน่งพิเศษ: ตรวจ alcohol พขร (ไม่ใช่ checklist อุปกรณ์)
 /* สถานะผล alcohol: result = 'none'(ไม่พบ=เขียว) | 'found'(พบ=แดง) | ''(ยังไม่ตรวจ=เทา) */
-function alcStatus(alc){ const r=alc&&alc.result;
-  if(r==="none")  return {cls:"neg", txt:"ปกติ",        mon:"done"};
-  if(r==="found") return {cls:"pos", txt:"เกินมาตรฐาน", mon:"bad"};
-  return {cls:"none", txt:"ยังไม่ตรวจ", mon:"zero"}; }
+function alcOne(result){ return result==="none"?{cls:"neg",txt:"ไม่พบ"}:(result==="found"?{cls:"pos",txt:"พบ"}:{cls:"none",txt:"—"}); }
+function alcArr(list){ return list?Object.keys(list).map(id=>Object.assign({id},list[id])).sort((a,b)=>(a.at||0)-(b.at||0)):[]; }
+function alcSummary(list){ const arr=alcArr(list); const total=arr.length, found=arr.filter(a=>a&&a.result==="found").length;
+  if(total===0) return {arr,total,found,cls:"none",txt:"ยังไม่ตรวจ",mon:"zero"};
+  if(found>0)   return {arr,total,found,cls:"pos", txt:"พบ "+found+" คน", mon:"bad"};
+  return {arr,total,found,cls:"neg", txt:"ไม่พบ ("+total+" คน)", mon:"done"}; }
 
 /* ---------- shift / date helpers (Asia/Bangkok) ---------- */
 function bkkNow(){
@@ -402,7 +413,7 @@ let checker="";
 let curPos=null;
 let curRec={};         // checks for current position/shift
 let drivers=[];        // รายชื่อ พขร (admin เพิ่มได้) — checklist/drivers
-let alcRec={};         // ผลตรวจ alcohol เวรนี้ {driver,result,checker,at}
+let alcList={};        // ผลตรวจ alcohol เวรนี้ (หลายคน) {id:{driver,result,backup,checker,at}}
 const S = shiftInfo();
 
 /* ---------- seeding ---------- */
@@ -459,13 +470,14 @@ function renderPositions(){
     const btn=document.createElement("button");
     btn.className="pos";
     if(p.key===ALC_KEY){
-      const st=alcStatus(alcRec);
+      const sm=alcSummary(alcList);
+      const names=sm.arr.map(a=>a.driver).filter(Boolean).slice(0,3).join(", ");
       btn.innerHTML=`<div class="ic">${p.icon}</div>
         <div class="body">
           <div class="nm">${esc(p.name)}</div>
-          <div class="mt">${alcRec&&alcRec.driver? "จนท.ยานพาหนะ: "+esc(alcRec.driver) : "แตะเพื่อบันทึกผลตรวจ"}</div>
+          <div class="mt">${sm.total? ("ตรวจแล้ว "+sm.total+" คน"+(names?" · "+esc(names)+(sm.total>3?" …":""):"")) : "แตะเพื่อบันทึกผลตรวจ"}</div>
         </div>
-        <div class="pct ${st.cls==='neg'?'alcneg':st.cls==='pos'?'alcpos':''}">${st.txt}</div>`;
+        <div class="pct ${sm.cls==='neg'?'alcneg':sm.cls==='pos'?'alcpos':''}">${sm.txt}</div>`;
       btn.onclick=()=>openPosition(p.key);
       wrap.appendChild(btn);
       return;
@@ -486,8 +498,8 @@ function renderPositions(){
 function subscribeShiftRecords(){
   POSITIONS.forEach(p=>{
     if(p.key===ALC_KEY){
-      DB.onValue(`checklist/records/${S.recKey}/${ALC_KEY}/alc`, alc=>{
-        alcRec=alc||{};
+      DB.onValue(`checklist/records/${S.recKey}/${ALC_KEY}/alcList`, list=>{
+        alcList=list||{};
         if(!$("page2").classList.contains("hidden")) renderPositions();
         if(curPos===ALC_KEY && !$("page3").classList.contains("hidden")) renderAlc();
       });
@@ -509,7 +521,7 @@ function openPosition(posKey){
   $("who3").textContent=checker;
   const prog=document.querySelector("#page3 .prog-wrap");
   if(posKey===ALC_KEY){ if(prog)prog.style.display="none";
-    alcDraft={driver:(alcRec&&alcRec.driver)||"", result:(alcRec&&alcRec.result)||"", backup:(alcRec&&alcRec.backup)||""};
+    alcDraft={driver:"", result:"", backup:""};
     renderAlc(); }
   else { if(prog)prog.style.display=""; renderChecklist(); }
   show("page3");
@@ -519,12 +531,22 @@ let alcDraft={driver:"",result:"",backup:""};
 function driverOptions(selVal){ return `<option value="">— เลือกชื่อเจ้าหน้าที่ยานพาหนะ —</option>`+
   drivers.map(n=>`<option value="${esc(n)}" ${n===selVal?"selected":""}>${esc(n)}</option>`).join(""); }
 function renderAlc(){
+  const arr=alcArr(alcList);
   const inList=drivers.includes(alcDraft.driver);
   const bkInList=drivers.includes(alcDraft.backup);
-  const st=alcStatus(alcRec);
-  const savedLine = (alcRec&&alcRec.result)
-    ? `<div class="alc-cur ${st.cls}">ผลล่าสุด: <b>${st.txt}</b>${alcRec.driver?` · ${esc(alcRec.driver)}`:""}${(alcRec.result==="found"&&alcRec.backup)?` · สำรอง: ${esc(alcRec.backup)}`:""}${alcRec.checker?` · ผู้ตรวจ ${esc(alcRec.checker)}`:""}</div>`
-    : `<div class="alc-cur none">ยังไม่มีผลตรวจเวรนี้</div>`;
+  let listHtml;
+  if(!arr.length){ listHtml=`<div class="alc-cur none">ยังไม่มีผลตรวจเวรนี้ — เพิ่มรายการด้านล่าง</div>`; }
+  else {
+    const sm=alcSummary(alcList);
+    listHtml=`<div class="alc-cur ${sm.cls}">สรุปเวรนี้: <b>${sm.txt}</b> · ตรวจแล้ว ${sm.total} คน</div>
+      <div class="alc-list">`+arr.map((a,i)=>{ const o=alcOne(a.result);
+        return `<div class="alc-item ${o.cls}">
+          <span class="alc-no">${i+1}</span>
+          <span class="alc-badge ${o.cls}">${o.txt}</span>
+          <span class="alc-nm">${esc(a.driver||"-")}${(a.result==="found"&&a.backup)?`<span class="alc-bk">สำรอง: ${esc(a.backup)}</span>`:""}</span>
+          <button class="alc-del" title="ลบรายการนี้" data-del="${esc(a.id)}">🗑</button>
+        </div>`; }).join("")+`</div>`;
+  }
   const backupBlock = (alcDraft.result==="found") ? `
     <div class="alc-field">
       <label>เจ้าหน้าที่ยานพาหนะสำรอง (มาปฏิบัติงานแทน)</label>
@@ -532,7 +554,8 @@ function renderAlc(){
       <input class="namebox" id="alcBackupOther" style="margin-top:8px;padding:12px 18px;font-size:15px" placeholder="หรือพิมพ์ชื่อเอง" value="${bkInList?"":esc(alcDraft.backup)}">
     </div>` : "";
   $("p3body").innerHTML=`<div class="alc-wrap">
-    ${savedLine}
+    ${listHtml}
+    <div class="secttl" style="margin-top:4px">➕ เพิ่มรายการตรวจ</div>
     <div class="alc-field">
       <label>ชื่อเจ้าหน้าที่ยานพาหนะ</label>
       <select class="alc-sel" id="alcDriver">${driverOptions(alcDraft.driver)}</select>
@@ -541,12 +564,12 @@ function renderAlc(){
     <div class="alc-field">
       <label>ผลตรวจแอลกอฮอล์</label>
       <div class="alc-btns">
-        <button class="alc-btn neg ${alcDraft.result==='none'?'on':''}" id="alcNeg"><span class="big">✓</span>ปกติ</button>
-        <button class="alc-btn pos ${alcDraft.result==='found'?'on':''}" id="alcPos"><span class="big">⚠️</span>เกินมาตรฐาน</button>
+        <button class="alc-btn neg ${alcDraft.result==='none'?'on':''}" id="alcNeg"><span class="big">✓</span>ไม่พบ</button>
+        <button class="alc-btn pos ${alcDraft.result==='found'?'on':''}" id="alcPos"><span class="big">⚠️</span>พบ</button>
       </div>
     </div>
     ${backupBlock}
-    <button class="btn ok" id="alcSave">💾 บันทึกผลตรวจ</button>
+    <button class="btn ok" id="alcAdd">➕ เพิ่มรายการนี้</button>
   </div>`;
   $("alcDriver").addEventListener("change",e=>{ alcDraft.driver=e.target.value; if(e.target.value&&$("alcDriverOther"))$("alcDriverOther").value=""; });
   $("alcDriverOther").addEventListener("input",e=>{ if(e.target.value.trim()){ alcDraft.driver=e.target.value.trim(); $("alcDriver").value=""; } });
@@ -554,19 +577,28 @@ function renderAlc(){
   $("alcPos").onclick=()=>{ alcDraft.result="found"; renderAlc(); };
   const bk=$("alcBackup"); if(bk) bk.addEventListener("change",e=>{ alcDraft.backup=e.target.value; if(e.target.value&&$("alcBackupOther"))$("alcBackupOther").value=""; });
   const bko=$("alcBackupOther"); if(bko) bko.addEventListener("input",e=>{ if(e.target.value.trim()){ alcDraft.backup=e.target.value.trim(); if($("alcBackup"))$("alcBackup").value=""; } });
-  $("alcSave").onclick=saveAlc;
+  $("alcAdd").onclick=addAlc;
+  $("p3body").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>delAlc(b.dataset.del));
 }
-function saveAlc(){
+function addAlc(){
   const driver=(alcDraft.driver||"").trim();
   if(!driver){ toast("กรุณาเลือก/พิมพ์ชื่อเจ้าหน้าที่ยานพาหนะก่อน"); return; }
-  if(!alcDraft.result){ toast("กรุณาเลือกผลตรวจ (ปกติ / เกินมาตรฐาน)"); return; }
-  if(alcDraft.result==="found" && !(alcDraft.backup||"").trim()){ toast("ผลเกินมาตรฐาน — กรุณาระบุเจ้าหน้าที่ยานพาหนะสำรอง"); return; }
+  if(!alcDraft.result){ toast("กรุณาเลือกผลตรวจ (ไม่พบ / พบ)"); return; }
+  if(alcDraft.result==="found" && !(alcDraft.backup||"").trim()){ toast("ผลพบแอลกอฮอล์ — กรุณาระบุเจ้าหน้าที่ยานพาหนะสำรอง"); return; }
+  const id="a"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
   const rec={driver,result:alcDraft.result,checker,at:Date.now()};
   if(alcDraft.result==="found") rec.backup=(alcDraft.backup||"").trim();
-  DB.set(`checklist/records/${S.recKey}/${ALC_KEY}/alc`, rec);
-  alcRec=rec;
-  toast(alcDraft.result==="none"?"บันทึก: ปกติ ✓":"บันทึก: เกินมาตรฐาน ⚠️");
+  alcList=Object.assign({},alcList,{[id]:rec});
+  DB.set(`checklist/records/${S.recKey}/${ALC_KEY}/alcList/${id}`, rec);
+  toast(alcDraft.result==="none"?"เพิ่มแล้ว: ไม่พบ ✓":"เพิ่มแล้ว: พบ ⚠️");
+  alcDraft={driver:"",result:"",backup:""};
   renderAlc();
+}
+function delAlc(id){
+  if(!alcList[id]) return;
+  const nx=Object.assign({},alcList); delete nx[id]; alcList=nx;
+  DB.set(`checklist/records/${S.recKey}/${ALC_KEY}/alcList/${id}`, null);
+  toast("ลบแล้ว"); renderAlc();
 }
 function renderChecklist(){
   const items=templates[curPos]||[];
@@ -766,10 +798,10 @@ async function renderHistory(){
     html+=`<tr><td class="day">${dayTH}</td><td class="shift">${SHIFT_TH[shiftKey]||shiftKey}</td>`;
     POSITIONS.forEach(p=>{
       if(p.key===ALC_KEY){
-        const alc=((all[rk]||{})[ALC_KEY]||{}).alc; const st=alcStatus(alc);
-        const cls = st.cls==='neg'?'g':(st.cls==='pos'?'bad':'z');
-        const alcWho = (alc&&alc.driver)? esc(alc.driver)+((alc.result==="found"&&alc.backup)?" → สำรอง "+esc(alc.backup):"") : "";
-        html+=`<td><div class="hcell"><div class="hsq ${cls}" title="ผู้ตรวจ: ${esc((alc&&alc.checker)||'-')}">${alc&&alc.result?st.txt:'—'}</div><div class="who" style="max-width:120px">${alcWho}</div></div></td>`;
+        const sm=alcSummary(((all[rk]||{})[ALC_KEY]||{}).alcList);
+        const cls = sm.cls==='neg'?'g':(sm.cls==='pos'?'bad':'z');
+        const label = sm.total===0?'—':(sm.found>0?('พบ '+sm.found):'ไม่พบ');
+        html+=`<td><div class="hcell"><div class="hsq ${cls}" ${sm.total?`data-alcrk="${esc(rk)}" style="cursor:pointer"`:''} title="คลิกดูรายชื่อ">${label}</div><div class="who">${sm.total?sm.total+' คน':''}</div></div></td>`;
         return;
       }
       const rec=(all[rk]||{})[p.key]; const items=templates[p.key]||[];
@@ -786,6 +818,16 @@ async function renderHistory(){
   html+=`</tbody></table><div id="histDetail" style="margin-top:14px"></div>`;
   $("histBody").innerHTML=html;
   $("histBody").querySelectorAll(".hsq[data-rk]").forEach(el=>el.onclick=()=>showHistDetail(all, el.dataset.rk, el.dataset.pos));
+  $("histBody").querySelectorAll(".hsq[data-alcrk]").forEach(el=>el.onclick=()=>showAlcDetail(all, el.dataset.alcrk));
+}
+function showAlcDetail(all, rk){
+  const arr=alcArr(((all[rk]||{})[ALC_KEY]||{}).alcList);
+  const date=rk.slice(0,10).split("-").reverse().join("/"); const shiftKey=rk.split("_")[1];
+  const rows=arr.map((a,i)=>{ const o=alcOne(a.result);
+    return `<tr><td class="cel-no">${i+1}</td><td>${esc(a.driver||'-')}</td><td style="text-align:center"><span style="color:${a.result==='found'?'#dc2626':'#16a34a'};font-weight:800">${o.txt}</span></td><td>${(a.result==='found'&&a.backup)?('สำรอง: '+esc(a.backup)):''}</td><td>${esc(a.checker||'')}</td></tr>`; }).join("");
+  $("histDetail").innerHTML=`<h4 style="color:var(--brand-d);margin:6px 0">เจ้าหน้าที่ยานพาหนะ (ตรวจ Alcohol) — ${date} เวร${SHIFT_TH[shiftKey]||shiftKey}</h4>
+    <table class="chk"><thead><tr><th class="cel-no">#</th><th>ชื่อเจ้าหน้าที่ยานพาหนะ</th><th style="text-align:center">ผลตรวจ</th><th>สำรอง</th><th>ผู้ตรวจ</th></tr></thead><tbody>${rows||'<tr><td colspan="5" style="text-align:center;color:#94a3b8">— ไม่มี —</td></tr>'}</tbody></table>`;
+  $("histDetail").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 function showHistDetail(all, rk, posKey){
   const rec=(all[rk]||{})[posKey]||{}; const items=templates[posKey]||[]; const checks=rec.checks||{};
@@ -816,11 +858,11 @@ function printHistory(){
     grid+=`<tr><td class="d">${dayTH}</td><td class="s">${SHIFT_TH[shiftKey]||shiftKey}</td>`;
     POSITIONS.forEach(p=>{
       if(p.key===ALC_KEY){
-        const alc=((all[rk]||{})[ALC_KEY]||{}).alc;
-        if(!alc||!alc.result){ grid+=`<td class="rz">—</td>`; shiftFull=false; return; }
-        shiftHasAny=true; const st=alcStatus(alc);
-        grid+=`<td class="rc ${st.cls==='neg'?'rg':'rbad'}">${st.txt}<span class="ck">${esc(alc.driver||"")}</span></td>`;
-        if(alc.result==='found'){ shiftFull=false; issues.push(`<div class="iss"><b>${dd}/${mo} เวร${SHIFT_TH[shiftKey]||shiftKey} · เจ้าหน้าที่ยานพาหนะ ${esc(alc.driver||'-')}</b> — <span style="color:#b91c1c">แอลกอฮอล์เกินมาตรฐาน</span>${alc.backup?` · สำรอง: ${esc(alc.backup)}`:""} (ผู้ตรวจ: ${esc(alc.checker||'-')})</div>`); }
+        const sm=alcSummary(((all[rk]||{})[ALC_KEY]||{}).alcList);
+        if(sm.total===0){ grid+=`<td class="rz">—</td>`; shiftFull=false; return; }
+        shiftHasAny=true;
+        grid+=`<td class="rc ${sm.found>0?'rbad':'rg'}">${sm.found>0?('พบ '+sm.found):'ไม่พบ'}<span class="ck">${sm.total} คน</span></td>`;
+        if(sm.found>0){ shiftFull=false; sm.arr.filter(a=>a.result==='found').forEach(a=>{ issues.push(`<div class="iss"><b>${dd}/${mo} เวร${SHIFT_TH[shiftKey]||shiftKey} · เจ้าหน้าที่ยานพาหนะ ${esc(a.driver||'-')}</b> — <span style="color:#b91c1c">พบแอลกอฮอล์</span>${a.backup?` · สำรอง: ${esc(a.backup)}`:""} (ผู้ตรวจ: ${esc(a.checker||'-')})</div>`); }); }
         return;
       }
       const rec=(all[rk]||{})[p.key]; const items=templates[p.key]||[];
