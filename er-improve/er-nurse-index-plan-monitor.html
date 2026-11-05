@@ -1,0 +1,257 @@
+<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPHIS ER Mockup — Nurse Planning ER</title>
+<link href="assets/favicon.ico" rel="shortcut icon">
+<link rel="stylesheet" href="assets/theme.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" href="assets/project.css"><link rel="stylesheet" href="assets/mock.css">
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap4.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment-with-locales.min.js"></script>
+<script src="assets/mock.js"></script></head><body>
+<div id="mock-navbar"></div>
+<style type="text/css">
+.order-display-text { white-space: pre-wrap; }
+</style>
+<div class="container-fluid">
+    <form>
+        <div class="alert alert-secondary row" role="alert">
+            <div class="row col-sm-12">
+                <label class="text-right col-form-label">วันที่</label>
+                <div class="col-auto">
+                    <input type="date" class="form-control" id="index_plan_date" name="index_plan_date" value="2026-11-04">
+                </div>
+                <label class="text-right col-form-label">สถานะ Action</label>
+                <div class="col-sm-2">
+                    <select class="form-control" id="index_action_state" name="index_action_state" onchange="renderTable()">
+                        <option value="">ทั้งหมด</option>
+                        <option value="Y">Action แล้ว</option>
+                        <option value="N" selected>ยังไม่ Action</option>
+                    </select>
+                </div>
+                <label class="text-right col-form-label">HN, VN, ชื่อ-สกุล</label>
+                <div class="col-sm-2">
+                    <input type="text" class="form-control" id="patient" name="patient" oninput="renderTable()">
+                </div>
+            </div>
+        </div>
+    </form>
+    <div>
+        <div class="row">
+            <div class="col">
+                <table class="table table-bordered table-hover" id="index-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="text-center">เตียง</th>
+                            <th scope="col" class="text-center">VN/HN</th>
+                            <th scope="col" class="text-center">ชื่อ-สกุล</th>
+                            <th scope="col" class="text-center">Order</th>
+                            <th scope="col" class="text-center">Plan Time</th>
+                            <th scope="col" class="text-center">Plan Detail</th>
+                            <th scope="col" class="text-center">Action Time</th>
+                            <th scope="col" class="text-center">ลงชื่อ</th>
+                            <th scope="col" class="text-center">Result</th>
+                            <th scope="col" class="text-center">Remark</th>
+                        </tr>
+                    </thead>
+                    <tbody id="index-table-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- จำลองจาก opd-er-nurse-index-plan-action-form.php -->
+<div class="modal" id="indexPlanFormModal" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Index: Plan + Action</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            </div>
+            <div class="modal-body">
+                <form>
+                    <div class="form-group mb-1">
+                        <label>เตียง:</label> <b id="m_bed"></b>
+                        <label>| เลขที่ใบ Order:</label> <b id="m_order_no"></b>
+                        <label>| HN:</label> <b id="m_hn"></b>
+                        <label>| ชื่อ:</label> <b id="m_name"></b>
+                    </div>
+                    <div class="form-group">
+                        <label>ข้อมูลแพ้ยา:</label> <span class="text-danger font-weight-bold" id="m_allergy"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="index-plan-order-item-detail">Order</label>
+                        <textarea class="form-control" id="index-plan-order-item-detail" rows="3" readonly></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label for="index-plan-plan-sch-type">Plan Type</label>
+                            <select class="form-control" style="width: 100%" id="index-plan-plan-sch-type">
+                                <option value="time">แบบระบุเวลา</option>
+                                <option value="date">แบบไม่ระบุเวลา</option>
+                                <option value="stat">Stat</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="index-plan-plan-date">Plan Date</label>
+                            <input type="date" class="form-control" id="index-plan-plan-date">
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="index-plan-plan-time">Plan Time</label>
+                            <input type="time" class="form-control" id="index-plan-plan-time">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="index-plan-plan-detail">Plan Detail</label>
+                        <textarea class="form-control" id="index-plan-plan-detail" rows="2"></textarea>
+                    </div>
+                    <hr>
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label for="index-plan-action-date">Action Date</label>
+                            <input type="date" class="form-control" id="index-plan-action-date">
+                        </div>
+                        <div class="form-group col-md-8">
+                            <label for="index-plan-action-time">Action Time</label>
+                            <div class="input-group">
+                                <input type="time" class="form-control" id="index-plan-action-time">
+                                <div class="input-group-append">
+                                    <button type="button" class="btn btn-secondary" onclick="setNow()">ใช้เวลาปัจจุบัน</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group form-check">
+                        <input type="checkbox" class="form-check-input" id="index-plan-action-report-back" value="Y">
+                        <label class="form-check-label" for="index-plan-action-report-back">แสดงที่หน้าจอแพทย์</label>
+                    </div>
+                    <div class="form-group">
+                        <label for="index-plan-action-result">Result</label>
+                        <textarea class="form-control" id="index-plan-action-result" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="index-plan-action-remark">Remark</label>
+                        <textarea class="form-control" id="index-plan-action-remark" rows="2"></textarea>
+                    </div>
+                    <div class="form-group form-check">
+                        <input type="checkbox" class="form-check-input" id="index-plan-action-blood-had" value="Y">
+                        <label class="form-check-label" for="index-plan-action-blood-had">Blood/HAD</label>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="index-plan-action-person-1">ลงชื่อ</label>
+                            <div class="input-group">
+                                <select class="form-control" id="index-plan-action-person-1">
+                                    <option value="">เลือก</option>
+                                    <option>พย.สุดา ใจดี</option>
+                                    <option>พย.วรรณา มีสุข</option>
+                                    <option>พย.ทดสอบ ระบบเดิม</option>
+                                </select>
+                                <div class="input-group-append">
+                                    <button type="button" class="btn btn-secondary" onclick="$('#index-plan-action-person-1').val('พย.ทดสอบ ระบบเดิม')">ลงชื่อ</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="index-plan-action-person-2">ลงชื่อ 2</label>
+                            <select class="form-control" style="width: 100%" id="index-plan-action-person-2">
+                                <option value="">เลือก</option>
+                                <option>พย.สุดา ใจดี</option>
+                                <option>พย.วรรณา มีสุข</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger mr-auto" data-mock-action="ลบ Plan/Action"><i class="fas fa-trash"></i> Delete</button>
+                <button type="button" class="btn btn-primary" data-mock-action="บันทึก Plan/Action"><i class="fas fa-save"></i> Save</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal"><i class="fas fa-times"></i> Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const ORDER_TYPE_NAMES = {'oneday': 'One Day Order', 'continuous': 'Continuous Order'};
+const PLAN_SCH_TYPE_NAMES = {'time': 'แบบระบุเวลา', 'date': 'แบบไม่ระบุเวลา', 'stat': 'Stat'};
+// ข้อมูลสมมติ (รูปแบบเดียวกับ opd-er-nurse-index-plan-monitor-data.php)
+var PLANS = [
+    {bed: 'Resus 1', vn: '691104083015', hn: '000123456', name: 'นายสมชาย ตัวอย่างดี', note: 'Chest pain, EKG ST elevation', order_no: 25110, allergy: 'PENICILLIN=ผื่นคัน, IBUPROFEN=หน้าบวม',
+     od: '2026-11-04 08:50', ot: 'oneday', type: 'med', med: 'ASPIRIN 300 mg tab', detail: 'chew 1 tab stat', plan: '2026-11-04 09:00', sch: 'stat', pdetail: 'ให้ยาทันที', act: '2026-11-04 09:05', p1: 'พย.สุดา ใจดี', p2: '', res: 'ให้ยาแล้ว ไม่มีอาการผิดปกติ', rem: ''},
+    {bed: 'Resus 1', vn: '691104083015', hn: '000123456', name: 'นายสมชาย ตัวอย่างดี', note: 'Chest pain, EKG ST elevation', order_no: 25110, allergy: 'PENICILLIN=ผื่นคัน, IBUPROFEN=หน้าบวม',
+     od: '2026-11-04 08:50', ot: 'continuous', type: 'other', med: null, detail: 'EKG 12 leads q 15 min x 4', plan: '2026-11-04 10:30', sch: 'time', pdetail: 'EKG ครั้งที่ 3', act: null, p1: '', p2: '', res: '', rem: ''},
+    {bed: 'Resus 2', vn: '691104065230', hn: '000099871', name: 'นายประยุทธ มั่นคง', note: 'Sepsis, on Levophed', order_no: 25098, allergy: '',
+     od: '2026-11-04 07:05', ot: 'continuous', type: 'med', med: 'NOREPINEPHRINE 4 mg/4 ml inj', detail: '4 mg + 5%D/W 250 ml IV drip 10 ml/hr\nkeep MAP ≥ 65', plan: '2026-11-04 11:00', sch: 'time', pdetail: 'ประเมิน MAP และปรับ rate', act: null, p1: '', p2: '', res: '', rem: ''},
+    {bed: 'Urgent 1', vn: '691104094410', hn: '000387002', name: 'ด.ช.ภูมิ รักเรียน', note: 'Febrile convulsion', order_no: 25117, allergy: '',
+     od: '2026-11-04 10:00', ot: 'oneday', type: 'med', med: 'PARACETAMOL syr 120 mg/5 ml', detail: '5 ml oral prn ไข้ ≥ 38 °C ทุก 4-6 hr', plan: '2026-11-04', sch: 'date', pdetail: 'เช็ดตัวลดไข้ + วัด BT ทุก 1 hr', act: null, p1: '', p2: '', res: '', rem: ''},
+    {bed: 'Urgent 3', vn: '691104091102', hn: '000245117', name: 'นางสาวมาลี ใจงาม', note: 'Acute gastroenteritis', order_no: 25114, allergy: '',
+     od: '2026-11-04 09:20', ot: 'oneday', type: 'off', med: null, offmed: 'ONDANSETRON 8 mg inj', detail: '8 mg IV q 8 hr', plan: '2026-11-04 10:00', sch: 'time', pdetail: 'หยุดยา', act: '2026-11-04 10:05', p1: 'พย.วรรณา มีสุข', p2: '', res: 'Off แล้ว', rem: ''},
+    {bed: 'Obs 2', vn: '691104071555', hn: '000412663', name: 'นางบุญมี ศรีสุข', note: 'Asthma exacerbation', order_no: 25102, allergy: 'ASPIRIN=หอบ',
+     od: '2026-11-04 07:20', ot: 'oneday', type: 'med', med: 'SALBUTAMOL NB 2.5 mg/2.5 ml', detail: '1 NB q 20 min x 3 then q 4 hr', plan: '2026-11-04 11:20', sch: 'time', pdetail: 'NB รอบ 4 hr', act: null, p1: '', p2: '', res: '', rem: 'ฟัง wheezing ก่อนพ่น'},
+    {bed: 'Obs 4', vn: '691103221804', hn: '000310045', name: 'นายวิชัย ทองดี', note: 'Head injury, observe 24 hr', order_no: 25087, allergy: '',
+     od: null, ot: null, type: null, med: null, detail: null, plan: '2026-11-04 12:00', sch: 'time', pdetail: 'N/S (GCS, pupil) q 1 hr', act: null, p1: '', p2: '', res: '', rem: '', noOrder: true}
+];
+function thDate(s, withTime) {
+    var m = moment(s, 'YYYY-MM-DD HH:mm');
+    return m.format('DD/MM/') + (parseInt(m.format('YYYY'), 10) + 543) + (withTime ? m.format(' HH:mm') : '');
+}
+function orderText(v) {
+    if (v.noOrder) return '*รายการนี้ไม่ได้ผูกกับ Order*';
+    var m = moment(v.od, 'YYYY-MM-DD HH:mm');
+    var t = m.format('DD/MM/') + (parseInt(m.format('YYYY'), 10) + 543) + m.format(', HH:mm') + ' น. (' + ORDER_TYPE_NAMES[v.ot] + ')\n';
+    if (v.type == 'off') t += 'Off : ' + v.offmed + '\n' + v.detail;
+    else t += (v.med ? v.med + '\n' : '') + v.detail;
+    return t;
+}
+function renderTable() {
+    if ($.fn.DataTable.isDataTable('#index-table')) $('#index-table').DataTable().destroy();
+    var state = $('#index_action_state').val();
+    var q = $.trim($('#patient').val());
+    var body = $('#index-table-tbody').empty();
+    PLANS.forEach(function (v) {
+        if (state == 'Y' && !v.act) return;
+        if (state == 'N' && v.act) return;
+        if (q && (v.hn + v.vn + v.name).indexOf(q) < 0) return;
+        var timed = v.sch != 'date';
+        $('<tr/>', {style: 'cursor: pointer;', click: function () { openModal(v); }}).append(
+            $('<td/>', {text: v.bed}),
+            $('<td/>').append($('<div/>', {text: v.vn}), $('<div/>', {text: v.hn})),
+            $('<td/>').append($('<div/>', {'class': 'font-weight-bold', text: v.name}), $('<div/>', {style: 'white-space: pre-wrap;', text: v.note})),
+            $('<td/>', {'class': 'order-display-text', style: (v.type == 'med' ? 'color: blue;' : ''), text: orderText(v)}),
+            $('<td/>', {'class': 'order-display-text', text: thDate(v.plan, timed) + '\n(' + PLAN_SCH_TYPE_NAMES[v.sch] + ')'}),
+            $('<td/>').append($('<div/>', {'class': 'order-display-text', style: 'max-height: 300px; overflow-y: auto;', text: v.pdetail})),
+            $('<td/>', {text: v.act ? thDate(v.act, true) : ''}),
+            $('<td/>').append(v.p1 ? $('<div/>', {text: '- ' + v.p1}) : '', v.p2 ? $('<div/>', {text: '- ' + v.p2}) : ''),
+            $('<td/>').append($('<div/>', {'class': 'order-display-text', style: 'max-height: 300px; overflow-y: auto;', text: v.res})),
+            $('<td/>').append($('<div/>', {'class': 'order-display-text', style: 'max-height: 300px; overflow-y: auto;', text: v.rem}))
+        ).appendTo(body);
+    });
+    $('#index-table').DataTable({filter: false, paging: false, language: {emptyTable: 'ไม่มีรายการ', info: 'แสดง _TOTAL_ รายการ', infoEmpty: ''}});
+}
+function openModal(v) {
+    $('#m_bed').text(v.bed); $('#m_order_no').text(v.order_no); $('#m_hn').text(v.hn); $('#m_name').text(v.name);
+    $('#m_allergy').text(v.allergy || 'ไม่มีข้อมูล');
+    $('#index-plan-order-item-detail').val(orderText(v));
+    $('#index-plan-plan-sch-type').val(v.sch);
+    $('#index-plan-plan-date').val(v.plan.substr(0, 10));
+    $('#index-plan-plan-time').val(v.plan.length > 10 ? v.plan.substr(11, 5) : '');
+    $('#index-plan-plan-detail').val(v.pdetail);
+    $('#index-plan-action-date').val(v.act ? v.act.substr(0, 10) : '');
+    $('#index-plan-action-time').val(v.act ? v.act.substr(11, 5) : '');
+    $('#index-plan-action-result').val(v.res);
+    $('#index-plan-action-remark').val(v.rem);
+    $('#index-plan-action-person-1').val(v.p1);
+    $('#index-plan-action-person-2').val(v.p2);
+    $('#indexPlanFormModal').modal('show');
+}
+function setNow() {
+    $('#index-plan-action-date').val(moment().format('YYYY-MM-DD'));
+    $('#index-plan-action-time').val(moment().format('HH:mm'));
+}
+$(renderTable);
+</script>
+<div class="mock-ribbon">MOCKUP — ข้อมูลสมมติ · <a href="index.html">สารบัญ</a></div>
+</body></html>
