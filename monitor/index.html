@@ -287,10 +287,13 @@ function render(){
   let full=0, counted=0;
   POSITIONS.forEach(p=>{
     if(p.key===ALC_KEY){
-      const alc=(records[ALC_KEY]||{}).alc||{}; const r=alc.result;
-      const stat = r==="none"?"done":(r==="found"?"bad":"zero");
-      const txt  = r==="none"?"ปกติ":(r==="found"?"เกินมาตรฐาน":"—");
-      const whoTxt = alc.driver?("🧑‍✈️ "+escapeHtml(alc.driver)+((r==="found"&&alc.backup)?(" → สำรอง "+escapeHtml(alc.backup)):"")):"ยังไม่ได้ตรวจ";
+      const list=(records[ALC_KEY]||{}).alcList||{};
+      const arr=Object.keys(list).map(k=>list[k]).filter(Boolean);
+      const total=arr.length, found=arr.filter(a=>a.result==="found").length;
+      const stat = total===0?"zero":(found>0?"bad":"done");
+      const txt  = total===0?"—":(found>0?("พบ "+found+" คน"):("ไม่พบ "+total+" คน"));
+      const names= arr.map(a=>a.driver).filter(Boolean).slice(0,2).join(", ");
+      const whoTxt = total? ("🧑‍✈️ "+escapeHtml(names)+(total>2?" …":"")) : "ยังไม่ได้ตรวจ";
       const el=document.createElement("div"); el.className="sq "+stat;
       el.innerHTML=`${stat==="done"?'<span class="chk">✅</span>':stat==="bad"?'<span class="chk">⚠️</span>':''}
         <div class="emo">${p.icon}</div>
