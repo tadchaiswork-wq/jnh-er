@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPHIS ER — ทดลองใช้</title>
+<link href="assets/favicon.ico" rel="shortcut icon">
+<link rel="stylesheet" href="assets/theme.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+<link rel="stylesheet" href="assets/project.css">
+<link rel="stylesheet" href="assets/mock.css">
+<style>
+    body { font-size: 1.05rem; background: #f4f6f8; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+    .role { display: flex; align-items: center; gap: 14px; background: #fff; border: 1px solid #dee2e6; border-radius: .4rem; padding: 14px 16px; margin-bottom: 10px; }
+    .role .ic { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #e7f1f8; color: #07689F; font-size: 1.2rem; flex-shrink: 0; }
+    .role .nm { flex: 1; min-width: 0; }
+    .role input { max-width: 220px; }
+    @media (max-width: 600px) { .role { flex-wrap: wrap; } .role input { max-width: none; width: 100%; } }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="assets/firebase-config.js"></script>
+<script src="assets/er-flow.js"></script>
+</head>
+<body>
+<nav class="navbar navbar-dark bg-primary"><span class="navbar-brand">KPHIS ER <span class="badge badge-warning mockup-badge">ทดลองใช้</span></span></nav>
+<!-- CHANGE-13: หน้าเริ่มต้นสำหรับทดลองใช้ในหน่วยงาน -->
+<div class="wrap">
+    <h4 class="mb-1">ทดลองใช้ระบบ KPHIS ER (ฉบับปรับปรุง)</h4>
+    <p class="text-muted mb-3">เลือกบทบาทของเครื่องนี้ · ใส่ชื่อที่จะแสดงในบันทึก (จำไว้ในเครื่องนี้)</p>
+
+    <div class="alert alert-warning py-2"><i class="fas fa-exclamation-triangle"></i> <b>ข้อมูลสมมติเท่านั้น</b> — ห้ามใส่ชื่อ / HN / ข้อมูลผู้ป่วยจริง · ใช้สำหรับซ้อมเคสและเก็บ feedback หน้าจอ</div>
+    <div class="small mb-3" id="net"></div>
+
+    <div class="role">
+        <div class="ic"><i class="fas fa-user-tag"></i></div>
+        <div class="nm"><b>Triage</b><div class="small text-muted">คัดกรอง · สแกน Visit · ส่งตรวจ</div></div>
+        <input class="form-control form-control-sm" data-role="triage" placeholder="ชื่อ เช่น พว.สมใจ">
+        <a class="btn btn-primary" data-go="triage" href="er-triage.html">เข้า</a>
+    </div>
+    <div class="role">
+        <div class="ic"><i class="fas fa-user-md"></i></div>
+        <div class="nm"><b>แพทย์</b><div class="small text-muted">กระดานผู้ป่วย · Order · Progress note · D/C / Admit</div></div>
+        <input class="form-control form-control-sm" data-role="doctor" placeholder="ชื่อ เช่น นพ.ธัชชัย">
+        <a class="btn btn-primary" data-go="doctor" href="er-board.html?view=doctor">เข้า</a>
+    </div>
+    <div class="role">
+        <div class="ic"><i class="fas fa-user-nurse"></i></div>
+        <div class="nm"><b>พยาบาล</b><div class="small text-muted">กระดานผู้ป่วย · รับ Order · Nurse note · จำหน่าย</div></div>
+        <input class="form-control form-control-sm" data-role="nurse" placeholder="ชื่อ เช่น พว.ศิริพร">
+        <a class="btn btn-primary" data-go="nurse" href="er-board.html?view=nurse">เข้า</a>
+    </div>
+
+    <div class="mt-4 small text-muted">
+        <a href="index.html">สารบัญหน้าจอทั้งหมด (รวมหน้าเดิมของระบบ)</a> ·
+        <a href="#" id="reset">ล้างข้อมูลทดลองทั้งหมด (ทุกเครื่อง)</a>
+    </div>
+</div>
+<script>
+$(function () {
+    $('[data-role]').each(function () { var r = $(this).data('role'), v = ERFlow.ME[r]; if (v && !/ทดสอบ/.test(v)) $(this).val(v); });
+    $('[data-go]').on('click', function () {
+        var r = $(this).data('go'), v = $.trim($('[data-role="' + r + '"]').val());
+        if (v) ERFlow.setMe(r, v);
+    });
+    $('#net').html(ERFlow.online() ? '<span class="text-success"><i class="fas fa-circle"></i> เชื่อมฐานข้อมูลกลางแล้ว — ทุกเครื่องเห็นข้อมูลชุดเดียวกัน</span>'
+        : '<span class="text-muted"><i class="fas fa-circle"></i> ยังไม่ได้เชื่อมฐานข้อมูลกลาง — ข้อมูลอยู่ในเครื่องนี้เท่านั้น</span>');
+    $('#reset').on('click', function (e) {
+        e.preventDefault();
+        if (confirm('ล้างข้อมูลทดลองทั้งหมดและเริ่มชุดตัวอย่างใหม่? (มีผลกับทุกเครื่องที่ใช้อยู่)')) { ERFlow.reset(); alert('เริ่มชุดข้อมูลใหม่แล้ว'); }
+    });
+});
+</script>
+</body>
+</html>
