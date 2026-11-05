@@ -57,6 +57,8 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
 .cell.offreq{box-shadow:inset 0 0 0 2px var(--off)}
 .cell.warn{box-shadow:inset 0 0 0 2px var(--bad)}
 .cell.me{outline:2px solid var(--brand);outline-offset:-2px}
+.cell.lock{position:relative;box-shadow:inset 0 0 0 2px #f59e0b}
+.cell.lock::after{content:'🔒';position:absolute;top:-1px;right:0;font-size:8px;line-height:1}
 .cell .rl{display:block;font-size:8px;font-weight:700;opacity:.85;line-height:1.05}
 .sumc{background:#f0fdfa;font-weight:800;color:#115e59;min-width:40px}
 .sumrow td{background:#f8fafc;font-weight:700;font-size:11px;color:#475569}
@@ -116,6 +118,8 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
   <span id="editTools" style="display:none;gap:8px">
     <button class="btn sm ghost" id="holBtn">📅 วันหยุดพิเศษ</button>
     <button class="btn sm ghost" id="autoBtn">✨ ออโต้ร่างเวร</button>
+    <button class="btn sm gray" id="undoBtn" title="ย้อนกลับ">↶</button>
+    <button class="btn sm gray" id="redoBtn" title="ทำซ้ำ">↷</button>
     <button class="btn sm gray" id="clearBtn">ล้างเดือนนี้</button>
     <button class="btn sm gray" id="printBtn">🖨 พิมพ์</button>
   </span>
@@ -124,7 +128,7 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
 <div class="legend">
   <span><i class="lm">ช</i>เช้า</span><span><i class="la">บ</i>บ่าย</span><span><i class="ln">ด</i>ดึก</span>
   <span><i class="lcc">ศ</i>ศูนย์สั่งการ</span><span>ด+บ=ดึก+บ่ายวันเดียว (ได้)</span><span><i class="lo">off</i>ขอหยุด</span>
-  <span>วันพิเศษ=หัวตารางแดง · กรอบแดง=บ่าย→ดึกวันถัดไป</span>
+  <span>วันพิเศษ=หัวตารางแดง · กรอบแดง=บ่าย→ดึกวันถัดไป · 🔒=ล็อกเวร (คลิกขวา/กดค้าง)</span>
 </div>
 <div class="warnbox" id="warnbox"></div>
 <div class="wrap"><table class="grid" id="grid"></table></div>
@@ -184,7 +188,7 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
 const PATH='roster';
 const SHIFTS=[{k:'m',th:'เช้า'},{k:'a',th:'บ่าย'},{k:'n',th:'ดึก'}];
 const SHIFT_TXT={m:'ช',a:'บ',n:'ด',na:'ด+บ',ccm:'ศ·ช',cca:'ศ·บ',ccn:'ศ·ด'};
-const ROLE_TH={head:'Head',incharge:'Incharge',EMS:'EMS',refer:'Refer',triage:'Triage',lead1:'Lead1',lead2:'Lead2',member1:'Mem1',member2:'Mem2',lead:'Lead',member:'Member',cc:'ศสก.'};
+const ROLE_TH={head:'H',incharge:'I',EMS:'EMS',refer:'Ref',triage:'T',lead1:'L1',lead2:'L2',member1:'M1',member2:'M2',lead:'L',member:'M',cc:'ศสก.'};
 const ALL_ROLES=['head','incharge','EMS','refer','triage','lead1','lead2','member1','member2'];
 const DEFAULT_ROLES=[{key:'head',name:'Head'},{key:'subhead',name:'Subhead (Incharge)'},{key:'float',name:'ลอยเช้า (Lead)'},{key:'member',name:'Member'}];
 const DEFAULT_TARGET={weekday:{m:9,a:6,n:4},weekend:{m:6,a:6,n:4}};
@@ -196,7 +200,8 @@ const TH_MON=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','�
 const CC_ROLE='cc';
 
 let ROLES=DEFAULT_ROLES.slice(), TARGET=JSON.parse(JSON.stringify(DEFAULT_TARGET));
-let STAFF={}, SH={}, OFF={}, HOL={}, SETTINGS={adminPass:'1234'};
+let STAFF={}, SH={}, OFF={}, HOL={}, LOCK={}, SETTINGS={adminPass:'1234'};
+function isLocked(id,d){ return !!((LOCK[id]||{})[d]); }
 let admin=false, sched=false, meId='', ym='', curY, curM;
 const canEdit=()=>admin||sched;
 const $=id=>document.getElementById(id);
@@ -266,9 +271,11 @@ function boot(){
   loadMonth();
 }
 function loadMonth(){ ym=ymKey(curY,curM); $('mLabel').textContent=monthLabel(curY,curM);
-  DB.off(PATH+'/shift/'+ym); DB.off(PATH+'/off/'+ym);
+  undoStack=[]; redoStack=[];
+  DB.off(PATH+'/shift/'+ym); DB.off(PATH+'/off/'+ym); DB.off(PATH+'/lock/'+ym);
   DB.on(PATH+'/shift/'+ym, v=>{ SH=v||{}; render(); });
   DB.on(PATH+'/off/'+ym, v=>{ OFF=v||{}; render(); });
+  DB.on(PATH+'/lock/'+ym, v=>{ LOCK=v||{}; render(); });
 }
 let _seeded=false;
 function seedStaff(){ if(_seeded)return; _seeded=true; const out={}; let o=0;
@@ -298,8 +305,9 @@ function render(){
       const sp=isSpecial(curY,curM,d), hol=isHoliday(curY,curM,d), we=isWeekend(curY,curM,d), c=cell(s.id,d), off=(OFF[s.id]||{})[d];
       if(off)sum.off++;
       let cls='cell'+(hol?' hol':(we?' we':'')), txt='';
-      if(c){ cls+=' '+(isCC(c.s)?'cc':(c.s==='na'?'na':c.s)); txt=SHIFT_TXT[c.s]||'?';
-        if(!isCC(c.s)&&c.r)txt+='<span class="rl">'+esc(ROLE_TH[c.r]||c.r)+'</span>';
+      if(c){ cls+=' '+(isCC(c.s)?'cc':(c.s==='na'?'na':c.s));
+        if(c.s==='na'){ const rn=c.rn||c.r||'', ra=c.ra||''; txt='ด+บ<span class="rl">'+(rn?'ด:'+esc(ROLE_TH[rn]||rn):'ด')+(ra?' บ:'+esc(ROLE_TH[ra]||ra):' บ')+'</span>'; }
+        else { txt=SHIFT_TXT[c.s]||'?'; if(!isCC(c.s)&&c.r)txt+='<span class="rl">'+esc(ROLE_TH[c.r]||c.r)+'</span>'; }
         if(off)cls+=' offreq'; if(dayViol(s.id,d))cls+=' warn';
         // tally
         if(c.s==='m'){ if(sp)sum.outM++; else sum.inM++; }
@@ -308,6 +316,7 @@ function render(){
         else if(c.s==='cca')sum.cca++; else if(c.s==='ccn')sum.ccn++; else if(c.s==='ccm')sum.ccm++;
       } else if(off){ cls+=' off'; txt='off'; }
       if(s.id===meId)cls+=' me';
+      if(isLocked(s.id,d))cls+=' lock';
       h+=`<td class="${cls}" data-sid="${s.id}" data-d="${d}">${txt}</td>`;
     }
     SUMS.forEach(k=>h+=`<td class="sumc">${sum[k[0]]||''}</td>`);
@@ -340,8 +349,28 @@ $('grid').addEventListener('click',e=>{ const td=e.target.closest('td.cell'); if
   const sid=td.dataset.sid, d=+td.dataset.d;
   if(canEdit()){ openPop(td,sid,d); }
   else { if(sid!==meId){ toast('เลือกชื่อของคุณด้านบนก่อน'); return; } toggleOff(sid,d); } });
-function setCell(sid,d,s,r){ SH[sid]=SH[sid]||{}; if(s){SH[sid][d]={s:s,r:r||''};}else delete SH[sid][d];
-  DB.set(PATH+'/shift/'+ym+'/'+sid+'/'+d, s?{s:s,r:r||''}:null); render(); }
+/* ---- right-click (long-press) = ล็อก/ปลดล็อกเวร (ออโต้ร่างจะไม่แตะ) ---- */
+$('grid').addEventListener('contextmenu',e=>{ const td=e.target.closest('td.cell'); if(!td)return;
+  if(!canEdit())return; e.preventDefault(); toggleLock(td.dataset.sid,+td.dataset.d); });
+let _lpTimer=null;
+$('grid').addEventListener('touchstart',e=>{ const td=e.target.closest('td.cell'); if(!td||!canEdit())return;
+  const sid=td.dataset.sid,d=+td.dataset.d; _lpTimer=setTimeout(()=>{ _lpTimer=null; toggleLock(sid,d); },550); },{passive:true});
+$('grid').addEventListener('touchend',()=>{ if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;} });
+$('grid').addEventListener('touchmove',()=>{ if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;} });
+function toggleLock(sid,d){ if(!canEdit())return; LOCK[sid]=LOCK[sid]||{}; const nv=!LOCK[sid][d];
+  if(nv)LOCK[sid][d]=true; else delete LOCK[sid][d];
+  DB.set(PATH+'/lock/'+ym+'/'+sid+'/'+d, nv||null); render();
+  toast(nv?'🔒 ล็อกเวรนี้แล้ว · ออโต้ร่างจะไม่แตะ':'ปลดล็อกแล้ว'); }
+/* ---- undo/redo (per month) ---- */
+let undoStack=[], redoStack=[];
+function snapSH(){ return JSON.parse(JSON.stringify(SH||{})); }
+function pushUndo(){ undoStack.push(snapSH()); if(undoStack.length>40)undoStack.shift(); redoStack=[]; }
+function doUndo(){ if(!undoStack.length){toast('ไม่มีให้ย้อนกลับ');return;} redoStack.push(snapSH()); SH=undoStack.pop(); DB.set(PATH+'/shift/'+ym,SH&&Object.keys(SH).length?SH:null); render(); toast('ย้อนกลับแล้ว'); }
+function doRedo(){ if(!redoStack.length){toast('ไม่มีให้ทำซ้ำ');return;} undoStack.push(snapSH()); SH=redoStack.pop(); DB.set(PATH+'/shift/'+ym,SH&&Object.keys(SH).length?SH:null); render(); toast('ทำซ้ำแล้ว'); }
+function writeCell(sid,d,obj){ SH[sid]=SH[sid]||{}; if(obj)SH[sid][d]=obj; else delete SH[sid][d];
+  DB.set(PATH+'/shift/'+ym+'/'+sid+'/'+d, obj||null); render(); }
+function setCell(sid,d,s,r){ pushUndo(); writeCell(sid,d, s?{s:s,r:r||''}:null); }
+function setNa(sid,d,rn,ra){ pushUndo(); writeCell(sid,d,{s:'na',rn:rn||'',ra:ra||''}); }
 function toggleOff(sid,d){ OFF[sid]=OFF[sid]||{}; const nv=!OFF[sid][d]; if(nv)OFF[sid][d]=true; else delete OFF[sid][d];
   DB.set(PATH+'/off/'+ym+'/'+sid+'/'+d, nv||null); render(); }
 function pickDefaultRole(sid,s,special){ const st=STAFF[sid],cat=st?st.role:''; const no=(st&&st.no)||[];
@@ -354,15 +383,28 @@ function openPop(td,sid,d){
   const shOpts=[['','ว่าง'],['m','เช้า'],['a','บ่าย'],['n','ดึก'],['na','ดึก+บ่าย']];
   if(canCC){ shOpts.push(['cca','ศ·บ่าย'],['ccn','ศ·ดึก']); if(special)shOpts.push(['ccm','ศ·เช้านอก']); }
   const shBtns=shOpts.map(([k,l])=>`<button data-s="${k}" class="${c.s===k?'on':''}">${l}</button>`).join('');
-  const no=(st.no)||[]; const ropts=roleOptsFor(c.s||'m',special).filter(r=>no.indexOf(r)<0).map(r=>`<option value="${r}" ${c.r===r?'selected':''}>${esc(ROLE_TH[r]||r)}</option>`).join('');
-  const showRole=!isCC(c.s)&&c.s&&c.s!=='';
+  const no=(st.no)||[];
+  const optsFor=base=>roleOptsFor(base,special).filter(r=>no.indexOf(r)<0);
+  let roleBlock='';
+  if(c.s==='na'){
+    const selN=c.rn||c.r||'', selA=c.ra||'';
+    roleBlock=`<div class="pop-r">ดึก: <select id="popRN"><option value="">—</option>${optsFor('n').map(r=>`<option value="${r}" ${selN===r?'selected':''}>${esc(ROLE_TH[r]||r)}</option>`).join('')}</select></div>
+      <div class="pop-r" style="margin-top:4px">บ่าย: <select id="popRA"><option value="">—</option>${optsFor('a').map(r=>`<option value="${r}" ${selA===r?'selected':''}>${esc(ROLE_TH[r]||r)}</option>`).join('')}</select></div>`;
+  } else if(!isCC(c.s)&&c.s){
+    roleBlock=`<div class="pop-r">บทบาท: <select id="popRole"><option value="">—</option>${optsFor(c.s).map(r=>`<option value="${r}" ${c.r===r?'selected':''}>${esc(ROLE_TH[r]||r)}</option>`).join('')}</select></div>`;
+  }
   pop.innerHTML=`<div class="pop-nm">${esc(st.name||'')} · วันที่ ${d}${special?' (พิเศษ)':''}</div>
-    <div class="pop-sh">${shBtns}</div>
-    ${showRole?`<div class="pop-r">บทบาท: <select id="popRole"><option value="">—</option>${ropts}</select></div>`:''}`;
-  pop.style.display='block'; const rect=td.getBoundingClientRect();
+    <div class="pop-sh">${shBtns}</div>${roleBlock}`;
+  pop.style.display='block'; pop.style.transform=''; pop.style.width='250px'; const rect=td.getBoundingClientRect();
   pop.style.left=Math.max(6,Math.min(rect.left,window.innerWidth-262))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px';
-  pop.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{ const s=b.dataset.s; setCell(sid,d,s, s&&!isCC(s)?pickDefaultRole(sid,s,special):(isCC(s)?CC_ROLE:'')); openPop(td,sid,d); });
-  const rs=$('popRole'); if(rs)rs.onchange=ev=>{ const cc=cell(sid,d); if(cc)setCell(sid,d,cc.s,ev.target.value); };
+  pop.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{ const s=b.dataset.s;
+    if(s==='na'){ setNa(sid,d, pickDefaultRole(sid,'n',special), pickDefaultRole(sid,'a',special)); }
+    else { setCell(sid,d,s, s&&!isCC(s)?pickDefaultRole(sid,s,special):(isCC(s)?CC_ROLE:'')); }
+    openPop(td,sid,d); });
+  const rr=$('popRole'); if(rr)rr.onchange=ev=>{ const cc=cell(sid,d); if(cc)setCell(sid,d,cc.s,ev.target.value); };
+  const rN=$('popRN'), rA=$('popRA');
+  if(rN)rN.onchange=()=>setNa(sid,d, rN.value, (rA?rA.value:'') );
+  if(rA)rA.onchange=()=>setNa(sid,d, (rN?rN.value:''), rA.value );
 }
 document.addEventListener('click',e=>{ if(!e.target.closest('#pop')&&!e.target.closest('td.cell'))$('pop').style.display='none'; });
 
@@ -382,7 +424,7 @@ $('pinOk').onclick=()=>{ if($('pin').value!==(SETTINGS.adminPass||'1234')){toast
   $('gate').classList.add('hide'); meId=''; $('meSel').value=''; $('editTools').style.display='inline-flex';
   if(gateFor==='admin'){ admin=true; $('modePill').textContent='โหมด Admin'; openPanel(); }
   else { sched=true; $('modePill').textContent='โหมดผู้จัดเวร'; $('schedBtn').textContent='↩ ออกจากโหมดผู้จัดเวร'; }
-  $('modeHint').textContent='แตะช่องเพื่อเลือกเวร + บทบาท · ✨ ออโต้ร่าง · 📅 วันหยุดพิเศษ · ด้านขวาสุด = สรุปต่อคน'; render(); };
+  $('modeHint').textContent='แตะช่อง=เลือกเวร/บทบาท · คลิกขวา(หรือกดค้างบนมือถือ)=🔒ล็อกเวร(ออโต้ร่างไม่แตะ) · ↶↷ ย้อนกลับ/ทำซ้ำ'; render(); };
 $('pin').addEventListener('keydown',e=>{if(e.key==='Enter')$('pinOk').click();});
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{$('gate').classList.add('hide');$('panel').classList.add('hide');$('holModal').classList.add('hide');});
 [$('gate'),$('panel'),$('holModal')].forEach(m=>m.addEventListener('click',e=>{if(e.target===m){m.classList.add('hide');}}));
@@ -395,11 +437,11 @@ function showTab(t){ document.querySelectorAll('#tabs button').forEach(b=>b.clas
   if(t==='staff')renderStaffRows(); if(t==='roles')renderRoleRows(); if(t==='target')renderTarget(); }
 
 let edStaff=[];
-function renderStaffRows(){ edStaff=staffList().map(s=>({id:s.id,name:s.name,role:s.role,order:s.order,no:(s.no||[]).slice(),noCC:!!s.noCC})); drawStaff(); }
+function renderStaffRows(){ edStaff=staffList().map(s=>({id:s.id,name:s.name,role:s.role,order:s.order,no:(s.no||[]).slice(),noCC:!!s.noCC,fixM:s.fixM||''})); drawStaff(); }
 function drawStaff(){ $('stCount').textContent=edStaff.length;
   const opts=r=>ROLES.map(x=>`<option value="${x.key}" ${x.key===r?'selected':''}>${esc(x.name)}</option>`).join('');
   $('stRows').innerHTML=edStaff.map((s,i)=>{
-    const chips=(s.no.length?('ปิด: '+s.no.map(r=>ROLE_TH[r]||r).join(',')):'')+(s.noCC?' · ไม่อยู่ศสก.':'');
+    const chips=(s.no.length?('ปิด: '+s.no.map(r=>ROLE_TH[r]||r).join(',')):'')+(s.noCC?' · ไม่อยู่ศสก.':'')+(s.fixM?' · ประจำเช้า:'+(FIXM_TH[s.fixM]||s.fixM):'');
     return `<div class="strow"><input value="${esc(s.name)}" data-i="${i}" data-f="name" placeholder="ชื่อ-สกุล">
      <select data-i="${i}" data-f="role">${opts(s.role)}</select>
      <span class="noedit" data-no="${i}" title="${esc(chips)}">ปิดบทบาท${s.no.length||s.noCC?' •':''}</span>
@@ -412,13 +454,19 @@ function openNoEdit(i){ const s=edStaff[i];
   const roleChk=ALL_ROLES.map(r=>`<label><input type="checkbox" data-r="${r}" ${s.no.indexOf(r)>=0?'checked':''}>${ROLE_TH[r]}</label>`).join('');
   const html=`<div class="pop-nm" style="font-weight:700;margin-bottom:6px">ปิดบทบาทถาวร: ${esc(s.name||'')}</div>
     <div style="font-size:12px;color:#64748b;margin-bottom:4px">บทบาทที่ไม่ให้จัด:</div><div class="rolechk" id="neRoles">${roleChk}</div>
-    <label style="display:block;margin-top:8px;font-size:13px"><input type="checkbox" id="neCC" ${s.noCC?'checked':''}> ไม่ให้อยู่เวรศูนย์สั่งการ</label>`;
+    <label style="display:block;margin-top:8px;font-size:13px"><input type="checkbox" id="neCC" ${s.noCC?'checked':''}> ไม่ให้อยู่เวรศูนย์สั่งการ</label>
+    <div style="margin-top:10px;font-size:12px;color:#64748b">ประจำเวรเช้าในเวลา (ทุกวันธรรมดา · ออโต้ร่างล็อกบทบาทให้):</div>
+    <select id="neFixM" style="width:100%;margin-top:4px;border:1px solid var(--line);border-radius:8px;padding:6px">
+      ${FIXM_OPTS.map(([k,l])=>`<option value="${k}" ${s.fixM===k?'selected':''}>${l}</option>`).join('')}</select>`;
   const pop=$('pop'); pop.innerHTML=html; pop.style.display='block'; pop.style.left='50%'; pop.style.top='120px'; pop.style.transform='translateX(-50%)'; pop.style.width='260px';
   pop.querySelectorAll('#neRoles input').forEach(c=>c.onchange=()=>{ const r=c.dataset.r; if(c.checked){if(s.no.indexOf(r)<0)s.no.push(r);} else s.no=s.no.filter(x=>x!==r); drawStaff(); });
   $('neCC').onchange=e=>{ s.noCC=e.target.checked; drawStaff(); };
+  $('neFixM').onchange=e=>{ s.fixM=e.target.value; drawStaff(); };
 }
+const FIXM_TH={incharge:'I',lead1:'L1',lead2:'L2',EMS:'EMS',refer:'Ref',triage:'T',member1:'M1',member2:'M2',leadalt:'สลับ L1/L2'};
+const FIXM_OPTS=[['','— ไม่ประจำ —'],['incharge','I (incharge)'],['lead1','L1'],['lead2','L2'],['leadalt','สลับ L1/L2 (คู่)'],['EMS','EMS'],['refer','Ref'],['triage','T'],['member1','M1'],['member2','M2']];
 $('addStaff').onclick=()=>{ edStaff.push({id:uid(),name:'',role:ROLES[ROLES.length-1]?ROLES[ROLES.length-1].key:'member',order:edStaff.length,no:[],noCC:false}); drawStaff(); const ins=$('stRows').querySelectorAll('input[data-f=name]'); if(ins.length)ins[ins.length-1].focus(); };
-$('saveStaff').onclick=()=>{ const out={}; let o=0; edStaff.forEach(s=>{ const nm=(s.name||'').trim(); if(!nm)return; out[s.id||uid()]={name:nm,role:s.role||'member',order:o++,no:s.no||[],noCC:!!s.noCC}; });
+$('saveStaff').onclick=()=>{ const out={}; let o=0; edStaff.forEach(s=>{ const nm=(s.name||'').trim(); if(!nm)return; out[s.id||uid()]={name:nm,role:s.role||'member',order:o++,no:s.no||[],noCC:!!s.noCC,fixM:s.fixM||''}; });
   STAFF=out; DB.set(PATH+'/staff',out); toast('บันทึกรายชื่อแล้ว ('+Object.keys(out).length+')'); $('pop').style.display='none'; renderMeSel(); render(); };
 
 let edRoles=[];
@@ -442,13 +490,17 @@ function drawHol(){ const keys=Object.keys(HOL).sort();
 $('holAdd').onclick=()=>{ const dt=$('holDate').value; if(!dt){toast('เลือกวันที่');return;} const fest=$('holType').value==='fest'; const nm=($('holName').value||(fest?'เทศกาล':'วันหยุดพิเศษ')).trim(); const val={name:nm,fest:fest}; HOL[dt]=val; DB.set(PATH+'/holidays/'+dt,val); $('holName').value=''; drawHol(); render(); toast('เพิ่มวันหยุดแล้ว'); };
 
 /* ---------- clear ---------- */
-$('clearBtn').onclick=()=>{ if(!canEdit())return; if(!confirm('ล้างเวรทั้งหมดของ '+monthLabel(curY,curM)+'? (วันขอหยุดยังอยู่)'))return; SH={}; DB.set(PATH+'/shift/'+ym,null); render(); toast('ล้างแล้ว'); };
+$('clearBtn').onclick=()=>{ if(!canEdit())return; if(!confirm('ล้างเวรทั้งหมดของ '+monthLabel(curY,curM)+'? (วันขอหยุดยังอยู่)'))return; pushUndo(); SH={}; DB.set(PATH+'/shift/'+ym,null); render(); toast('ล้างแล้ว'); };
+$('undoBtn').onclick=()=>{ if(canEdit())doUndo(); };
+$('redoBtn').onclick=()=>{ if(canEdit())doRedo(); };
 $('printBtn').onclick=()=>window.print();
 
 /* ---------- AUTO DRAFT ---------- */
 function offAt(id,d){ return !!(OFF[id]||{})[d]; }
 $('autoBtn').onclick=async()=>{ if(!canEdit())return; if(!confirm('ออโต้ร่างเวรเดือน '+monthLabel(curY,curM)+'? จะเขียนทับเวรเดิม (เคารพวันขอหยุด · เฉลี่ยเวรพิเศษ/ศูนย์สั่งการ · แก้เองต่อได้)'))return; await autoDraft(); };
 async function autoDraft(){
+  pushUndo();
+  const OLD=JSON.parse(JSON.stringify(SH||{}));
   const nd=daysInMonth(curY,curM), list=staffList();
   const byRole=k=>list.filter(s=>s.role===k);
   const heads=byRole('head'), subs=byRole('subhead'), floats=byRole('float');
@@ -477,10 +529,27 @@ async function autoDraft(){
     return true; };
   const shortfall=[];
   const wkMornLeft={}, wkUsed={}, wkDone={}; subs.concat(floats).forEach(s=>{wkMornLeft[s.id]=2; wkUsed[s.id]=new Set(); wkDone[s.id]=0;});
+  // ---- คงเวรที่ถูกล็อก (fix) ไว้ + นับโหลดของเวรที่ล็อก ----
+  list.forEach(s=>{ const days=OLD[s.id]||{};
+    for(let d=1;d<=nd;d++){ if(!isLocked(s.id,d))continue; const c=days[d]; if(!c||!c.s)continue;
+      NEW[s.id][d]=JSON.parse(JSON.stringify(c)); const sp=isSpecial(curY,curM,d), fe=isFestival(curY,curM,d);
+      load[s.id]++; if(fe)loadFest[s.id]++;
+      if(isCC(c.s)){ ccLoad[s.id]++; }
+      else if(c.s==='na'){ loadT[s.id].n++; loadT[s.id].a++; }
+      else { tbase(c.s).forEach(b=>{ if(loadT[s.id][b]!==undefined)loadT[s.id][b]++; }); if(c.s==='m'&&!sp)loadInM[s.id]++; }
+      // เวรนอกเวลาเช้า (พิเศษ) ที่ล็อกของกลุ่ม subhead/ลอยเช้า นับโควตา/กระจายด้วย
+      if(c.s==='m'&&sp&&wkMornLeft[s.id]!==undefined){ wkMornLeft[s.id]--; wkDone[s.id]++;
+        const wday=dow(curY,curM,d); const wid=wday===6?d:(wday===0?d-1:0); if(wid)wkUsed[s.id].add(wid); }
+    } });
   for(let d=1;d<=nd;d++){
     const special=isSpecial(curY,curM,d); const festival=isFestival(curY,curM,d); const T=special?TARGET.weekend:TARGET.weekday;
     const need={m:T.m||0,a:T.a||0,n:T.n||0}; const got={m:0,a:0,n:0};
     const slotsLeft={m:slotListFor('m',special),a:slotListFor('a',special),n:slotListFor('n',special)};
+    // นับเวรที่ถูกล็อกไว้แล้วในวันนี้ เข้าใน got และตัด role/slot ที่ใช้ไปแล้ว
+    const rmSlot=(base,role)=>{ const arr=slotsLeft[base]; if(!arr||!role)return; const i=arr.indexOf(role); if(i>=0)arr.splice(i,1); };
+    list.forEach(s=>{ const c=NEW[s.id][d]; if(!c)return; if(isCC(c.s))return;
+      if(c.s==='na'){ got.n++; got.a++; rmSlot('n',c.rn||c.r); rmSlot('a',c.ra); }
+      else { if(got[c.s]!==undefined)got[c.s]++; rmSlot(c.s,c.r); } });
     const noOf=id=>((STAFF[id]||{}).no)||[];
     const takeRole=(base,prefers,id)=>{ const arr=slotsLeft[base], no=noOf(id); for(const pr of prefers){const i=arr.indexOf(pr); if(i>=0&&no.indexOf(pr)<0){arr.splice(i,1);return pr;}} for(let i=0;i<arr.length;i++){ if(no.indexOf(arr[i])<0){const r=arr[i];arr.splice(i,1);return r;} } return null; };
     const memPref=base=> base==='m'?['EMS','refer','triage','member1','member2','lead1','lead2','incharge']:(base==='n'?['member1','member2','lead1','lead2']:['member1','member2','triage','lead1','lead2','incharge']);
@@ -488,15 +557,23 @@ async function autoDraft(){
     const place=(st,base)=>{ const r=roleFor(st,base); if(r===null)return false; give(st.id,d,base,r); return true; };
     // morning fixed
     if(!special){
+      // ประจำเวรเช้าในเวลา (fixM): ล็อกคน+บทบาทตามที่ admin ตั้งไว้ ทุกวันธรรมดา
+      const giveFix=(id,role)=>{ if(role!=='na'&&slotsLeft.m.indexOf(role)<0)return false; if(noOf(id).indexOf(role)>=0)return false; if(!can(id,d,'m'))return false; rmSlot('m',role); give(id,d,'m',role); got.m++; return true; };
+      const fixed=list.filter(s=>(STAFF[s.id]||{}).fixM);
+      const alt=[]; fixed.forEach(s=>{ const fx=STAFF[s.id].fixM; if(fx==='leadalt'){alt.push(s);return;} giveFix(s.id,fx); });
+      // สลับ L1/L2 ระหว่างคู่ leadalt — สลับกันทุกวัน
+      alt.sort((a,b)=>a.order-b.order).forEach((s,k)=>{ const r=((d+k)%2===0)?'lead1':'lead2'; if(!giveFix(s.id,r))giveFix(s.id,r==='lead1'?'lead2':'lead1'); });
       heads.forEach(h=>{ if(got.m<need.m&&can(h.id,d,'m')){ if(place(h,'m'))got.m++; } });
       subs.forEach(s=>{ if(got.m<need.m&&can(s.id,d,'m')){ if(place(s,'m'))got.m++; } });
       floats.slice().sort((a,b)=>load[a.id]-load[b.id]).forEach(f=>{ if(got.m<need.m&&can(f.id,d,'m')){ if(place(f,'m'))got.m++; } });
     } else {
       // เช้านอกเวลา (เสาร์อาทิตย์/พิเศษ): subhead+ลอยเช้า โควตา 2/เดือน · กระจายทุกสัปดาห์ · ห้ามอยู่ทั้ง ส+อา สัปดาห์เดียว
+      // กลุ่ม subhead+ลอยเช้า ลงเวรนอกเวลา "วันเดียวกันได้แค่ 1 คน" (กระจายวันกัน) ที่เหลือเติมจากพยาบาลทั่วไป
       const wday=dow(curY,curM,d); const wid = wday===6?d : (wday===0?d-1 : 0);  // id ของสุดสัปดาห์ (เสาร์=ตัวเอง, อาทิตย์=เสาร์ก่อนหน้า)
+      const grp=subs.concat(floats);
       const pickWk=arr=>arr.slice().filter(s=>wkMornLeft[s.id]>0 && !(wid&&wkUsed[s.id].has(wid))).sort((a,b)=>(wkDone[a.id]-wkDone[b.id])||(load[a.id]-load[b.id]));
-      pickWk(subs).forEach(s=>{ if(got.m<need.m&&can(s.id,d,'m')){ if(place(s,'m')){got.m++;wkMornLeft[s.id]--;wkDone[s.id]++;if(wid)wkUsed[s.id].add(wid);} } });
-      pickWk(floats).forEach(f=>{ if(got.m<need.m&&can(f.id,d,'m')){ if(place(f,'m')){got.m++;wkMornLeft[f.id]--;wkDone[f.id]++;if(wid)wkUsed[f.id].add(wid);} } });
+      for(const s of pickWk(grp)){ if(got.m>=need.m)break;
+        if(can(s.id,d,'m')&&place(s,'m')){ got.m++;wkMornLeft[s.id]--;wkDone[s.id]++;if(wid)wkUsed[s.id].add(wid); break; } }
     }
     // regular fill: night first · เวรในเวลา(เช้าวันธรรมดา)=เฉลี่ยเท่ากัน(loadInM) · เทศกาล=เฉลี่ย(loadFest)
     ['n','a','m'].forEach(s=>{ let guard=0;
@@ -511,16 +588,31 @@ async function autoDraft(){
       // เติม "ดึก+บ่าย (na)" ให้เวรเต็ม เมื่อคนสดไม่พอ
       if(got[s]<need[s] && (s==='a'||s==='n')){
         const other=s==='a'?'n':'a';
-        const dbl=list.filter(p=>{ const cc=NEW[p.id][d]; return cc&&cc.s===other && canDouble(p.id,d,s); })
+        const dbl=list.filter(p=>{ const cc=NEW[p.id][d]; return cc&&cc.s===other && !isLocked(p.id,d) && canDouble(p.id,d,s); })
           .sort((x,y)=> festival?((loadFest[x.id]-loadFest[y.id])||(load[x.id]-load[y.id])):((loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id])));
-        for(const p of dbl){ if(got[s]>=need[s])break; const old=NEW[p.id][d];
-          NEW[p.id][d]={s:'na',r:old.r||''}; load[p.id]++; if(festival)loadFest[p.id]++; loadT[p.id][s]++; got[s]++; }
+        for(const p of dbl){ if(got[s]>=need[s])break; const old=NEW[p.id][d]; const oldR=old.r||'';
+          let rn,ra; if(s==='n'){ rn=takeRole('n',memPref('n'),p.id)||''; ra=oldR; } else { ra=takeRole('a',memPref('a'),p.id)||''; rn=oldR; }
+          NEW[p.id][d]={s:'na',rn:rn,ra:ra}; load[p.id]++; if(festival)loadFest[p.id]++; loadT[p.id][s]++; got[s]++; }
       }
       if(got[s]<need[s])shortfall.push(d+' '+(SHIFT_TXT[s])+' ขาด '+(need[s]-got[s])); });
     // command center (separate person, 1 each, out-of-hours): cc-a, cc-n every day; cc-m special days
+    // ปลดคนให้ว่างไปอยู่ศูนย์สั่งการ โดยยุบคู่ (บ่าย+ดึก) เป็น "ดึก+บ่าย (na)" ของคนเดียว
+    const freeOneForCC=(base)=>{
+      const pns=list.filter(s=>{ const c=NEW[s.id][d]; return c&&c.s==='n' && !isLocked(s.id,d) && canDouble(s.id,d,'a'); });
+      const pas=list.filter(s=>{ const c=NEW[s.id][d]; return c&&c.s==='a' && !isLocked(s.id,d); });
+      for(const pn of pns){ for(const pa of pas){ if(pa.id===pn.id)continue;
+        if(pa.role==='head'||(STAFF[pa.id]||{}).noCC)continue;
+        if(offAt(pa.id,d)||bb(pa.id,d,base))continue;
+        const pnR=NEW[pn.id][d].r||'', paR=NEW[pa.id][d].r||'';
+        NEW[pn.id][d]={s:'na',rn:pnR,ra:paR}; load[pn.id]++; loadT[pn.id].a++; if(festival)loadFest[pn.id]++;
+        delete NEW[pa.id][d]; load[pa.id]--; loadT[pa.id].a--; if(festival)loadFest[pa.id]--;
+        return pa.id; } }
+      return null; };
     const ccJobs=[['a','cca'],['n','ccn']]; if(special)ccJobs.push(['m','ccm']);
     ccJobs.forEach(([base,cs])=>{
-      const elig=list.filter(s=> s.role!=='head' && !(STAFF[s.id]||{}).noCC && can(s.id,d,base) );
+      if(list.some(s=>{ const c=NEW[s.id][d]; return c&&c.s===cs; }))return; // มีคนอยู่แล้ว (รวมที่ล็อก)
+      let elig=list.filter(s=> s.role!=='head' && !(STAFF[s.id]||{}).noCC && can(s.id,d,base) );
+      if(!elig.length){ const fid=freeOneForCC(base); if(fid)elig=[list.find(s=>s.id===fid)].filter(Boolean); }
       elig.sort((x,y)=> festival? ((loadFest[x.id]-loadFest[y.id])||(ccLoad[x.id]-ccLoad[y.id])||(load[x.id]-load[y.id])) : ((ccLoad[x.id]-ccLoad[y.id])||(load[x.id]-load[y.id])) );
       if(elig.length){ give(elig[0].id,d,cs,CC_ROLE); } else shortfall.push(d+' '+SHIFT_TXT[cs]+' ไม่มีคน'); });
   }
