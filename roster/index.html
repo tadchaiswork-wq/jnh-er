@@ -455,7 +455,7 @@ function openNoEdit(i){ const s=edStaff[i];
   const html=`<div class="pop-nm" style="font-weight:700;margin-bottom:6px">ปิดบทบาทถาวร: ${esc(s.name||'')}</div>
     <div style="font-size:12px;color:#64748b;margin-bottom:4px">บทบาทที่ไม่ให้จัด:</div><div class="rolechk" id="neRoles">${roleChk}</div>
     <label style="display:block;margin-top:8px;font-size:13px"><input type="checkbox" id="neCC" ${s.noCC?'checked':''}> ไม่ให้อยู่เวรศูนย์สั่งการ</label>
-    <div style="margin-top:10px;font-size:12px;color:#64748b">ประจำเวรเช้าในเวลา (ทุกวันธรรมดา · ออโต้ร่างล็อกบทบาทให้):</div>
+    <div style="margin-top:10px;font-size:12px;color:#64748b">หน้าที่เฉพาะ เวรเช้าในเวลา (ช) — ลอยเช้า/คนที่มีหน้าที่ประจำ · ว่าง=ยืดหยุ่น:</div>
     <select id="neFixM" style="width:100%;margin-top:4px;border:1px solid var(--line);border-radius:8px;padding:6px">
       ${FIXM_OPTS.map(([k,l])=>`<option value="${k}" ${s.fixM===k?'selected':''}>${l}</option>`).join('')}</select>`;
   const pop=$('pop'); pop.innerHTML=html; pop.style.display='block'; pop.style.left='50%'; pop.style.top='120px'; pop.style.transform='translateX(-50%)'; pop.style.width='260px';
@@ -490,7 +490,9 @@ function drawHol(){ const keys=Object.keys(HOL).sort();
 $('holAdd').onclick=()=>{ const dt=$('holDate').value; if(!dt){toast('เลือกวันที่');return;} const fest=$('holType').value==='fest'; const nm=($('holName').value||(fest?'เทศกาล':'วันหยุดพิเศษ')).trim(); const val={name:nm,fest:fest}; HOL[dt]=val; DB.set(PATH+'/holidays/'+dt,val); $('holName').value=''; drawHol(); render(); toast('เพิ่มวันหยุดแล้ว'); };
 
 /* ---------- clear ---------- */
-$('clearBtn').onclick=()=>{ if(!canEdit())return; if(!confirm('ล้างเวรทั้งหมดของ '+monthLabel(curY,curM)+'? (วันขอหยุดยังอยู่)'))return; pushUndo(); SH={}; DB.set(PATH+'/shift/'+ym,null); render(); toast('ล้างแล้ว'); };
+$('clearBtn').onclick=()=>{ if(!canEdit())return; if(!confirm('ล้างเวรทั้งหมดของ '+monthLabel(curY,curM)+'? (วันขอหยุด + เวรที่ล็อก 🔒 ยังอยู่)'))return; pushUndo();
+  const keep={}; Object.keys(LOCK||{}).forEach(sid=>{ const dd=LOCK[sid]||{}; Object.keys(dd).forEach(d=>{ if(dd[d]&&SH[sid]&&SH[sid][d]){ keep[sid]=keep[sid]||{}; keep[sid][d]=SH[sid][d]; } }); });
+  SH=keep; DB.set(PATH+'/shift/'+ym, Object.keys(keep).length?keep:null); render(); toast(Object.keys(keep).length?'ล้างแล้ว (เก็บเวรที่ล็อก 🔒 ไว้)':'ล้างแล้ว'); };
 $('undoBtn').onclick=()=>{ if(canEdit())doUndo(); };
 $('redoBtn').onclick=()=>{ if(canEdit())doRedo(); };
 $('printBtn').onclick=()=>window.print();
