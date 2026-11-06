@@ -251,10 +251,8 @@ function regHas(id,d,b){ const c=cell(id,d); return !!c && !isCC(c.s) && tbase(c
 function ccHas(id,d,b){ const c=cell(id,d); return !!c && (c.s==='cc'+b || c.cc==='cc'+b); }
 function hasTime(id,d,b){ const c=cell(id,d); return !!c && cbases(c).indexOf(b)>=0; } // for adjacency (reg + cc add-on)
 function dayViol(id,d){ const c=cell(id,d); if(!c)return false; const p=cbases(c);
-  if(p.indexOf('n')>=0 && hasTime(id,d-1,'a')) return true;   // บ่าย→ดึกวันถัดไป
-  if(p.indexOf('a')>=0 && hasTime(id,d+1,'n')) return true;
-  if(p.indexOf('n')>=0 && hasTime(id,d+1,'m')) return true;   // ดึก→เช้าวันถัดไป (ห้าม)
-  if(p.indexOf('m')>=0 && hasTime(id,d-1,'n')) return true;
+  if(p.indexOf('n')>=0 && hasTime(id,d-1,'a')) return true;   // บ่ายเมื่อวาน→ดึก (ต่อเนื่องข้ามเที่ยงคืน)
+  if(p.indexOf('a')>=0 && hasTime(id,d+1,'n')) return true;   // บ่าย→ดึกวันถัดไป
   return false; }
 function slotListFor(base,special){ if(base==='m')return (special?SLOTS.six:SLOTS.mwk).slice(); if(base==='a')return SLOTS.afternoon.slice(); if(base==='n')return SLOTS.night.slice(); return []; }
 function roleOptsFor(s,special){ if(s==='m')return special?SLOTS.six:SLOTS.mwk; if(s==='a')return SLOTS.afternoon; if(s==='n')return SLOTS.night; if(s==='na')return SLOTS.afternoon; return []; }
@@ -578,12 +576,10 @@ async function autoDraft(){
   SH=NEW;
   function bb(id,d,s){ const p=NEW[id]||{}; const tb=tbase(s);
     const prev=p[d-1], next=p[d+1];
-    const pA=prev&&cbases(prev).indexOf('a')>=0, pN=prev&&cbases(prev).indexOf('n')>=0;
-    const nN=next&&cbases(next).indexOf('n')>=0, nM=next&&cbases(next).indexOf('m')>=0;
+    const pA=prev&&cbases(prev).indexOf('a')>=0;
+    const nN=next&&cbases(next).indexOf('n')>=0;
     if(tb.indexOf('n')>=0&&pA)return true;   // บ่าย(เมื่อวาน)→ดึก
     if(tb.indexOf('a')>=0&&nN)return true;   // บ่าย→ดึก(พรุ่งนี้)
-    if(tb.indexOf('n')>=0&&nM)return true;   // ดึก→เช้า(พรุ่งนี้) ห้าม
-    if(tb.indexOf('m')>=0&&pN)return true;   // ดึก(เมื่อวาน)→เช้า ห้าม
     return false; }
   // member: อยู่เวรต่อกันได้ไม่เกิน 5 วัน แล้วต้อง off
   function consec(id,d){ let c=0,k=d-1; while(k>=1 && NEW[id][k]){ c++; k--; } return c; }
@@ -595,7 +591,6 @@ async function autoDraft(){
     else { tbase(s).forEach(b=>{ if(loadT[id][b]!==undefined)loadT[id][b]++; }); if(s==='m'&&!sp)loadInM[id]++; } };
   const canDouble=(id,d,addBase)=>{ if(offAt(id,d))return false;
     const nx=NEW[id][d+1], pv=NEW[id][d-1];
-    if(nx&&cbases(nx).indexOf('m')>=0)return false;                       // ด+บ มีดึก → พรุ่งนี้ห้ามเช้า
     if(addBase==='a'){ if(nx&&cbases(nx).indexOf('n')>=0)return false; }   // บ่าย→ดึกพรุ่งนี้
     if(addBase==='n'){ if(pv&&cbases(pv).indexOf('a')>=0)return false; }   // บ่ายเมื่อวาน→ดึก
     return true; };
@@ -678,10 +673,8 @@ async function autoDraft(){
       if(st.role==='subhead'||st.role==='float')return ccLoad[id]<2; return true; };
     const canAddCC=(id,cs)=>{ const c=NEW[id][d]; if(!c||c.cc||isLocked(id,d))return false; const tb=tbase(cs);
       const nx=NEW[id][d+1], pv=NEW[id][d-1];
-      if(tb.indexOf('n')>=0 && nx && cbases(nx).indexOf('m')>=0)return false;   // ดึก→เช้าพรุ่งนี้
       if(tb.indexOf('n')>=0 && pv && cbases(pv).indexOf('a')>=0)return false;   // บ่ายเมื่อวาน→ดึก
       if(tb.indexOf('a')>=0 && nx && cbases(nx).indexOf('n')>=0)return false;   // บ่าย→ดึกพรุ่งนี้
-      if(tb.indexOf('m')>=0 && pv && cbases(pv).indexOf('n')>=0)return false;
       return true; };
     const ccFilled=cs=>list.some(s=>{ const c=NEW[s.id][d]; return c && (c.s===cs || c.cc===cs); });
     const assignCont=(cs,wardS)=>{ const cands=list.filter(s=>{ const c=NEW[s.id][d]; return c && c.s===wardS && !c.cc && !isLocked(s.id,d) && ccAllowed(s.id,cs) && canAddCC(s.id,cs); })
