@@ -251,6 +251,8 @@ function regHas(id,d,b){ const c=cell(id,d); return !!c && !isCC(c.s) && tbase(c
 function ccHas(id,d,b){ const c=cell(id,d); return !!c && (c.s==='cc'+b || c.cc==='cc'+b); }
 function hasTime(id,d,b){ const c=cell(id,d); return !!c && cbases(c).indexOf(b)>=0; } // for adjacency (reg + cc add-on)
 function dayViol(id,d){ const c=cell(id,d); if(!c)return false; const p=cbases(c);
+  // ซ้อนเวรศูนย์แบบผิดกฏ (อนุญาตเฉพาะ เช้าวอร์ด+ศ·บ่าย, บ่ายวอร์ด+ศ·ดึก, เช้าศูนย์+บ่ายวอร์ด)
+  if(c.cc){ const ok=(c.s==='m'&&c.cc==='cca')||(c.s==='a'&&c.cc==='ccn')||(c.s==='a'&&c.cc==='ccm'); if(!ok)return true; }
   if(p.indexOf('n')>=0 && hasTime(id,d-1,'a')) return true;   // บ่ายเมื่อวาน→ดึก (ต่อเนื่องข้ามเที่ยงคืน)
   if(p.indexOf('a')>=0 && hasTime(id,d+1,'n')) return true;   // บ่าย→ดึกวันถัดไป
   return false; }
@@ -426,6 +428,7 @@ function writeCell(sid,d,obj){ SH[sid]=SH[sid]||{}; if(obj)SH[sid][d]=obj; else 
   DB.set(PATH+'/shift/'+ym+'/'+sid+'/'+d, obj||null); render(); }
 function setCell(sid,d,s,r){ pushUndo(); writeCell(sid,d, s?{s:s,r:r||''}:null); }
 function setNa(sid,d,rn,ra){ pushUndo(); writeCell(sid,d,{s:'na',rn:rn||'',ra:ra||''}); }
+function setCC(sid,d,ccv){ const c=cell(sid,d); if(!c||!c.s||isCC(c.s)||c.s==='na')return; pushUndo(); const obj=Object.assign({},c); if(ccv)obj.cc=ccv; else delete obj.cc; writeCell(sid,d,obj); }
 function toggleOff(sid,d){ OFF[sid]=OFF[sid]||{}; const nv=!OFF[sid][d]; if(nv)OFF[sid][d]=true; else delete OFF[sid][d];
   DB.set(PATH+'/off/'+ym+'/'+sid+'/'+d, nv||null); render(); }
 function pickDefaultRole(sid,s,special){ const st=STAFF[sid],cat=st?st.role:''; const no=(st&&st.no)||[];
@@ -448,8 +451,15 @@ function openPop(td,sid,d){
   } else if(!isCC(c.s)&&c.s){
     roleBlock=`<div class="pop-r">บทบาท: <select id="popRole"><option value="">—</option>${optsFor(c.s).map(r=>`<option value="${r}" ${c.r===r?'selected':''}>${esc(ROLE_TH[r]||r)}</option>`).join('')}</select></div>`;
   }
+  let ccAddBlock='';
+  if(canCC && c.s && !isCC(c.s) && c.s!=='na'){
+    const ccNow=c.cc||'';
+    const ccOpts=[['','ไม่ซ้อน'],['ccm','+ศ·เช้า'],['cca','+ศ·บ่าย'],['ccn','+ศ·ดึก']];
+    ccAddBlock=`<div class="pop-r" style="margin-top:7px;font-size:11px;color:#64748b">เพิ่มเวรศูนย์ซ้อน (ผิดกฏ=ช่องแดง):</div>
+      <div class="pop-sh" style="margin-top:3px">${ccOpts.map(([k,l])=>`<button data-cc="${k}" class="${ccNow===k?'on':''}">${l}</button>`).join('')}</div>`;
+  }
   pop.innerHTML=`<div class="pop-nm">${esc(st.name||'')} · วันที่ ${d}${special?' (พิเศษ)':''}</div>
-    <div class="pop-sh">${shBtns}</div>${roleBlock}`;
+    <div class="pop-sh">${shBtns}</div>${roleBlock}${ccAddBlock}`;
   pop.style.display='block'; pop.style.transform=''; pop.style.width='250px'; const rect=td.getBoundingClientRect();
   pop.style.left=Math.max(6,Math.min(rect.left,window.innerWidth-262))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px';
   pop.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{ const s=b.dataset.s;
@@ -460,6 +470,7 @@ function openPop(td,sid,d){
   const rN=$('popRN'), rA=$('popRA');
   if(rN)rN.onchange=()=>setNa(sid,d, rN.value, (rA?rA.value:'') );
   if(rA)rA.onchange=()=>setNa(sid,d, (rN?rN.value:''), rA.value );
+  pop.querySelectorAll('[data-cc]').forEach(b=>b.onclick=()=>{ setCC(sid,d,b.dataset.cc); openPop(td,sid,d); });
 }
 document.addEventListener('click',e=>{ if(!e.target.closest('#pop')&&!e.target.closest('td.cell'))$('pop').style.display='none'; });
 
@@ -685,7 +696,7 @@ async function autoDraft(){
       if(elig.length){ give(elig[0].id,d,cs,CC_ROLE); return true; } return false; };
     if(!ccFilled('cca')){ if(!assignCont('cca','m') && !assignSep('cca','a')) shortfall.push(d+' ศ·บ่าย ไม่มีคน'); }
     if(!ccFilled('ccn')){ if(!assignCont('ccn','a') && !assignSep('ccn','n')) shortfall.push(d+' ศ·ดึก ไม่มีคน'); }
-    if(special && !ccFilled('ccm')){ if(!assignSep('ccm','m')) shortfall.push(d+' ศ·เช้านอก ไม่มีคน'); }
+    if(special && !ccFilled('ccm')){ if(!assignCont('ccm','a') && !assignSep('ccm','m')) shortfall.push(d+' ศ·เช้านอก ไม่มีคน'); }
   }
   const payload={}; list.forEach(s=>{ if(Object.keys(NEW[s.id]).length)payload[s.id]=NEW[s.id]; });
   DB.set(PATH+'/shift/'+ym, payload); render();
