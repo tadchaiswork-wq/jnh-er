@@ -59,6 +59,10 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
 .cell.me{outline:2px solid var(--brand);outline-offset:-2px}
 .cell.lock{position:relative;box-shadow:inset 0 0 0 2px #f59e0b}
 .cell.lock::after{content:'🔒';position:absolute;top:-1px;right:0;font-size:8px;line-height:1}
+.cell.swapon{position:relative;box-shadow:inset 0 0 0 2px #0ea5e9}
+.cell.swapon::before{content:'🔁';position:absolute;top:-1px;left:0;font-size:8px;line-height:1}
+.swlist{font-size:12px;color:#334155;max-height:150px;overflow:auto;margin-top:2px}
+.swlist div{padding:3px 2px;border-bottom:1px solid #f1f5f9}
 .cell .rl{display:block;font-size:8px;font-weight:700;opacity:.85;line-height:1.05}
 .sumc{background:#f0fdfa;font-weight:800;color:#115e59;min-width:40px}
 .sumrow td{background:#f8fafc;font-weight:700;font-size:11px;color:#475569}
@@ -124,11 +128,11 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
     <button class="btn sm gray" id="printBtn">🖨 พิมพ์</button>
   </span>
 </div>
-<div class="hint" id="modeHint">เลือกชื่อของคุณด้านบน แล้วแตะวันในแถวของตัวเองเพื่อ “ขอหยุด (off)” · การลงเวรทำโดยผู้จัดเวร/Admin</div>
+<div class="hint" id="modeHint">เลือกชื่อของคุณด้านบน แล้วแตะวันในแถวของตัวเองเพื่อ “ขอหยุด (off)” · คลิกขวา/กดค้างที่ช่องใดก็ได้ = ดู/ขอแลกเวร 🔁 · การลงเวรทำโดยผู้จัดเวร/Admin</div>
 <div class="legend">
   <span><i class="lm">ช</i>เช้า</span><span><i class="la">บ</i>บ่าย</span><span><i class="ln">ด</i>ดึก</span>
   <span><i class="lcc">ศ</i>ศูนย์สั่งการ</span><span>ด+บ=ดึก+บ่ายวันเดียว (ได้)</span><span><i class="lo">off</i>ขอหยุด</span>
-  <span>วันพิเศษ=หัวตารางแดง · กรอบแดง=บ่าย→ดึกวันถัดไป · 🔒=ล็อกเวร (คลิกขวา/กดค้าง)</span>
+  <span>วันพิเศษ=หัวตารางแดง · กรอบแดง=บ่าย→ดึกวันถัดไป · 🔒=ล็อกเวร · 🔁=ขอแลกเวร (คลิกขวา/กดค้างในโหมดดู)</span>
 </div>
 <div class="warnbox" id="warnbox"></div>
 <div class="wrap"><table class="grid" id="grid"></table></div>
@@ -200,8 +204,9 @@ const TH_MON=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','�
 const CC_ROLE='cc';
 
 let ROLES=DEFAULT_ROLES.slice(), TARGET=JSON.parse(JSON.stringify(DEFAULT_TARGET));
-let STAFF={}, SH={}, OFF={}, HOL={}, LOCK={}, SETTINGS={adminPass:'1234'};
+let STAFF={}, SH={}, OFF={}, HOL={}, LOCK={}, SW={}, SETTINGS={adminPass:'1234'};
 function isLocked(id,d){ return !!((LOCK[id]||{})[d]); }
+function isSwap(id,d){ return !!((SW[id]||{})[d]); }
 let admin=false, sched=false, meId='', ym='', curY, curM;
 const canEdit=()=>admin||sched;
 const $=id=>document.getElementById(id);
@@ -276,6 +281,7 @@ function loadMonth(){ ym=ymKey(curY,curM); $('mLabel').textContent=monthLabel(cu
   DB.on(PATH+'/shift/'+ym, v=>{ SH=v||{}; render(); });
   DB.on(PATH+'/off/'+ym, v=>{ OFF=v||{}; render(); });
   DB.on(PATH+'/lock/'+ym, v=>{ LOCK=v||{}; render(); });
+  DB.off(PATH+'/swap/'+ym); DB.on(PATH+'/swap/'+ym, v=>{ SW=v||{}; render(); });
 }
 let _seeded=false;
 function seedStaff(){ if(_seeded)return; _seeded=true; const out={}; let o=0;
@@ -317,6 +323,7 @@ function render(){
       } else if(off){ cls+=' off'; txt='off'; }
       if(s.id===meId)cls+=' me';
       if(isLocked(s.id,d))cls+=' lock';
+      if(isSwap(s.id,d))cls+=' swapon';
       h+=`<td class="${cls}" data-sid="${s.id}" data-d="${d}">${txt}</td>`;
     }
     SUMS.forEach(k=>h+=`<td class="sumc">${sum[k[0]]||''}</td>`);
@@ -349,18 +356,62 @@ $('grid').addEventListener('click',e=>{ const td=e.target.closest('td.cell'); if
   const sid=td.dataset.sid, d=+td.dataset.d;
   if(canEdit()){ openPop(td,sid,d); }
   else { if(sid!==meId){ toast('เลือกชื่อของคุณด้านบนก่อน'); return; } toggleOff(sid,d); } });
-/* ---- right-click (long-press) = ล็อก/ปลดล็อกเวร (ออโต้ร่างจะไม่แตะ) ---- */
-$('grid').addEventListener('contextmenu',e=>{ const td=e.target.closest('td.cell'); if(!td)return;
-  if(!canEdit())return; e.preventDefault(); toggleLock(td.dataset.sid,+td.dataset.d); });
+/* ---- คลิกขวา/กดค้าง: โหมดผู้จัดเวร=ล็อกเวร · โหมดดู=ดู/ขอแลกเวร ---- */
+$('grid').addEventListener('contextmenu',e=>{ const td=e.target.closest('td.cell'); if(!td)return; e.preventDefault();
+  if(canEdit()) toggleLock(td.dataset.sid,+td.dataset.d);
+  else openSwapPop(td, td.dataset.sid, +td.dataset.d); });
 let _lpTimer=null;
-$('grid').addEventListener('touchstart',e=>{ const td=e.target.closest('td.cell'); if(!td||!canEdit())return;
-  const sid=td.dataset.sid,d=+td.dataset.d; _lpTimer=setTimeout(()=>{ _lpTimer=null; toggleLock(sid,d); },550); },{passive:true});
+$('grid').addEventListener('touchstart',e=>{ const td=e.target.closest('td.cell'); if(!td)return;
+  const sid=td.dataset.sid,d=+td.dataset.d; _lpTimer=setTimeout(()=>{ _lpTimer=null; if(canEdit())toggleLock(sid,d); else openSwapPop(td,sid,d); },550); },{passive:true});
 $('grid').addEventListener('touchend',()=>{ if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;} });
 $('grid').addEventListener('touchmove',()=>{ if(_lpTimer){clearTimeout(_lpTimer);_lpTimer=null;} });
 function toggleLock(sid,d){ if(!canEdit())return; LOCK[sid]=LOCK[sid]||{}; const nv=!LOCK[sid][d];
   if(nv)LOCK[sid][d]=true; else delete LOCK[sid][d];
   DB.set(PATH+'/lock/'+ym+'/'+sid+'/'+d, nv||null); render();
   toast(nv?'🔒 ล็อกเวรนี้แล้ว · ออโต้ร่างจะไม่แตะ':'ปลดล็อกแล้ว'); }
+/* ---- แลกเวร (swap marketplace) · ใช้ได้ทุกคนในโหมดดู ---- */
+function swappable(sid,d,c){ if(!c||!c.s)return false; if(isLocked(sid,d))return false;
+  const st=STAFF[sid]||{}; if(st.fixM && c.s==='m' && !isSpecial(curY,curM,d))return false; return true; }
+function toggleSwap(sid,d){ const c=cell(sid,d);
+  if(!c||!c.s){ toast('ไม่มีเวรให้แลก'); return; }
+  if(!swappable(sid,d,c)){ toast('เวรนี้ fix/ล็อก แลกไม่ได้'); return; }
+  SW[sid]=SW[sid]||{}; const nv=!SW[sid][d]; if(nv)SW[sid][d]=true; else delete SW[sid][d];
+  DB.set(PATH+'/swap/'+ym+'/'+sid+'/'+d, nv||null); render();
+  toast(nv?'🔁 ลงทะเบียนขอแลกเวรแล้ว · ทุกคนเห็น':'ยกเลิกการขอแลกแล้ว'); }
+function swapMarket(sid,d,c){ const out=[];
+  staffList().forEach(s=>{ const days=SW[s.id]||{}; Object.keys(days).forEach(dd=>{ if(!days[dd])return; const D=+dd;
+    if(s.id===sid && D===d)return; const cc=cell(s.id,D); if(!cc||!cc.s)return;
+    if(!swappable(s.id,D,cc))return; if(cc.s!==c.s)return; // ชนิดเดียวกัน (บ่าย-บ่าย/ดึก-ดึก/เช้า-เช้า/ศูนย์-ศูนย์)
+    out.push({sid:s.id,d:D,r:cc.r}); }); });
+  out.sort((a,b)=>a.d-b.d); return out; }
+function freeCover(sid,d,c){ const base=c.s, tb=tbase(base), role=(!isCC(base)&&base!=='na')?c.r:'';
+  return staffList().filter(s=>{ if(s.id===sid)return false; if(cell(s.id,d))return false; if(offAt(s.id,d))return false;
+    const st=STAFF[s.id]||{}; if(isCC(base)){ if(st.role==='head'||st.noCC)return false; }
+    if(role && (st.no||[]).indexOf(role)>=0)return false;
+    const pv=cell(s.id,d-1), nx=cell(s.id,d+1);
+    if(tb.indexOf('n')>=0 && pv && tbase(pv.s).indexOf('a')>=0)return false;
+    if(tb.indexOf('a')>=0 && nx && tbase(nx.s).indexOf('n')>=0)return false;
+    return true; }); }
+function openSwapPop(td,sid,d){ const c=cell(sid,d), st=STAFF[sid]||{}, special=isSpecial(curY,curM,d); const pop=$('pop');
+  let h=`<div class="pop-nm">${esc(st.name||'')} · วันที่ ${d}${special?' (พิเศษ)':''}</div>`;
+  if(!c||!c.s){ h+='<div style="font-size:12px;color:#64748b;margin:6px 0">— ไม่มีเวรวันนี้ —</div>'; pop.innerHTML=h; swPos(pop,td); return; }
+  const label=c.s==='na'?'ดึก+บ่าย':(SHIFT_TXT[c.s]||c.s);
+  const rtxt=(!isCC(c.s)&&c.s!=='na'&&c.r)?(' · '+esc(ROLE_TH[c.r]||c.r)):'';
+  h+=`<div style="font-size:12.5px;color:#475569;margin:4px 0">เวร: <b>${esc(label)}</b>${rtxt}</div>`;
+  if(swappable(sid,d,c)){ const on=isSwap(sid,d);
+    h+=`<button class="btn sm ${on?'':'ghost'}" id="swToggle" style="width:100%;margin:6px 0">${on?'✓ กำลังขอแลกเวรนี้ (กดยกเลิก)':'🔁 ลงทะเบียนขอแลกเวรนี้'}</button>`;
+  } else h+='<div style="font-size:12px;color:#b91c1c;margin:6px 0">เวรนี้ fix/ล็อก — แลกไม่ได้</div>';
+  const mk=swapMarket(sid,d,c);
+  h+=`<div style="font-size:12px;font-weight:700;margin-top:8px;color:#0369a1">🔁 คนที่ขอแลก (ชนิดเดียวกัน)${mk.length?'':' · ยังไม่มี'}</div>`;
+  if(mk.length)h+='<div class="swlist">'+mk.map(x=>`<div>${esc((STAFF[x.sid]||{}).name||'')} · วันที่ ${x.d}${x.r&&!isCC(c.s)?' ('+esc(ROLE_TH[x.r]||x.r)+')':''}</div>`).join('')+'</div>';
+  const fc=freeCover(sid,d,c);
+  h+=`<div style="font-size:12px;font-weight:700;margin-top:8px;color:#15803d">🟢 คนว่างวันนี้ แทนได้${fc.length?'':' · ไม่มี'}</div>`;
+  if(fc.length)h+='<div class="swlist">'+fc.map(s=>`<div>${esc(s.name)}</div>`).join('')+'</div>';
+  pop.innerHTML=h; swPos(pop,td);
+  const bt=$('swToggle'); if(bt)bt.onclick=()=>{ toggleSwap(sid,d); openSwapPop(td,sid,d); }; }
+function swPos(pop,td){ pop.style.display='block'; pop.style.transform=''; pop.style.width='260px';
+  pop.style.maxHeight='62vh'; pop.style.overflowY='auto'; const rect=td.getBoundingClientRect();
+  pop.style.left=Math.max(6,Math.min(rect.left,window.innerWidth-272))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }
 /* ---- undo/redo (per month) ---- */
 let undoStack=[], redoStack=[];
 function snapSH(){ return JSON.parse(JSON.stringify(SH||{})); }
@@ -411,7 +462,7 @@ document.addEventListener('click',e=>{ if(!e.target.closest('#pop')&&!e.target.c
 /* ---------- mode selectors ---------- */
 $('meSel').addEventListener('change',e=>{ meId=e.target.value; const on=!!meId&&!canEdit();
   $('modePill').textContent=admin?'โหมด Admin':sched?'โหมดผู้จัดเวร':(on?'โหมดขอวันหยุด':'โหมดดู');
-  $('modeHint').textContent= on?'แตะวันในแถวของคุณเพื่อสลับ “ขอหยุด (off)”':(canEdit()?'แตะช่องเพื่อเลือกเวร + บทบาท · ด้านขวาสุด = สรุปจำนวนเวรต่อคน':'เลือกชื่อของคุณเพื่อขอวันหยุด'); render(); });
+  $('modeHint').textContent= on?'แตะวันในแถวของคุณเพื่อสลับ “ขอหยุด (off)” · คลิกขวา/กดค้าง = ดู/ขอแลกเวร 🔁':(canEdit()?'แตะช่องเพื่อเลือกเวร + บทบาท · ด้านขวาสุด = สรุปจำนวนเวรต่อคน':'คลิกขวา/กดค้างที่ช่อง = ดู/ขอแลกเวร 🔁 · เลือกชื่อเพื่อขอวันหยุด'); render(); });
 $('mPrev').onclick=()=>{ curM--; if(curM<1){curM=12;curY--;} loadMonth(); };
 $('mNext').onclick=()=>{ curM++; if(curM>12){curM=1;curY++;} loadMonth(); };
 
