@@ -394,7 +394,7 @@ function toggleSwap(sid,d){ const c=cell(sid,d);
   toast(nv?'🔁 ลงทะเบียนขอแลกเวรแล้ว · ทุกคนเห็น':'ยกเลิกการขอแลกแล้ว'); }
 function swapMarket(sid,d,c){ const out=[];
   staffList().forEach(s=>{ const days=SW[s.id]||{}; Object.keys(days).forEach(dd=>{ if(!days[dd])return; const D=+dd;
-    if(s.id===sid && D===d)return; const cc=cell(s.id,D); if(!cc||!cc.s)return;
+    if(D===d)return; const cc=cell(s.id,D); if(!cc||!cc.s)return;   // เฉพาะเวรวันอื่น (แลกเพื่อเปลี่ยนวัน)
     if(!swappable(s.id,D,cc))return; if(swapType(D,cc)!==swapType(d,c))return; // ชนิดเดียวกัน (เช้าใน/นอกเวลา·บ่าย·ดึก·ศูนย์)
     out.push({sid:s.id,d:D,r:cc.r}); }); });
   out.sort((a,b)=>a.d-b.d); return out; }
@@ -417,6 +417,7 @@ function wouldViolateSim(sid,atD,shiftObj,removedD){
 // A (aSid,aD) แลกกับ B (bSid,bD) ได้ไหม — ชนิดเดียวกัน + ทั้งคู่ลงเวรใหม่ได้โดยไม่ผิดกฏเดิม
 function swapValidWith(aSid,aD,bSid,bD){
   if(aSid===bSid) return false;
+  if(aD===bD) return false;   // แลกเพื่อเปลี่ยนวัน — ต้องเป็นเวรคนละวันเท่านั้น
   const ca=cell(aSid,aD), cb=cell(bSid,bD); if(!ca||!cb) return false;
   if(!swappable(aSid,aD,ca)||!swappable(bSid,bD,cb)) return false;
   if(swapType(aD,ca)!==swapType(bD,cb)) return false;             // ชนิดเดียวกัน (เช้าใน/นอกเวลา·บ่าย·ดึก·ศูนย์)
