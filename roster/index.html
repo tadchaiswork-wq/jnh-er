@@ -420,11 +420,8 @@ function swapValidWith(aSid,aD,bSid,bD){
   if(aD===bD) return false;   // แลกเพื่อเปลี่ยนวัน — ต้องเป็นเวรคนละวันเท่านั้น
   const ca=cell(aSid,aD), cb=cell(bSid,bD); if(!ca||!cb) return false;
   if(!swappable(aSid,aD,ca)||!swappable(bSid,bD,cb)) return false;
-  if(swapType(aD,ca)!==swapType(bD,cb)) return false;             // ชนิดเดียวกัน (เช้าใน/นอกเวลา·บ่าย·ดึก·ศูนย์)
-  const aNo=(STAFF[aSid]||{}).no||[], bNo=(STAFF[bSid]||{}).no||[];
-  if(cb.r && aNo.indexOf(cb.r)>=0) return false;                  // A ทำบทบาทของ B ไม่ได้ (ถูกปิด)
-  if(ca.r && bNo.indexOf(ca.r)>=0) return false;                  // B ทำบทบาทของ A ไม่ได้
-  if(aD!==bD){ if(cell(aSid,bD)) return false; if(cell(bSid,aD)) return false; }  // ปลายทางต้องว่าง
+  if(swapType(aD,ca)!==swapType(bD,cb)) return false;             // ชนิดเดียวกัน (เช้าใน/นอกเวลา·บ่าย·ดึก·ศูนย์) — ไม่สนใจตำแหน่ง/บทบาท
+  if(cell(aSid,bD)) return false; if(cell(bSid,aD)) return false; // ปลายทางต้องว่าง
   if(wouldViolateSim(aSid,bD,cb,aD)) return false;                // A ไปอยู่เวร B แล้วผิดกฏไหม
   if(wouldViolateSim(bSid,aD,ca,bD)) return false;                // B ไปอยู่เวร A แล้วผิดกฏไหม
   return true; }
