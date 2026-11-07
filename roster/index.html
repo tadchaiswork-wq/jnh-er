@@ -61,6 +61,10 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
 .cell.lock::after{content:'🔒';position:absolute;top:-1px;right:0;font-size:8px;line-height:1}
 .cell.swapon{position:relative;box-shadow:inset 0 0 0 2px #0ea5e9}
 .cell.swapon::before{content:'🔁';position:absolute;top:-1px;left:0;font-size:8px;line-height:1}
+.cell.swapcand{box-shadow:inset 0 0 0 3px #f59e0b!important;background:#fff7ed!important;color:#b45309!important}
+.cell.swapsrc{box-shadow:inset 0 0 0 3px #2563eb!important}
+.findbar{background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:10px;padding:9px 12px;font-size:13px;margin:8px 14px;display:none;align-items:center}
+.findbar.show{display:block}
 .swlist{font-size:12px;color:#334155;max-height:150px;overflow:auto;margin-top:2px}
 .swlist div{padding:3px 2px;border-bottom:1px solid #f1f5f9}
 .cell .rl{display:block;font-size:8px;font-weight:700;opacity:.85;line-height:1.05}
@@ -135,6 +139,7 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
   <span>วันพิเศษ=หัวตารางแดง · กรอบแดง=บ่าย→ดึกวันถัดไป · 🔒=ล็อกเวร · 🔁=ขอแลกเวร (คลิกขวา/กดค้างในโหมดดู)</span>
 </div>
 <div class="warnbox" id="warnbox"></div>
+<div class="findbar" id="findbar"></div>
 <div class="wrap"><table class="grid" id="grid"></table></div>
 
 <div class="ov hide" id="gate"><div class="modal" style="max-width:360px">
@@ -280,7 +285,7 @@ function boot(){
   loadMonth();
 }
 function loadMonth(){ ym=ymKey(curY,curM); $('mLabel').textContent=monthLabel(curY,curM);
-  undoStack=[]; redoStack=[];
+  undoStack=[]; redoStack=[]; findSwap=null;
   DB.off(PATH+'/shift/'+ym); DB.off(PATH+'/off/'+ym); DB.off(PATH+'/lock/'+ym);
   DB.on(PATH+'/shift/'+ym, v=>{ SH=v||{}; render(); });
   DB.on(PATH+'/off/'+ym, v=>{ OFF=v||{}; render(); });
@@ -330,6 +335,7 @@ function render(){
       if(s.id===meId)cls+=' me';
       if(isLocked(s.id,d))cls+=' lock';
       if(isSwap(s.id,d))cls+=' swapon';
+      if(findSwap){ if(findSwap.sid===s.id && findSwap.d===d)cls+=' swapsrc'; else if(swapValidWith(findSwap.sid,findSwap.d,s.id,d))cls+=' swapcand'; }
       h+=`<td class="${cls}" data-sid="${s.id}" data-d="${d}">${txt}</td>`;
     }
     SUMS.forEach(k=>h+=`<td class="sumc">${sum[k[0]]||''}</td>`);
@@ -347,7 +353,7 @@ function render(){
       let c=0; list.forEach(s=>{ if(ccHas(s.id,d,cc[0]))c++; });
       h+=`<td class="${c!==need?'bad':(need?'okc':'')}">${c}${need?'/'+need:''}</td>`; }
     h+=EMPTYSUM+'</tr>'; });
-  h+='</tbody>'; $('grid').innerHTML=h; computeWarnings();
+  h+='</tbody>'; $('grid').innerHTML=h; computeWarnings(); updateFindBar();
 }
 function computeWarnings(){
   const nd=daysInMonth(curY,curM), list=staffList(); const msgs=[];
@@ -378,6 +384,8 @@ function toggleLock(sid,d){ if(!canEdit())return; LOCK[sid]=LOCK[sid]||{}; const
 /* ---- แลกเวร (swap marketplace) · ใช้ได้ทุกคนในโหมดดู ---- */
 function swappable(sid,d,c){ if(!c||!c.s)return false; if(isLocked(sid,d))return false; if(c.cc)return false;
   const st=STAFF[sid]||{}; if(st.fixM && c.s==='m' && !isSpecial(curY,curM,d))return false; return true; }
+// ประเภทเวรสำหรับจับคู่แลก: เช้าในเวลา/เช้านอกเวลา แยกกัน · บ่าย/ดึก/ศูนย์(เช้า·บ่าย·ดึก) แต่ละชนิด
+function swapType(d,c){ if(!c||!c.s)return ''; if(c.s==='m')return isSpecial(curY,curM,d)?'m_out':'m_in'; return c.s; }
 function toggleSwap(sid,d){ const c=cell(sid,d);
   if(!c||!c.s){ toast('ไม่มีเวรให้แลก'); return; }
   if(!swappable(sid,d,c)){ toast('เวรนี้ fix/ล็อก แลกไม่ได้'); return; }
@@ -387,7 +395,7 @@ function toggleSwap(sid,d){ const c=cell(sid,d);
 function swapMarket(sid,d,c){ const out=[];
   staffList().forEach(s=>{ const days=SW[s.id]||{}; Object.keys(days).forEach(dd=>{ if(!days[dd])return; const D=+dd;
     if(s.id===sid && D===d)return; const cc=cell(s.id,D); if(!cc||!cc.s)return;
-    if(!swappable(s.id,D,cc))return; if(cc.s!==c.s)return; // ชนิดเดียวกัน (บ่าย-บ่าย/ดึก-ดึก/เช้า-เช้า/ศูนย์-ศูนย์)
+    if(!swappable(s.id,D,cc))return; if(swapType(D,cc)!==swapType(d,c))return; // ชนิดเดียวกัน (เช้าใน/นอกเวลา·บ่าย·ดึก·ศูนย์)
     out.push({sid:s.id,d:D,r:cc.r}); }); });
   out.sort((a,b)=>a.d-b.d); return out; }
 function freeCover(sid,d,c){ const base=c.s, tb=tbase(base), role=(!isCC(base)&&base!=='na')?c.r:'';
@@ -398,6 +406,33 @@ function freeCover(sid,d,c){ const base=c.s, tb=tbase(base), role=(!isCC(base)&&
     if(tb.indexOf('n')>=0 && pv && tbase(pv.s).indexOf('a')>=0)return false;
     if(tb.indexOf('a')>=0 && nx && tbase(nx.s).indexOf('n')>=0)return false;
     return true; }); }
+/* ---- ค้นหาเวรที่แลกได้ (โชว์สีส้ม เฉพาะจอนี้ · ไม่บันทึก ไม่ขึ้นจอรวม) ---- */
+let findSwap=null;
+function wouldViolateSim(sid,atD,shiftObj,removedD){
+  const get=dd=> dd===removedD ? null : (dd===atD ? shiftObj : cell(sid,dd));
+  const p=cbases(shiftObj), prev=get(atD-1), next=get(atD+1);
+  if(p.indexOf('n')>=0 && prev && cbases(prev).indexOf('a')>=0) return true;   // บ่ายเมื่อวาน→ดึก
+  if(p.indexOf('a')>=0 && next && cbases(next).indexOf('n')>=0) return true;   // บ่าย→ดึกพรุ่งนี้
+  return false; }
+// A (aSid,aD) แลกกับ B (bSid,bD) ได้ไหม — ชนิดเดียวกัน + ทั้งคู่ลงเวรใหม่ได้โดยไม่ผิดกฏเดิม
+function swapValidWith(aSid,aD,bSid,bD){
+  if(aSid===bSid) return false;
+  const ca=cell(aSid,aD), cb=cell(bSid,bD); if(!ca||!cb) return false;
+  if(!swappable(aSid,aD,ca)||!swappable(bSid,bD,cb)) return false;
+  if(swapType(aD,ca)!==swapType(bD,cb)) return false;             // ชนิดเดียวกัน (เช้าใน/นอกเวลา·บ่าย·ดึก·ศูนย์)
+  const aNo=(STAFF[aSid]||{}).no||[], bNo=(STAFF[bSid]||{}).no||[];
+  if(cb.r && aNo.indexOf(cb.r)>=0) return false;                  // A ทำบทบาทของ B ไม่ได้ (ถูกปิด)
+  if(ca.r && bNo.indexOf(ca.r)>=0) return false;                  // B ทำบทบาทของ A ไม่ได้
+  if(aD!==bD){ if(cell(aSid,bD)) return false; if(cell(bSid,aD)) return false; }  // ปลายทางต้องว่าง
+  if(wouldViolateSim(aSid,bD,cb,aD)) return false;                // A ไปอยู่เวร B แล้วผิดกฏไหม
+  if(wouldViolateSim(bSid,aD,ca,bD)) return false;                // B ไปอยู่เวร A แล้วผิดกฏไหม
+  return true; }
+function setFind(sid,d){ findSwap=(sid==null)?null:{sid:sid,d:d}; $('pop').style.display='none'; render(); }
+function updateFindBar(){ const b=$('findbar'); if(!b)return;
+  if(findSwap){ const nm=(STAFF[findSwap.sid]||{}).name||'';
+    b.innerHTML='🔎 ช่อง<b style="color:#b45309">สีส้ม</b> = แลกกับ <b>'+esc(nm)+'</b> วันที่ '+findSwap.d+' ได้ (เห็นเฉพาะจอนี้ · ไม่บันทึก) <button id="findClr" class="btn sm gray" style="margin-left:8px;padding:3px 10px">ล้าง</button>';
+    b.style.display='block'; const c=$('findClr'); if(c)c.onclick=()=>setFind(null); }
+  else b.style.display='none'; }
 function openSwapPop(td,sid,d){ const c=cell(sid,d), st=STAFF[sid]||{}, special=isSpecial(curY,curM,d); const pop=$('pop');
   let h=`<div class="pop-nm">${esc(st.name||'')} · วันที่ ${d}${special?' (พิเศษ)':''}</div>`;
   if(!c||!c.s){ h+='<div style="font-size:12px;color:#64748b;margin:6px 0">— ไม่มีเวรวันนี้ —</div>'; pop.innerHTML=h; swPos(pop,td); return; }
@@ -405,7 +440,8 @@ function openSwapPop(td,sid,d){ const c=cell(sid,d), st=STAFF[sid]||{}, special=
   const rtxt=(!isCC(c.s)&&c.s!=='na'&&c.r)?(' · '+esc(ROLE_TH[c.r]||c.r)):'';
   h+=`<div style="font-size:12.5px;color:#475569;margin:4px 0">เวร: <b>${esc(label)}</b>${rtxt}</div>`;
   if(swappable(sid,d,c)){ const on=isSwap(sid,d);
-    h+=`<button class="btn sm ${on?'':'ghost'}" id="swToggle" style="width:100%;margin:6px 0">${on?'✓ กำลังขอแลกเวรนี้ (กดยกเลิก)':'🔁 ลงทะเบียนขอแลกเวรนี้'}</button>`;
+    h+=`<button class="btn sm ghost" id="swFind" style="width:100%;margin:6px 0 2px">🔎 แสดงเวรที่แลกได้ (สีส้ม · เฉพาะจอนี้)</button>`;
+    h+=`<button class="btn sm ${on?'':'ghost'}" id="swToggle" style="width:100%;margin:2px 0 6px">${on?'✓ กำลังขอแลกเวรนี้ (กดยกเลิก)':'🔁 ลงทะเบียนขอแลกเวรนี้ (ทุกคนเห็น)'}</button>`;
   } else h+='<div style="font-size:12px;color:#b91c1c;margin:6px 0">เวรนี้ fix/ล็อก — แลกไม่ได้</div>';
   const mk=swapMarket(sid,d,c);
   h+=`<div style="font-size:12px;font-weight:700;margin-top:8px;color:#0369a1">🔁 คนที่ขอแลก (ชนิดเดียวกัน)${mk.length?'':' · ยังไม่มี'}</div>`;
@@ -414,7 +450,8 @@ function openSwapPop(td,sid,d){ const c=cell(sid,d), st=STAFF[sid]||{}, special=
   h+=`<div style="font-size:12px;font-weight:700;margin-top:8px;color:#15803d">🟢 คนว่างวันนี้ แทนได้${fc.length?'':' · ไม่มี'}</div>`;
   if(fc.length)h+='<div class="swlist">'+fc.map(s=>`<div>${esc(s.name)}</div>`).join('')+'</div>';
   pop.innerHTML=h; swPos(pop,td);
-  const bt=$('swToggle'); if(bt)bt.onclick=()=>{ toggleSwap(sid,d); openSwapPop(td,sid,d); }; }
+  const bt=$('swToggle'); if(bt)bt.onclick=()=>{ toggleSwap(sid,d); openSwapPop(td,sid,d); };
+  const bf=$('swFind'); if(bf)bf.onclick=()=>setFind(sid,d); }
 function swPos(pop,td){ pop.style.display='block'; pop.style.transform=''; pop.style.width='260px';
   pop.style.maxHeight='62vh'; pop.style.overflowY='auto'; const rect=td.getBoundingClientRect();
   pop.style.left=Math.max(6,Math.min(rect.left,window.innerWidth-272))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }
