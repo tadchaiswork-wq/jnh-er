@@ -256,7 +256,17 @@ function shiftInfo(){
   const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),day=String(d.getDate()).padStart(2,"0");
   return {key,label,dateKey:`${y}-${m}-${day}`,dateTH:`${day}/${m}/${y}`,recKey:`${y}-${m}-${day}_${key}`};
 }
+function mkShift(key,dateObj){
+  const y=dateObj.getFullYear(),m=String(dateObj.getMonth()+1).padStart(2,"0"),day=String(dateObj.getDate()).padStart(2,"0");
+  const label={morning:"เช้า 08–16",afternoon:"บ่าย 16–24",night:"ดึก 00–08"}[key];
+  return {key,label,dateKey:`${y}-${m}-${day}`,dateTH:`${day}/${m}/${y}`,recKey:`${y}-${m}-${day}_${key}`};
+}
+function nextShiftInfo(cur){ cur=cur||shiftInfo(); const d=bkkNow();
+  if(cur.key==="morning") return mkShift("afternoon",d);
+  if(cur.key==="afternoon"){ const nd=new Date(d); nd.setDate(nd.getDate()+1); return mkShift("night",nd); }
+  return mkShift("morning",d); }
 let S=shiftInfo();
+let NEXT=nextShiftInfo(S);
 const ALC_KEY="vehicle_staff";
 
 /* ---------- data ---------- */
@@ -298,7 +308,7 @@ function render(){
       el.innerHTML=`${stat==="done"?'<span class="chk">✅</span>':stat==="bad"?'<span class="chk">⚠️</span>':''}
         <div class="emo">${p.icon}</div>
         <div class="sqinfo">
-          <div class="nm">${p.name}</div>
+          <div class="nm">${p.name} <span style="font-size:13px;color:#f59e0b;font-weight:800">· เวรถัดไป ${NEXT.label}</span></div>
           <div class="pc" style="font-size:17px">${txt}</div>
           <div class="who">${whoTxt}</div>
         </div>`;
@@ -329,7 +339,8 @@ function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"
 function subscribe(){
   DBread.onValue("checklist/templates",t=>{templates=t||{};render();});
   POSITIONS.forEach(p=>{
-    DBread.onValue(`checklist/records/${S.recKey}/${p.key}`,rec=>{records[p.key]=rec||{};render();});
+    const rk = p.key===ALC_KEY ? NEXT.recKey : S.recKey;  // แอลกอฮอล์ = แสดงของเวรถัดไป
+    DBread.onValue(`checklist/records/${rk}/${p.key}`,rec=>{records[p.key]=rec||{};render();});
   });
 }
 subscribe();
@@ -341,7 +352,7 @@ setInterval(()=>{
   if(n.recKey!==S.recKey){ location.reload(); return; }
   if(!db){ // local mode: re-read
     templates=lsGet("checklist/templates",{})||{};
-    POSITIONS.forEach(p=>records[p.key]=lsGet(`checklist/records/${S.recKey}/${p.key}`,{})||{});
+    POSITIONS.forEach(p=>records[p.key]=lsGet(`checklist/records/${p.key===ALC_KEY?NEXT.recKey:S.recKey}/${p.key}`,{})||{});
     render();
   } else render();
 },15000);
