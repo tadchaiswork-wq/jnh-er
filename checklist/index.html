@@ -205,6 +205,12 @@
   .alc-btn.pos.on{background:var(--danger-l);border-color:var(--danger);color:#b91c1c;box-shadow:0 0 0 4px #fecaca}
   .alc-cur{text-align:center;font-weight:800;padding:14px;border-radius:12px;font-size:17px}
   .alc-cur.neg{background:var(--ok-l);color:#15803d} .alc-cur.pos{background:var(--danger-l);color:#b91c1c} .alc-cur.none{background:#f1f5f9;color:#64748b}
+  .alc-seg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .alc-seg button{border:2px solid var(--line);background:#fff;border-radius:14px;padding:12px 8px;font-size:16px;font-weight:800;color:#475569;cursor:pointer;display:flex;flex-direction:column;gap:2px;align-items:center}
+  .alc-seg button small{font-size:12px;font-weight:600;color:#94a3b8}
+  .alc-seg button.on{border-color:var(--brand);background:var(--brand-l);color:var(--brand-d)}
+  .alc-seg button.on small{color:var(--brand-d)}
+  .alc-tgthint{font-size:13px;color:#64748b;text-align:center;margin-top:-6px}
   .pos .pct.alcneg{background:var(--ok-l);color:var(--ok)} .pos .pct.alcpos{background:var(--danger-l);color:var(--danger)}
   .drvrow{display:flex;gap:8px;margin-bottom:6px}
   .drvrow input{flex:1;border:1px solid var(--line);border-radius:8px;padding:9px;font-family:inherit;font-size:14px}
@@ -372,6 +378,20 @@ function shiftInfo(){
   const time=`${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
   return {key,label,dateKey,dateTH,time,recKey:`${dateKey}_${key}`};
 }
+const SH_SHORT={morning:"เช้า 08–16",afternoon:"บ่าย 16–24",night:"ดึก 00–08"};
+function mkShift(key,dateObj){
+  const y=dateObj.getFullYear(), m=String(dateObj.getMonth()+1).padStart(2,"0"), day=String(dateObj.getDate()).padStart(2,"0");
+  const dateKey=`${y}-${m}-${day}`, dateTH=`${day}/${m}/${y}`;
+  const label={morning:"เช้า (08:00–16:00)",afternoon:"บ่าย (16:00–24:00)",night:"ดึก (00:00–08:00)"}[key];
+  return {key,label,dateKey,dateTH,recKey:`${dateKey}_${key}`};
+}
+/* เวรถัดไป (เจ้าหน้าที่ยานพาหนะมาตรวจล่วงหน้า 1–2 ชม.) */
+function nextShiftInfo(cur){
+  cur=cur||shiftInfo(); const d=bkkNow();
+  if(cur.key==="morning") return mkShift("afternoon",d);
+  if(cur.key==="afternoon"){ const nd=new Date(d); nd.setDate(nd.getDate()+1); return mkShift("night",nd); }
+  return mkShift("morning",d); // night -> morning วันเดียวกัน
+}
 
 /* ---------- storage abstraction (Firebase RTDB or local) ---------- */
 const cfg = window.FIREBASE_CONFIG||{};
@@ -413,7 +433,11 @@ let checker="";
 let curPos=null;
 let curRec={};         // checks for current position/shift
 let drivers=[];        // รายชื่อ พขร (admin เพิ่มได้) — checklist/drivers
-let alcList={};        // ผลตรวจ alcohol เวรนี้ (หลายคน) {id:{driver,result,backup,checker,at}}
+let alcList={};        // ผลตรวจ alcohol ของเวรที่กำลังดู (= alcCur หรือ alcNext ตาม alcTarget)
+let alcCur={}, alcNext={};     // ผลตรวจของเวรนี้ / เวรถัดไป
+let alcTarget="next";          // ค่าเริ่มต้น: ลงเป็น "เวรถัดไป" (ตรวจล่วงหน้าก่อนเข้าเวร)
+function alcTargetInfo(){ return alcTarget==="next" ? nextShiftInfo(S) : {key:S.key,recKey:S.recKey,label:S.label,dateTH:S.dateTH}; }
+function syncAlc(){ alcList = (alcTarget==="next"?alcNext:alcCur)||{}; }
 const S = shiftInfo();
 
 /* ---------- seeding ---------- */
@@ -472,10 +496,11 @@ function renderPositions(){
     if(p.key===ALC_KEY){
       const sm=alcSummary(alcList);
       const names=sm.arr.map(a=>a.driver).filter(Boolean).slice(0,3).join(", ");
+      const ti=alcTargetInfo(); const tgtTxt=(alcTarget==="next"?"เวรถัดไป":"เวรนี้")+" · "+(SH_SHORT[ti.key]||"");
       btn.innerHTML=`<div class="ic">${p.icon}</div>
         <div class="body">
           <div class="nm">${esc(p.name)}</div>
-          <div class="mt">${sm.total? ("ตรวจแล้ว "+sm.total+" คน"+(names?" · "+esc(names)+(sm.total>3?" …":""):"")) : "แตะเพื่อบันทึกผลตรวจ"}</div>
+          <div class="mt">🗓️ ${tgtTxt} — ${sm.total? ("ตรวจแล้ว "+sm.total+" คน"+(names?" · "+esc(names)+(sm.total>3?" …":""):"")) : "แตะเพื่อบันทึกผลตรวจ"}</div>
         </div>
         <div class="pct ${sm.cls==='neg'?'alcneg':sm.cls==='pos'?'alcpos':''}">${sm.txt}</div>`;
       btn.onclick=()=>openPosition(p.key);
@@ -498,11 +523,12 @@ function renderPositions(){
 function subscribeShiftRecords(){
   POSITIONS.forEach(p=>{
     if(p.key===ALC_KEY){
-      DB.onValue(`checklist/records/${S.recKey}/${ALC_KEY}/alcList`, list=>{
-        alcList=list||{};
+      const rkCur=S.recKey, rkNext=nextShiftInfo(S).recKey;
+      const refresh=()=>{ syncAlc();
         if(!$("page2").classList.contains("hidden")) renderPositions();
-        if(curPos===ALC_KEY && !$("page3").classList.contains("hidden")) renderAlc();
-      });
+        if(curPos===ALC_KEY && !$("page3").classList.contains("hidden")) renderAlc(); };
+      DB.onValue(`checklist/records/${rkCur}/${ALC_KEY}/alcList`, list=>{ alcCur=list||{}; refresh(); });
+      DB.onValue(`checklist/records/${rkNext}/${ALC_KEY}/alcList`, list=>{ alcNext=list||{}; refresh(); });
       return;
     }
     DB.onValue(`checklist/records/${S.recKey}/${p.key}/checks`, checks=>{
@@ -522,7 +548,7 @@ function openPosition(posKey){
   const prog=document.querySelector("#page3 .prog-wrap");
   if(posKey===ALC_KEY){ if(prog)prog.style.display="none";
     alcDraft={driver:"", result:"", backup:""};
-    renderAlc(); }
+    syncAlc(); renderAlc(); }
   else { if(prog)prog.style.display=""; renderChecklist(); }
   show("page3");
 }
@@ -534,11 +560,19 @@ function renderAlc(){
   const arr=alcArr(alcList);
   const inList=drivers.includes(alcDraft.driver);
   const bkInList=drivers.includes(alcDraft.backup);
+  const ti=alcTargetInfo();
+  const nextI=nextShiftInfo(S);
+  const segHtml=`<div class="alc-seg">
+    <button data-tgt="cur" class="${alcTarget==='cur'?'on':''}">เวรนี้<small>${SH_SHORT[S.key]||''}</small></button>
+    <button data-tgt="next" class="${alcTarget==='next'?'on':''}">เวรถัดไป<small>${SH_SHORT[nextI.key]||''}</small></button>
+  </div>
+  <div class="alc-tgthint">บันทึกผลตรวจของ <b>${alcTarget==='next'?'เวรถัดไป':'เวรนี้'}</b> (${ti.label||''}) · วันที่ ${ti.dateTH||''}</div>`;
+  const tgtWord=(alcTarget==='next'?'เวรถัดไป':'เวรนี้');
   let listHtml;
-  if(!arr.length){ listHtml=`<div class="alc-cur none">ยังไม่มีผลตรวจเวรนี้ — เพิ่มรายการด้านล่าง</div>`; }
+  if(!arr.length){ listHtml=`<div class="alc-cur none">ยังไม่มีผลตรวจ${tgtWord} — เพิ่มรายการด้านล่าง</div>`; }
   else {
     const sm=alcSummary(alcList);
-    listHtml=`<div class="alc-cur ${sm.cls}">สรุปเวรนี้: <b>${sm.txt}</b> · ตรวจแล้ว ${sm.total} คน</div>
+    listHtml=`<div class="alc-cur ${sm.cls}">สรุป${tgtWord}: <b>${sm.txt}</b> · ตรวจแล้ว ${sm.total} คน</div>
       <div class="alc-list">`+arr.map((a,i)=>{ const o=alcOne(a.result);
         return `<div class="alc-item ${o.cls}">
           <span class="alc-no">${i+1}</span>
@@ -554,6 +588,7 @@ function renderAlc(){
       <input class="namebox" id="alcBackupOther" style="margin-top:8px;padding:12px 18px;font-size:15px" placeholder="หรือพิมพ์ชื่อเอง" value="${bkInList?"":esc(alcDraft.backup)}">
     </div>` : "";
   $("p3body").innerHTML=`<div class="alc-wrap">
+    ${segHtml}
     ${listHtml}
     <div class="secttl" style="margin-top:4px">➕ เพิ่มรายการตรวจ</div>
     <div class="alc-field">
@@ -578,6 +613,7 @@ function renderAlc(){
   const bk=$("alcBackup"); if(bk) bk.addEventListener("change",e=>{ alcDraft.backup=e.target.value; if(e.target.value&&$("alcBackupOther"))$("alcBackupOther").value=""; });
   const bko=$("alcBackupOther"); if(bko) bko.addEventListener("input",e=>{ if(e.target.value.trim()){ alcDraft.backup=e.target.value.trim(); if($("alcBackup"))$("alcBackup").value=""; } });
   $("alcAdd").onclick=addAlc;
+  $("p3body").querySelectorAll("[data-tgt]").forEach(b=>b.onclick=()=>{ alcTarget=b.dataset.tgt; syncAlc(); renderAlc(); });
   $("p3body").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>delAlc(b.dataset.del));
 }
 function addAlc(){
@@ -586,18 +622,23 @@ function addAlc(){
   if(!alcDraft.result){ toast("กรุณาเลือกผลตรวจ (ไม่พบ / พบ)"); return; }
   if(alcDraft.result==="found" && !(alcDraft.backup||"").trim()){ toast("ผลพบแอลกอฮอล์ — กรุณาระบุเจ้าหน้าที่ยานพาหนะสำรอง"); return; }
   const id="a"+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-  const rec={driver,result:alcDraft.result,checker,at:Date.now()};
+  const rec={driver,result:alcDraft.result,checker,at:Date.now(),forShift:alcTarget};
   if(alcDraft.result==="found") rec.backup=(alcDraft.backup||"").trim();
-  alcList=Object.assign({},alcList,{[id]:rec});
-  DB.set(`checklist/records/${S.recKey}/${ALC_KEY}/alcList/${id}`, rec);
-  toast(alcDraft.result==="none"?"เพิ่มแล้ว: ไม่พบ ✓":"เพิ่มแล้ว: พบ ⚠️");
+  const rk=alcTargetInfo().recKey;
+  if(alcTarget==="next") alcNext=Object.assign({},alcNext,{[id]:rec}); else alcCur=Object.assign({},alcCur,{[id]:rec});
+  syncAlc();
+  DB.set(`checklist/records/${rk}/${ALC_KEY}/alcList/${id}`, rec);
+  toast((alcDraft.result==="none"?"เพิ่มแล้ว: ไม่พบ ✓":"เพิ่มแล้ว: พบ ⚠️")+" ("+(alcTarget==="next"?"เวรถัดไป":"เวรนี้")+")");
   alcDraft={driver:"",result:"",backup:""};
   renderAlc();
 }
 function delAlc(id){
   if(!alcList[id]) return;
-  const nx=Object.assign({},alcList); delete nx[id]; alcList=nx;
-  DB.set(`checklist/records/${S.recKey}/${ALC_KEY}/alcList/${id}`, null);
+  const rk=alcTargetInfo().recKey;
+  if(alcTarget==="next"){ const nx=Object.assign({},alcNext); delete nx[id]; alcNext=nx; }
+  else { const nx=Object.assign({},alcCur); delete nx[id]; alcCur=nx; }
+  syncAlc();
+  DB.set(`checklist/records/${rk}/${ALC_KEY}/alcList/${id}`, null);
   toast("ลบแล้ว"); renderAlc();
 }
 function renderChecklist(){
