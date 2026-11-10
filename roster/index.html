@@ -125,6 +125,7 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
   <select class="sel" id="meSel"><option value="">— เลือกชื่อเพื่อขอวันหยุด —</option></select>
   <button class="btn sm ghost" id="schedBtn">🗓️ โหมดผู้จัดเวร</button>
   <button class="btn sm ghost" id="rulesBtn">📋 กติกา</button>
+  <button class="btn sm ghost" id="swapRegBtn">🔁 ทะเบียนแลกเวร</button>
   <span class="pill" id="modePill">โหมดดู</span>
   <span style="flex:1"></span>
   <span id="editTools" style="display:none;gap:8px">
@@ -140,7 +141,7 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
 <div class="legend">
   <span><i class="lm">ช</i>เช้า</span><span><i class="la">บ</i>บ่าย</span><span><i class="ln">ด</i>ดึก</span>
   <span><i class="lcc">ศ</i>ศูนย์สั่งการ</span><span>ด+บ=ดึก+บ่ายวันเดียว</span><span><i class="lo">off</i>ขอหยุด · พร=พักร้อน · วก=วิชาการ · 🚐รถR=เวรรถ refer</span>
-  <span>วันพิเศษ=หัวตารางแดง · กรอบแดง=ผิดกฏ(ติดกัน/ซ้อนเวลา) · 🔒=ล็อกเวร · 🔁=ขอแลกเวร (คลิกขวา/กดค้างในโหมดดู)</span>
+  <span>วันพิเศษ=หัวตารางแดง · กรอบแดง=ผิดกฏ · 🔒=ล็อกเวร · 🔁=มีคำขอแลกเวร(รออนุมัติ) · คลิกขวา/กดค้างเวรตัวเอง=ขอแลก (แลกรายเวรย่อยได้)</span>
 </div>
 <div class="warnbox" id="warnbox"></div>
 <div class="findbar" id="findbar"></div>
@@ -204,6 +205,12 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
   <div id="rulesView" style="white-space:pre-wrap;font-size:14px;line-height:1.7;color:#334155;max-height:60vh;overflow:auto">—</div>
 </div></div>
 
+<div class="ov hide" id="swapRegModal"><div class="modal" style="max-width:520px">
+  <button class="close" data-close>×</button><h3>🔁 ทะเบียนการขอแลกเวร</h3>
+  <div class="note">ขอแลกได้โดย: คลิกขวา/กดค้างที่เวรของตัวเอง → เลือกเวรย่อย → แตะช่อง<b style="color:#b45309">สีส้ม</b>ของคู่แลก → ส่งคำขอ · admin กดอนุมัติแล้วระบบสลับให้อัตโนมัติ</div>
+  <div id="swapRegList" style="max-height:60vh;overflow:auto;margin-top:8px"></div>
+</div></div>
+
 <div id="pop"></div>
 <div class="toast" id="toast"></div>
 
@@ -224,10 +231,9 @@ const TH_MON=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','�
 const CC_ROLE='cc';
 
 let ROLES=DEFAULT_ROLES.slice(), TARGET=JSON.parse(JSON.stringify(DEFAULT_TARGET));
-let STAFF={}, SH={}, OFF={}, HOL={}, LOCK={}, SW={}, RULES='', SETTINGS={adminPass:'1234'};
+let STAFF={}, SH={}, OFF={}, HOL={}, LOCK={}, SWAPREQ={}, RULES='', SETTINGS={adminPass:'1234'};
 let draftNotes=[];
 function isLocked(id,d){ return !!((LOCK[id]||{})[d]); }
-function isSwap(id,d){ return !!((SW[id]||{})[d]); }
 let admin=false, sched=false, meId='', ym='', curY, curM;
 const canEdit=()=>admin||sched;
 const $=id=>document.getElementById(id);
@@ -316,7 +322,7 @@ function loadMonth(){ ym=ymKey(curY,curM); $('mLabel').textContent=monthLabel(cu
   DB.on(PATH+'/shift/'+ym, v=>{ SH=v||{}; render(); });
   DB.on(PATH+'/off/'+ym, v=>{ OFF=v||{}; render(); });
   DB.on(PATH+'/lock/'+ym, v=>{ LOCK=v||{}; render(); });
-  DB.off(PATH+'/swap/'+ym); DB.on(PATH+'/swap/'+ym, v=>{ SW=v||{}; render(); });
+  DB.off(PATH+'/swapreq/'+ym); DB.on(PATH+'/swapreq/'+ym, v=>{ SWAPREQ=v||{}; render(); });
 }
 let _seeded=false;
 function seedStaff(){ if(_seeded)return; _seeded=true; const out={}; let o=0;
@@ -330,6 +336,7 @@ function seedStaff(){ if(_seeded)return; _seeded=true; const out={}; let o=0;
 function render(){
   if(!STAFF||!Object.keys(STAFF).length){ $('grid').innerHTML=''; return; }
   const nd=daysInMonth(curY,curM), list=staffList();
+  const REQC=reqCellMap();
   const SUMS=[['inM','ในเวลา'],['a','บ่าย'],['n','ดึก'],['outM','นอกเวลาเช้า'],['cca','ศ·บ่าย'],['ccn','ศ·ดึก'],['ccm','ศ·เช้านอก'],['off','ขอหยุด']];
   const EMPTYSUM=SUMS.map(()=>'<td class="sumc"></td>').join('');
   let h='<thead><tr><th class="gname">เจ้าหน้าที่ ('+list.length+')</th>';
@@ -361,8 +368,8 @@ function render(){
       } else if(off){ cls+=' '+(oty==='vac'?'offvac':oty==='acad'?'offacad':'off'); txt=OFF_SH[oty]||'off'; }
       if(s.id===meId)cls+=' me';
       if(isLocked(s.id,d))cls+=' lock';
-      if(isSwap(s.id,d))cls+=' swapon';
-      if(findSwap){ if(findSwap.sid===s.id && findSwap.d===d)cls+=' swapsrc'; else if(swapValidWith(findSwap.sid,findSwap.d,s.id,d))cls+=' swapcand'; }
+      if(REQC[s.id]&&REQC[s.id][d])cls+=' swapon';
+      if(findSwap){ if(findSwap.sid===s.id && findSwap.d===d)cls+=' swapsrc'; else if(matchUnit(findSwap,s.id,d))cls+=' swapcand'; }
       h+=`<td class="${cls}" data-sid="${s.id}" data-d="${d}">${txt}</td>`;
     }
     SUMS.forEach(k=>h+=`<td class="sumc">${sum[k[0]]||''}</td>`);
@@ -396,7 +403,11 @@ function computeWarnings(){
 $('grid').addEventListener('click',e=>{ const td=e.target.closest('td.cell'); if(!td)return;
   const sid=td.dataset.sid, d=+td.dataset.d;
   if(canEdit()){ openPop(td,sid,d); }
-  else { if(sid!==meId){ toast('เลือกชื่อของคุณด้านบนก่อน'); return; } openOffPop(sid,d,td); } });
+  else {
+    if(findSwap){ if(findSwap.sid===sid && findSwap.d===d){ openSwapPop(td,sid,d); return; }
+      const u=matchUnit(findSwap,sid,d); if(u){ openProposePop(findSwap,{sid:sid,d:d,unit:u},td); return; }
+      toast('ช่องนี้แลกกับเวรที่เลือกไม่ได้ · กด “ล้าง” เพื่อเลิกหา'); return; }
+    if(sid!==meId){ toast('เลือกชื่อของคุณด้านบนก่อน'); return; } openOffPop(sid,d,td); } });
 /* ---- คลิกขวา/กดค้าง: โหมดผู้จัดเวร=ล็อกเวร · โหมดดู=ดู/ขอแลกเวร ---- */
 $('grid').addEventListener('contextmenu',e=>{ const td=e.target.closest('td.cell'); if(!td)return; e.preventDefault();
   if(canEdit()) toggleLock(td.dataset.sid,+td.dataset.d);
@@ -411,77 +422,113 @@ function toggleLock(sid,d){ if(!canEdit())return; LOCK[sid]=LOCK[sid]||{}; const
   DB.set(PATH+'/lock/'+ym+'/'+sid+'/'+d, nv||null); render();
   toast(nv?'🔒 ล็อกเวรนี้แล้ว · ออโต้ร่างจะไม่แตะ':'ปลดล็อกแล้ว'); }
 /* ---- แลกเวร (swap marketplace) · ใช้ได้ทุกคนในโหมดดู ---- */
-function swappable(sid,d,c){ if(!c||!c.s)return false; if(isLocked(sid,d))return false; if(c.cc)return false;
-  const st=STAFF[sid]||{}; if(st.fixM && c.s==='m' && !isSpecial(curY,curM,d))return false; return true; }
-// ประเภทเวรสำหรับจับคู่แลก: เช้าในเวลา/เช้านอกเวลา แยกกัน · บ่าย/ดึก/ศูนย์(เช้า·บ่าย·ดึก) แต่ละชนิด
-function swapType(d,c){ if(!c||!c.s)return ''; if(c.s==='m')return isSpecial(curY,curM,d)?'m_out':'m_in'; return c.s; }
-function toggleSwap(sid,d){ const c=cell(sid,d);
-  if(!c||!c.s){ toast('ไม่มีเวรให้แลก'); return; }
-  if(!swappable(sid,d,c)){ toast('เวรนี้ fix/ล็อก แลกไม่ได้'); return; }
-  SW[sid]=SW[sid]||{}; const nv=!SW[sid][d]; if(nv)SW[sid][d]=true; else delete SW[sid][d];
-  DB.set(PATH+'/swap/'+ym+'/'+sid+'/'+d, nv||null); render();
-  toast(nv?'🔁 ลงทะเบียนขอแลกเวรแล้ว · ทุกคนเห็น':'ยกเลิกการขอแลกแล้ว'); }
-function swapMarket(sid,d,c){ const out=[];
-  staffList().forEach(s=>{ const days=SW[s.id]||{}; Object.keys(days).forEach(dd=>{ if(!days[dd])return; const D=+dd;
-    if(D===d)return; const cc=cell(s.id,D); if(!cc||!cc.s)return;   // เฉพาะเวรวันอื่น (แลกเพื่อเปลี่ยนวัน)
-    if(!swappable(s.id,D,cc))return; if(swapType(D,cc)!==swapType(d,c))return; // ชนิดเดียวกัน (เช้าใน/นอกเวลา·บ่าย·ดึก·ศูนย์)
-    out.push({sid:s.id,d:D,r:cc.r}); }); });
-  out.sort((a,b)=>a.d-b.d); return out; }
-function freeCover(sid,d,c){ const base=c.s, tb=tbase(base), role=(!isCC(base)&&base!=='na')?c.r:'';
-  return staffList().filter(s=>{ if(s.id===sid)return false; if(cell(s.id,d))return false; if(offAt(s.id,d))return false;
-    const st=STAFF[s.id]||{}; if(isCC(base)){ if(st.role==='head'||st.noCC)return false; }
-    if(role && (st.no||[]).indexOf(role)>=0)return false;
-    const pv=cell(s.id,d-1), nx=cell(s.id,d+1);
-    if(tb.indexOf('n')>=0 && pv && tbase(pv.s).indexOf('a')>=0)return false;
-    if(tb.indexOf('a')>=0 && nx && tbase(nx.s).indexOf('n')>=0)return false;
-    return true; }); }
-/* ---- ค้นหาเวรที่แลกได้ (โชว์สีส้ม เฉพาะจอนี้ · ไม่บันทึก ไม่ขึ้นจอรวม) ---- */
-let findSwap=null;
-function wouldViolateSim(sid,atD,shiftObj,removedD){
-  const get=dd=> dd===removedD ? null : (dd===atD ? shiftObj : cell(sid,dd));
-  const p=cbases(shiftObj), prev=get(atD-1), next=get(atD+1);
-  if(p.indexOf('n')>=0 && prev && cbases(prev).indexOf('a')>=0) return true;   // บ่ายเมื่อวาน→ดึก
-  if(p.indexOf('a')>=0 && next && cbases(next).indexOf('n')>=0) return true;   // บ่าย→ดึกพรุ่งนี้
+/* ============ ระบบแลกเวร "รายเวรย่อย" + ทะเบียนคำขอ + admin อนุมัติ ============ */
+function swappable(sid,d){ return cellUnits(sid,d).length>0; }
+function unitType(u,d){ if(u.kind==='cc')return u.cc; return u.base==='m'?(isSpecial(curY,curM,d)?'m_out':'m_in'):u.base; }
+function unitLabel(u){ if(u.kind==='cc')return SHIFT_TXT[u.cc]||u.cc; return u.base==='m'?'เช้า':(u.base==='a'?'บ่าย':'ดึก'); }
+// เวรย่อยที่แลกได้ของช่อง (ตัด fix/ล็อก/รถrefer ออก)
+function cellUnits(sid,d){ const c=cell(sid,d); if(!c||isLocked(sid,d))return []; const st=STAFF[sid]||{};
+  const fixM = st.fixM && !isSpecial(curY,curM,d); const out=[];
+  if(c.s==='na'){ out.push({kind:'ward',base:'n'}); out.push({kind:'ward',base:'a'}); }
+  else if(c.s && !isCC(c.s)){ if(!(c.s==='m'&&fixM)) out.push({kind:'ward',base:c.s}); }
+  else if(isCC(c.s)){ out.push({kind:'cc',cc:c.s}); }
+  if(c.cc) out.push({kind:'cc',cc:c.cc});
+  return out; }
+function normCell(c){ if(!c)return null; if(!c.s && !c.cc && !c.ref)return null; return c; }
+function removeUnit(c,u){ if(!c)return null; c=JSON.parse(JSON.stringify(c)); const ref=c.ref;
+  if(u.kind==='cc'){ if(c.s===u.cc){ return normCell(ref?{s:'',ref:ref}:null); } if(c.cc===u.cc){ delete c.cc; return normCell(c); } return normCell(c); }
+  if(c.s==='na'){ if(u.base==='n'){ const nc={s:'a',r:c.ra||''}; if(c.cc)nc.cc=c.cc; if(ref)nc.ref=ref; return nc; } const nc={s:'n',r:c.rn||''}; if(c.cc)nc.cc=c.cc; if(ref)nc.ref=ref; return nc; }
+  if(c.s===u.base){ if(c.cc){ const nc={s:c.cc,r:'cc'}; if(ref)nc.ref=ref; return nc; } return normCell(ref?{s:'',ref:ref}:null); }
+  return normCell(c); }
+function addUnit(c,u){ c=c?JSON.parse(JSON.stringify(c)):null; const ref=c&&c.ref;
+  if(u.kind==='cc'){ const ccv=u.cc;
+    if(!c||!c.s){ const nc={s:ccv,r:'cc'}; if(ref)nc.ref=ref; return nc; }
+    if(c.s==='na'||isCC(c.s)||c.cc)return null;
+    const ok=(c.s==='m'&&ccv==='cca')||(c.s==='a'&&ccv==='ccn')||(c.s==='a'&&ccv==='ccm'); if(!ok)return null; c.cc=ccv; return c; }
+  const b=u.base;
+  if(!c||!c.s){ const nc={s:b,r:''}; if(ref)nc.ref=ref; return nc; }
+  if(c.s==='na')return null;
+  if(isCC(c.s)){ const ccv=c.s; const ok=(b==='m'&&ccv==='cca')||(b==='a'&&ccv==='ccn')||(b==='a'&&ccv==='ccm'); if(!ok)return null; const nc={s:b,r:'',cc:ccv}; if(ref)nc.ref=ref; return nc; }
+  if(c.s==='n'&&b==='a'){ if(c.cc)return null; const nc={s:'na',rn:c.r||'',ra:''}; if(ref)nc.ref=ref; return nc; }
+  if(c.s==='a'&&b==='n'){ if(c.cc)return null; const nc={s:'na',rn:'',ra:c.r||''}; if(ref)nc.ref=ref; return nc; }
+  return null; }
+function cellOv(sid,d,ov){ if(ov[sid] && (d in ov[sid])) return ov[sid][d]; return cell(sid,d); }
+function violOv(sid,d,ov){ const c=cellOv(sid,d,ov); if(!c)return false; const p=cbases(c);
+  if(c.cc){ const ok=(c.s==='m'&&c.cc==='cca')||(c.s==='a'&&c.cc==='ccn')||(c.s==='a'&&c.cc==='ccm'); if(!ok)return true; }
+  if(c.ref){ const rb=refBase(c.ref); const occ=[]; if(c.s)tbase(c.s).forEach(x=>occ.push(x)); if(c.cc)tbase(c.cc).forEach(x=>occ.push(x)); if(occ.indexOf(rb)>=0)return true; }
+  if(p.indexOf('n')>=0 && cbases(cellOv(sid,d-1,ov)).indexOf('a')>=0)return true;
+  if(p.indexOf('a')>=0 && cbases(cellOv(sid,d+1,ov)).indexOf('n')>=0)return true;
   return false; }
-// A (aSid,aD) แลกกับ B (bSid,bD) ได้ไหม — ชนิดเดียวกัน + ทั้งคู่ลงเวรใหม่ได้โดยไม่ผิดกฏเดิม
-function swapValidWith(aSid,aD,bSid,bD){
-  if(aSid===bSid) return false;
-  if(aD===bD) return false;   // แลกเพื่อเปลี่ยนวัน — ต้องเป็นเวรคนละวันเท่านั้น
-  const ca=cell(aSid,aD), cb=cell(bSid,bD); if(!ca||!cb) return false;
-  if(!swappable(aSid,aD,ca)||!swappable(bSid,bD,cb)) return false;
-  if(swapType(aD,ca)!==swapType(bD,cb)) return false;             // ชนิดเดียวกัน (เช้าใน/นอกเวลา·บ่าย·ดึก·ศูนย์) — ไม่สนใจตำแหน่ง/บทบาท
-  if(cell(aSid,bD)) return false; if(cell(bSid,aD)) return false; // ปลายทางต้องว่าง
-  if(wouldViolateSim(aSid,bD,cb,aD)) return false;                // A ไปอยู่เวร B แล้วผิดกฏไหม
-  if(wouldViolateSim(bSid,aD,ca,bD)) return false;                // B ไปอยู่เวร A แล้วผิดกฏไหม
+// a,b = {sid,d,unit} — แลกเวรย่อยกันได้ไหม (ชนิดเดียวกัน · คนละวัน · ย้ายแล้วไม่ผิดกฏ)
+function swapUnitValid(a,b){ if(!a||!b)return false; if(a.sid===b.sid)return false; if(a.d===b.d)return false;
+  if(unitType(a.unit,a.d)!==unitType(b.unit,b.d))return false;
+  const aAtA=removeUnit(cell(a.sid,a.d),a.unit);
+  const aAtB=addUnit(cell(a.sid,b.d),b.unit); if(aAtB===null)return false;
+  const bAtB=removeUnit(cell(b.sid,b.d),b.unit);
+  const bAtA=addUnit(cell(b.sid,a.d),a.unit); if(bAtA===null)return false;
+  const ov={}; const put=(s,d,c)=>{ov[s]=ov[s]||{};ov[s][d]=c;};
+  put(a.sid,a.d,aAtA);put(a.sid,b.d,aAtB);put(b.sid,b.d,bAtB);put(b.sid,a.d,bAtA);
+  if(violOv(a.sid,a.d,ov)||violOv(a.sid,b.d,ov)||violOv(b.sid,b.d,ov)||violOv(b.sid,a.d,ov))return false;
   return true; }
-function setFind(sid,d){ findSwap=(sid==null)?null:{sid:sid,d:d}; $('pop').style.display='none'; render(); }
+function matchUnit(src,sid,d){ if(!src)return null; const us=cellUnits(sid,d); for(const u of us){ if(swapUnitValid(src,{sid:sid,d:d,unit:u}))return u; } return null; }
+function execSwap(req){ pushUndo();
+  const aAtA=removeUnit(cell(req.aSid,req.aD),req.aUnit);
+  const aAtB=addUnit(cell(req.aSid,req.bD),req.bUnit);
+  const bAtB=removeUnit(cell(req.bSid,req.bD),req.bUnit);
+  const bAtA=addUnit(cell(req.bSid,req.aD),req.aUnit);
+  if(aAtB===null||bAtA===null){ toast('แลกไม่ได้แล้ว — เวรเปลี่ยนไป'); return false; }
+  writeCell(req.aSid,req.aD,aAtA); writeCell(req.aSid,req.bD,aAtB);
+  writeCell(req.bSid,req.bD,bAtB); writeCell(req.bSid,req.aD,bAtA); return true; }
+/* ---- หาเวรที่แลกได้ (สีส้ม เฉพาะจอนี้ · ยังไม่บันทึก) ---- */
+let findSwap=null;   // {sid,d,unit}
+function setFind(x){ findSwap=x||null; $('pop').style.display='none'; render(); }
 function updateFindBar(){ const b=$('findbar'); if(!b)return;
   if(findSwap){ const nm=(STAFF[findSwap.sid]||{}).name||'';
-    b.innerHTML='🔎 ช่อง<b style="color:#b45309">สีส้ม</b> = แลกกับ <b>'+esc(nm)+'</b> วันที่ '+findSwap.d+' ได้ (เห็นเฉพาะจอนี้ · ไม่บันทึก) <button id="findClr" class="btn sm gray" style="margin-left:8px;padding:3px 10px">ล้าง</button>';
+    b.innerHTML='🔎 ช่อง<b style="color:#b45309">สีส้ม</b> = แลก “'+esc(unitLabel(findSwap.unit))+'” ของ <b>'+esc(nm)+'</b> วันที่ '+findSwap.d+' ได้ · แตะช่องสีส้มเพื่อขอแลก (เห็นเฉพาะจอนี้) <button id="findClr" class="btn sm gray" style="margin-left:8px;padding:3px 10px">ล้าง</button>';
     b.style.display='block'; const c=$('findClr'); if(c)c.onclick=()=>setFind(null); }
   else b.style.display='none'; }
-function openSwapPop(td,sid,d){ const c=cell(sid,d), st=STAFF[sid]||{}, special=isSpecial(curY,curM,d); const pop=$('pop');
-  let h=`<div class="pop-nm">${esc(st.name||'')} · วันที่ ${d}${special?' (พิเศษ)':''}</div>`;
-  if(!c||!c.s){ h+='<div style="font-size:12px;color:#64748b;margin:6px 0">— ไม่มีเวรวันนี้ —</div>'; pop.innerHTML=h; swPos(pop,td); return; }
-  const label=c.s==='na'?'ดึก+บ่าย':(SHIFT_TXT[c.s]||c.s);
-  const rtxt=(!isCC(c.s)&&c.s!=='na'&&c.r)?(' · '+esc(ROLE_TH[c.r]||c.r)):'';
-  h+=`<div style="font-size:12.5px;color:#475569;margin:4px 0">เวร: <b>${esc(label)}</b>${rtxt}</div>`;
-  if(swappable(sid,d,c)){ const on=isSwap(sid,d);
-    h+=`<button class="btn sm ghost" id="swFind" style="width:100%;margin:6px 0 2px">🔎 แสดงเวรที่แลกได้ (สีส้ม · เฉพาะจอนี้)</button>`;
-    h+=`<button class="btn sm ${on?'':'ghost'}" id="swToggle" style="width:100%;margin:2px 0 6px">${on?'✓ กำลังขอแลกเวรนี้ (กดยกเลิก)':'🔁 ลงทะเบียนขอแลกเวรนี้ (ทุกคนเห็น)'}</button>`;
-  } else h+='<div style="font-size:12px;color:#b91c1c;margin:6px 0">เวรนี้ fix/ล็อก — แลกไม่ได้</div>';
-  const mk=swapMarket(sid,d,c);
-  h+=`<div style="font-size:12px;font-weight:700;margin-top:8px;color:#0369a1">🔁 คนที่ขอแลก (ชนิดเดียวกัน)${mk.length?'':' · ยังไม่มี'}</div>`;
-  if(mk.length)h+='<div class="swlist">'+mk.map(x=>`<div>${esc((STAFF[x.sid]||{}).name||'')} · วันที่ ${x.d}${x.r&&!isCC(c.s)?' ('+esc(ROLE_TH[x.r]||x.r)+')':''}</div>`).join('')+'</div>';
-  const fc=freeCover(sid,d,c);
-  h+=`<div style="font-size:12px;font-weight:700;margin-top:8px;color:#15803d">🟢 คนว่างวันนี้ แทนได้${fc.length?'':' · ไม่มี'}</div>`;
-  if(fc.length)h+='<div class="swlist">'+fc.map(s=>`<div>${esc(s.name)}</div>`).join('')+'</div>';
+function openSwapPop(td,sid,d){ const c=cell(sid,d), st=STAFF[sid]||{}, pop=$('pop');
+  let h=`<div class="pop-nm">${esc(st.name||'')} · วันที่ ${d}</div>`;
+  const units=cellUnits(sid,d);
+  if(!c||(!c.s&&!c.ref)){ h+='<div style="font-size:12px;color:#64748b;margin:6px 0">— ไม่มีเวรวันนี้ —</div>'; pop.innerHTML=h; swPos(pop,td); return; }
+  if(!units.length){ h+='<div style="font-size:12px;color:#b91c1c;margin:6px 0">เวรนี้ fix/ล็อก/รถ — แลกไม่ได้</div>'; pop.innerHTML=h; swPos(pop,td); return; }
+  h+='<div style="font-size:11px;color:#64748b;margin:4px 0">เลือกเวรย่อยที่จะหาคู่แลก:</div>';
+  h+='<div class="pop-sh">'+units.map((u,i)=>`<button data-u="${i}">🔎 ${esc(unitLabel(u))}</button>`).join('')+'</div>';
   pop.innerHTML=h; swPos(pop,td);
-  const bt=$('swToggle'); if(bt)bt.onclick=()=>{ toggleSwap(sid,d); openSwapPop(td,sid,d); };
-  const bf=$('swFind'); if(bf)bf.onclick=()=>setFind(sid,d); }
-function swPos(pop,td){ pop.style.display='block'; pop.style.transform=''; pop.style.width='260px';
+  pop.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>{ setFind({sid:sid,d:d,unit:units[+b.dataset.u]}); }); }
+function openProposePop(a,b,td){ const pop=$('pop'); const an=(STAFF[a.sid]||{}).name||'', bn=(STAFF[b.sid]||{}).name||'';
+  pop.innerHTML=`<div class="pop-nm">ขอแลกเวร</div>
+    <div style="font-size:13px;color:#334155;margin:8px 0;line-height:1.6"><b>${esc(an)}</b> · ${esc(unitLabel(a.unit))} วันที่ ${a.d}<br>⇅<br><b>${esc(bn)}</b> · ${esc(unitLabel(b.unit))} วันที่ ${b.d}</div>
+    <button class="btn ok" id="propOk" style="width:100%">📨 ส่งคำขอแลก (รอ admin อนุมัติ)</button>`;
+  swPos(pop,td); $('propOk').onclick=()=>createSwapReq(a,b); }
+function createSwapReq(a,b){ const id='r'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  const req={aSid:a.sid,aD:a.d,aUnit:a.unit,bSid:b.sid,bD:b.d,bUnit:b.unit,by:(meId?(STAFF[meId]||{}).name:'ผู้ใช้'),ts:Date.now()};
+  SWAPREQ[id]=req; DB.set(PATH+'/swapreq/'+ym+'/'+id,req); setFind(null);
+  toast('ส่งคำขอแลกแล้ว · รอ admin อนุมัติ'); openSwapReg(); }
+function swPos(pop,td){ pop.style.display='block'; pop.style.transform=''; pop.style.width='270px';
   pop.style.maxHeight='62vh'; pop.style.overflowY='auto'; const rect=td.getBoundingClientRect();
-  pop.style.left=Math.max(6,Math.min(rect.left,window.innerWidth-272))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }
+  pop.style.left=Math.max(6,Math.min(rect.left,window.innerWidth-282))+'px'; pop.style.top=(rect.bottom+window.scrollY+4)+'px'; }
+/* ---- ทะเบียนการขอแลกเวร ---- */
+function reqCellMap(){ const m={}; Object.keys(SWAPREQ||{}).forEach(k=>{ const r=SWAPREQ[k]; if(!r)return;
+  (m[r.aSid]=m[r.aSid]||{})[r.aD]=1; (m[r.bSid]=m[r.bSid]||{})[r.bD]=1; }); return m; }
+function openSwapReg(){ const box=$('swapRegList'); const ids=Object.keys(SWAPREQ||{}).filter(k=>SWAPREQ[k]);
+  ids.sort((x,y)=>(SWAPREQ[x].ts||0)-(SWAPREQ[y].ts||0));
+  if(!ids.length){ box.innerHTML='<div style="color:#64748b;font-size:14px;padding:8px">ยังไม่มีคำขอแลกเวร</div>'; }
+  else box.innerHTML=ids.map(id=>{ const r=SWAPREQ[id]; const an=(STAFF[r.aSid]||{}).name||'?', bn=(STAFF[r.bSid]||{}).name||'?';
+    const valid=swapUnitValid({sid:r.aSid,d:r.aD,unit:r.aUnit},{sid:r.bSid,d:r.bD,unit:r.bUnit});
+    const admBtns = admin?`<button class="btn sm ok" data-ap="${id}">✓ อนุมัติ</button> <button class="btn sm gray" data-rj="${id}">✗ ปฏิเสธ</button>`
+      :`<button class="btn sm gray" data-rj="${id}">ยกเลิกคำขอ</button>`;
+    return `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px">
+      <div style="font-size:14px;color:#334155;line-height:1.6"><b>${esc(an)}</b> · ${esc(unitLabel(r.aUnit))} วันที่ ${r.aD} ⇅ <b>${esc(bn)}</b> · ${esc(unitLabel(r.bUnit))} วันที่ ${r.bD}</div>
+      <div style="font-size:11px;color:#94a3b8;margin:3px 0">โดย ${esc(r.by||'-')}${valid?'':' · <span style="color:#b91c1c">⚠ แลกไม่ได้แล้ว (เวรเปลี่ยน)</span>'}</div>
+      <div style="margin-top:6px;display:flex;gap:8px">${admBtns}</div></div>`; }).join('');
+  box.querySelectorAll('[data-ap]').forEach(b=>b.onclick=()=>approveReq(b.dataset.ap));
+  box.querySelectorAll('[data-rj]').forEach(b=>b.onclick=()=>rejectReq(b.dataset.rj));
+  $('swapRegModal').classList.remove('hide'); }
+function approveReq(id){ const r=SWAPREQ[id]; if(!r)return; if(!admin){toast('ต้องเป็น admin');return;}
+  if(!swapUnitValid({sid:r.aSid,d:r.aD,unit:r.aUnit},{sid:r.bSid,d:r.bD,unit:r.bUnit})){ toast('แลกไม่ได้แล้ว — เวรเปลี่ยนไป'); return; }
+  if(execSwap(r)){ delete SWAPREQ[id]; DB.set(PATH+'/swapreq/'+ym+'/'+id,null); toast('อนุมัติ + สลับเวรแล้ว ✓'); openSwapReg(); } }
+function rejectReq(id){ delete SWAPREQ[id]; DB.set(PATH+'/swapreq/'+ym+'/'+id,null); toast('ลบคำขอแล้ว'); openSwapReg(); }
 /* ---- undo/redo (per month) ---- */
 let undoStack=[], redoStack=[];
 function snapSH(){ return JSON.parse(JSON.stringify(SH||{})); }
@@ -573,9 +620,10 @@ $('pinOk').onclick=()=>{ if($('pin').value!==(SETTINGS.adminPass||'1234')){toast
   else { sched=true; $('modePill').textContent='โหมดผู้จัดเวร'; $('schedBtn').textContent='↩ ออกจากโหมดผู้จัดเวร'; }
   $('modeHint').textContent='แตะช่อง=เลือกเวร/บทบาท · คลิกขวา(หรือกดค้างบนมือถือ)=🔒ล็อกเวร(ออโต้ร่างไม่แตะ) · ↶↷ ย้อนกลับ/ทำซ้ำ'; render(); };
 $('pin').addEventListener('keydown',e=>{if(e.key==='Enter')$('pinOk').click();});
-document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{$('gate').classList.add('hide');$('panel').classList.add('hide');$('holModal').classList.add('hide');$('rulesModal').classList.add('hide');});
-[$('gate'),$('panel'),$('holModal'),$('rulesModal')].forEach(m=>m.addEventListener('click',e=>{if(e.target===m){m.classList.add('hide');}}));
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{$('gate').classList.add('hide');$('panel').classList.add('hide');$('holModal').classList.add('hide');$('rulesModal').classList.add('hide');$('swapRegModal').classList.add('hide');});
+[$('gate'),$('panel'),$('holModal'),$('rulesModal'),$('swapRegModal')].forEach(m=>m.addEventListener('click',e=>{if(e.target===m){m.classList.add('hide');}}));
 $('rulesBtn').onclick=()=>{ $('rulesView').textContent=RULES||'— ยังไม่ได้กำหนดกติกา —'; $('rulesModal').classList.remove('hide'); };
+$('swapRegBtn').onclick=()=>openSwapReg();
 
 /* ---------- admin panel ---------- */
 function openPanel(){ $('panel').classList.remove('hide'); showTab('staff'); }
