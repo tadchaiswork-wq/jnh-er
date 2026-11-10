@@ -225,6 +225,7 @@ const CC_ROLE='cc';
 
 let ROLES=DEFAULT_ROLES.slice(), TARGET=JSON.parse(JSON.stringify(DEFAULT_TARGET));
 let STAFF={}, SH={}, OFF={}, HOL={}, LOCK={}, SW={}, RULES='', SETTINGS={adminPass:'1234'};
+let draftNotes=[];
 function isLocked(id,d){ return !!((LOCK[id]||{})[d]); }
 function isSwap(id,d){ return !!((SW[id]||{})[d]); }
 let admin=false, sched=false, meId='', ym='', curY, curM;
@@ -310,7 +311,7 @@ function boot(){
   loadMonth();
 }
 function loadMonth(){ ym=ymKey(curY,curM); $('mLabel').textContent=monthLabel(curY,curM);
-  undoStack=[]; redoStack=[]; findSwap=null;
+  undoStack=[]; redoStack=[]; findSwap=null; draftNotes=[];
   DB.off(PATH+'/shift/'+ym); DB.off(PATH+'/off/'+ym); DB.off(PATH+'/lock/'+ym);
   DB.on(PATH+'/shift/'+ym, v=>{ SH=v||{}; render(); });
   DB.on(PATH+'/off/'+ym, v=>{ OFF=v||{}; render(); });
@@ -385,8 +386,9 @@ function computeWarnings(){
   const nd=daysInMonth(curY,curM), list=staffList(); const msgs=[];
   let bb=0,oc=0; list.forEach(s=>{ for(let d=1;d<=nd;d++){ if(dayViol(s.id,d))bb++;
     const c=cell(s.id,d); if(c&&c.s&&(OFF[s.id]||{})[d]){ const okAcad=(offType(s.id,d)==='acad' && c.s==='a'); if(!okAcad)oc++; } } });
-  if(bb)msgs.push('⚠ เวรติดกัน (บ่าย→ดึกวันถัดไป) '+bb+' จุด');
+  if(bb)msgs.push('⚠ เวรติดกัน/ซ้อนเวลา '+bb+' จุด');
   if(oc)msgs.push('⚠ ลงเวรทับวันขอหยุด '+oc+' จุด');
+  if(draftNotes&&draftNotes.length){ msgs.push('— ผลออโต้ร่างล่าสุด ('+draftNotes.length+' จุด) —'); draftNotes.slice(0,25).forEach(n=>msgs.push('• '+n)); if(draftNotes.length>25)msgs.push('…และอีก '+(draftNotes.length-25)+' จุด'); }
   const box=$('warnbox'); if(msgs.length){box.textContent=msgs.join('\n');box.classList.add('show');}else box.classList.remove('show');
 }
 
@@ -681,11 +683,11 @@ async function autoDraft(){
   // member: อยู่เวรต่อกันได้ไม่เกิน 5 วัน แล้วต้อง off
   function consec(id,d){ let c=0,k=d-1; while(k>=1 && NEW[id][k]){ c++; k--; } return c; }
   const restOK=(id,d)=> ((STAFF[id]||{}).role!=='member') || consec(id,d)<5;
-  // lvl 0=เข้มสุด(พักพอ+หยุดคู่) · 1=ยอมคนติดเวรมากแต่คงหยุดคู่ · 2(หรือ true)=ยอมทุกอย่าง
+  // lvl 0=เข้มสุด(พักพอ) · 1=ยอมคนติดเวรมาก · 2(หรือ true)=ยอมทุกอย่าง · หยุดคู่ ส-อา = ห้ามแตะทุก lvl
   const can=(id,d,s,lvl)=>{ lvl=lvl===true?2:(lvl||0);
     if(offAt(id,d)||NEW[id][d]||bb(id,d,s))return false;
+    if(protOff(id,d))return false;                 // การันตีหยุดคู่ ส-อา (ถ้าคนไม่พอจะขึ้นเตือนแทน)
     if(lvl<1 && !restOK(id,d))return false;
-    if(lvl<2 && protOff(id,d))return false;
     return true; };
   const give=(id,d,s,r)=>{ const sp=isSpecial(curY,curM,d), fe=isFestival(curY,curM,d);
     NEW[id][d]={s:s,r:r||''}; load[id]++; if(fe)loadFest[id]++;
@@ -747,28 +749,29 @@ async function autoDraft(){
         if(can(s.id,d,'m')&&place(s,'m')){ got.m++;wkMornLeft[s.id]--;wkDone[s.id]++;if(wid)wkUsed[s.id].add(wid); break; } }
     }
     // regular fill: night first · เวรในเวลา(เช้าวันธรรมดา)=เฉลี่ยเท่ากัน(loadInM) · เทศกาล=เฉลี่ย(loadFest)
-    ['n','a','m'].forEach(s=>{
-      const sortCand=()=>pool.slice().sort((x,y)=>{
-          if(s==='m'&&!special) return (loadInM[x.id]-loadInM[y.id])||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]);
-          if(festival) return (loadFest[x.id]-loadFest[y.id])||(consec(x.id,d)-consec(y.id,d))||(loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id]);
-          return (loadT[x.id][s]-loadT[y.id][s])||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]);
-        });
-      const naFill=()=>{ const other=s==='a'?'n':'a';
-        const dbl=list.filter(p=>{ const cc=NEW[p.id][d]; return cc&&cc.s===other && !isLocked(p.id,d) && canDouble(p.id,d,s); })
-          .sort((x,y)=> festival?((loadFest[x.id]-loadFest[y.id])||(load[x.id]-load[y.id])):((loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id])));
-        for(const p of dbl){ if(got[s]>=need[s])break; const old=NEW[p.id][d]; const oldR=old.r||'';
-          let rn,ra; if(s==='n'){ rn=takeRole('n',memPref('n'),p.id)||''; ra=oldR; } else { ra=takeRole('a',memPref('a'),p.id)||''; rn=oldR; }
-          NEW[p.id][d]={s:'na',rn:rn,ra:ra}; load[p.id]++; if(festival)loadFest[p.id]++; loadT[p.id][s]++; got[s]++; } };
-      const fillPass=(lvl)=>{ let guard=0; while(got[s]<need[s]&&guard<pool.length*3){ guard++; const cand=sortCand();
-        let placed=false; for(const c of cand){ if(can(c.id,d,s,lvl)){ if(place(c,s)){got[s]++;placed=true;
-          if(lvl>=1&&(STAFF[c.id]||{}).role==='member'&&consec(c.id,d)>=5)shortfall.push('วันที่ '+d+' '+((STAFF[c.id]||{}).name||'')+' เวรติดกัน >5 (ควรจัด off)'); break;} } }
-        if(!placed)break; } };
-      fillPass(0);                                   // 1) คนพักพอ + คงหยุดคู่
-      if(got[s]<need[s] && (s==='a'||s==='n')) naFill();  // 2) ดัน ด+บ ให้ off เยอะก่อน
-      if(got[s]<need[s]) fillPass(1);                // 3) ยอมคนติดเวรมาก แต่ยังคงหยุดคู่เสาร์-อาทิตย์
-      if(got[s]<need[s] && (s==='a'||s==='n')) naFill();  // 4) ดัน ด+บ อีกรอบ
-      if(got[s]<need[s]) fillPass(2);                // 5) สุดท้าย ยอมแตะวันหยุดคู่
-      if(got[s]<need[s])shortfall.push(d+' '+(SHIFT_TXT[s])+' ขาด '+(need[s]-got[s])); });
+    // ===== กลยุทธ์: เช้าก่อน → ดัน ด+บ(na) เชิงรุกให้มากที่สุด (คนเดียวครอบดึก+บ่าย → คนอื่นได้หยุดเยอะ) → เติมเดี่ยวที่เหลือ =====
+    const sortBy=(s)=>pool.slice().sort((x,y)=>{
+        if(s==='m'&&!special) return (loadInM[x.id]-loadInM[y.id])||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]);
+        if(festival) return (loadFest[x.id]-loadFest[y.id])||(consec(x.id,d)-consec(y.id,d))||(loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id]);
+        return (loadT[x.id][s]-loadT[y.id][s])||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]);
+      });
+    const fillSingle=(s)=>{ [0,1,2].forEach(lvl=>{ let g=0; while(got[s]<need[s]&&g<pool.length*3){ g++; const cand=sortBy(s);
+      let placed=false; for(const c of cand){ if(can(c.id,d,s,lvl)){ if(place(c,s)){got[s]++;placed=true;
+        if(lvl>=1&&(STAFF[c.id]||{}).role==='member'&&consec(c.id,d)>=5)shortfall.push('วันที่ '+d+' '+((STAFF[c.id]||{}).name||'')+' เวรติดกัน >5 (ควรจัด off)'); break;} } }
+      if(!placed)break; } }); };
+    // ด+บ (na) เชิงรุก: ครอบดึก+บ่ายด้วยคนเดียว
+    const canNa=(id,lvl)=>{ lvl=lvl||0; if(NEW[id][d]||offAt(id,d))return false;
+      if(bb(id,d,'n')||bb(id,d,'a'))return false;                 // ไม่ติดบ่ายเมื่อวาน→ดึก / บ่าย→ดึกพรุ่งนี้
+      if(protOff(id,d))return false;                              // การันตีหยุดคู่ ส-อา
+      if(lvl<1 && !restOK(id,d))return false; return true; };
+    const sortNa=()=>pool.slice().sort((x,y)=> ((loadT[x.id].n+loadT[x.id].a)-(loadT[y.id].n+loadT[y.id].a))||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]));
+    const giveNa=(id)=>{ const rn=takeRole('n',memPref('n'),id)||''; const ra=takeRole('a',memPref('a'),id)||'';
+      NEW[id][d]={s:'na',rn:rn,ra:ra}; load[id]++; if(festival)loadFest[id]++; loadT[id].n++; loadT[id].a++; got.n++; got.a++; };
+    fillSingle('m');                                  // 1) เช้า (ที่เหลือจากกลุ่มประจำ)
+    [0,1,2].forEach(lvl=>{ let g=0; while(got.n<need.n && got.a<need.a && g<pool.length){ g++;  // 2) ดัน na ให้มากที่สุด
+      const cand=sortNa().filter(p=>canNa(p.id,lvl)); if(!cand.length)break; giveNa(cand[0].id); } });
+    fillSingle('n'); fillSingle('a');                 // 3) เติมดึก/บ่ายที่เหลือเป็นเวรเดี่ยว
+    ['n','a','m'].forEach(s=>{ if(got[s]<need[s])shortfall.push(d+' '+(SHIFT_TXT[s])+' ขาด '+(need[s]-got[s])); });
     // ---- เวรศูนย์สั่งการ ----
     // คนที่อยู่วอร์ดอยู่ต่อที่ศูนย์วันเดียวกัน (เช้าวอร์ด→ศ·บ่าย, บ่ายวอร์ด→ศ·ดึก) + สำรองแยกถ้าไม่มีคนต่อ
     // head ห้ามศูนย์ · subhead/ลอยเช้า ลงได้เฉพาะ ศ·เช้า/ศ·บ่าย ≤2/เดือน · ศ·ดึก = member เท่านั้น
@@ -795,8 +798,9 @@ async function autoDraft(){
   if(weekends.length) members.forEach(s=>{ const okW=weekends.some(([a,bb2])=>!NEW[s.id][a]&&!NEW[s.id][bb2]);
     if(!okW)shortfall.push((STAFF[s.id]||{}).name+' ยังไม่ได้หยุด ส-อา เต็มสัปดาห์'); });
   const payload={}; list.forEach(s=>{ if(Object.keys(NEW[s.id]).length)payload[s.id]=NEW[s.id]; });
+  draftNotes=shortfall.slice();
   DB.set(PATH+'/shift/'+ym, payload); render();
-  toast(shortfall.length?('ร่างเสร็จ · มีจุดคนไม่พอ '+shortfall.length+' จุด'):'ออโต้ร่างเวรเสร็จ · ครบทุกเวร ✓');
+  toast(shortfall.length?('ร่างเสร็จ · มีจุดต้องดูแลเพิ่ม '+shortfall.length+' จุด (ดูกล่องเตือน)'):'ออโต้ร่างเวรเสร็จ · ครบทุกเวร ✓');
 }
 
 let booted=false; function startApp(){ if(booted)return; booted=true; boot(); }
