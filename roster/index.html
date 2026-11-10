@@ -232,7 +232,7 @@ const CC_ROLE='cc';
 
 let ROLES=DEFAULT_ROLES.slice(), TARGET=JSON.parse(JSON.stringify(DEFAULT_TARGET));
 let STAFF={}, SH={}, OFF={}, HOL={}, LOCK={}, SWAPREQ={}, RULES='', SETTINGS={adminPass:'1234'};
-let draftNotes=[];
+let draftNotes=[], draftNotesHidden=false;
 function isLocked(id,d){ return !!((LOCK[id]||{})[d]); }
 let admin=false, sched=false, meId='', ym='', curY, curM;
 const canEdit=()=>admin||sched;
@@ -395,8 +395,16 @@ function computeWarnings(){
     const c=cell(s.id,d); if(c&&c.s&&(OFF[s.id]||{})[d]){ const okAcad=(offType(s.id,d)==='acad' && c.s==='a'); if(!okAcad)oc++; } } });
   if(bb)msgs.push('⚠ เวรติดกัน/ซ้อนเวลา '+bb+' จุด');
   if(oc)msgs.push('⚠ ลงเวรทับวันขอหยุด '+oc+' จุด');
-  if(draftNotes&&draftNotes.length){ msgs.push('— ผลออโต้ร่างล่าสุด ('+draftNotes.length+' จุด) —'); draftNotes.slice(0,25).forEach(n=>msgs.push('• '+n)); if(draftNotes.length>25)msgs.push('…และอีก '+(draftNotes.length-25)+' จุด'); }
-  const box=$('warnbox'); if(msgs.length){box.textContent=msgs.join('\n');box.classList.add('show');}else box.classList.remove('show');
+  let html=msgs.map(m=>esc(m)).join('<br>');
+  if(draftNotes&&draftNotes.length){
+    html+=(html?'<br>':'')+'<div style="margin-top:4px"><b>ผลออโต้ร่างไม่สำเร็จ '+draftNotes.length+' จุด</b> '
+      +'<button id="dnToggle" class="btn sm gray" style="padding:2px 10px;margin-left:6px">'+(draftNotesHidden?'แสดง':'ซ่อน')+'</button>';
+    if(!draftNotesHidden) html+='<div style="margin-top:4px">'+draftNotes.slice(0,60).map(n=>'• '+esc(n)).join('<br>')+(draftNotes.length>60?'<br>…และอีก '+(draftNotes.length-60)+' จุด':'')+'</div>';
+    html+='</div>';
+  }
+  const box=$('warnbox');
+  if(html){ box.innerHTML=html; box.classList.add('show'); const t=$('dnToggle'); if(t)t.onclick=()=>{ draftNotesHidden=!draftNotesHidden; computeWarnings(); }; }
+  else box.classList.remove('show');
 }
 
 /* ---------- cell interaction + popover ---------- */
@@ -846,7 +854,7 @@ async function autoDraft(){
   if(weekends.length) members.forEach(s=>{ const okW=weekends.some(([a,bb2])=>!NEW[s.id][a]&&!NEW[s.id][bb2]);
     if(!okW)shortfall.push((STAFF[s.id]||{}).name+' ยังไม่ได้หยุด ส-อา เต็มสัปดาห์'); });
   const payload={}; list.forEach(s=>{ if(Object.keys(NEW[s.id]).length)payload[s.id]=NEW[s.id]; });
-  draftNotes=shortfall.slice();
+  draftNotes=shortfall.slice(); draftNotesHidden=false;
   DB.set(PATH+'/shift/'+ym, payload); render();
   toast(shortfall.length?('ร่างเสร็จ · มีจุดต้องดูแลเพิ่ม '+shortfall.length+' จุด (ดูกล่องเตือน)'):'ออโต้ร่างเวรเสร็จ · ครบทุกเวร ✓');
 }
