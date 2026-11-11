@@ -727,8 +727,9 @@ async function autoDraft(){
   const fixedKeys={head:1,subhead:1,float:1};
   const pool=list.filter(s=>!fixedKeys[s.role]);
   const NEW={}; list.forEach(s=>NEW[s.id]={});
-  const load={}, loadT={}, loadInM={}, loadFest={}, ccLoad={};
-  list.forEach(s=>{ load[s.id]=0; loadT[s.id]={m:0,a:0,n:0}; loadInM[s.id]=0; loadFest[s.id]=0; ccLoad[s.id]=0; });
+  const load={}, loadT={}, loadInM={}, loadFest={}, ccLoad={}, naCount={};
+  list.forEach(s=>{ load[s.id]=0; loadT[s.id]={m:0,a:0,n:0}; loadInM[s.id]=0; loadFest[s.id]=0; ccLoad[s.id]=0; naCount[s.id]=0; });
+  const NA_MAX=3;   // ด+บ (na) ไม่เกิน 3 ครั้ง/เดือน/คน
   // ---- member ได้หยุดคู่ เสาร์+อาทิตย์ อย่างน้อย 1 สัปดาห์/เดือน (กระจายคนละสัปดาห์) ----
   const members=list.filter(s=>s.role==='member');
   const weekends=[]; for(let d=1;d<=nd;d++){ if(dow(curY,curM,d)===6 && d+1<=nd && dow(curY,curM,d+1)===0) weekends.push([d,d+1]); }
@@ -774,7 +775,7 @@ async function autoDraft(){
       NEW[s.id][d]=JSON.parse(JSON.stringify(c)); const sp=isSpecial(curY,curM,d), fe=isFestival(curY,curM,d);
       if(c.s){ load[s.id]++; if(fe)loadFest[s.id]++;
         if(isCC(c.s)){ ccLoad[s.id]++; }
-        else if(c.s==='na'){ loadT[s.id].n++; loadT[s.id].a++; }
+        else if(c.s==='na'){ loadT[s.id].n++; loadT[s.id].a++; naCount[s.id]++; }
         else { tbase(c.s).forEach(b=>{ if(loadT[s.id][b]!==undefined)loadT[s.id][b]++; }); if(c.s==='m'&&!sp)loadInM[s.id]++; } }
       if(c.cc)ccLoad[s.id]++;
       // เวรนอกเวลาเช้า (พิเศษ) ที่ล็อกของกลุ่ม subhead/ลอยเช้า นับโควตา/กระจายด้วย
@@ -828,12 +829,13 @@ async function autoDraft(){
       if(!placed)break; } };
     // ด+บ (na) เชิงรุก: ครอบดึก+บ่ายด้วยคนเดียว
     const canNa=(id,lvl)=>{ lvl=lvl||0; if(NEW[id][d]||offAt(id,d))return false;
+      if((naCount[id]||0)>=NA_MAX)return false;                   // ด+บ ไม่เกิน 3 ครั้ง/เดือน/คน
       if(bb(id,d,'n')||bb(id,d,'a'))return false;                 // ไม่ติดบ่ายเมื่อวาน→ดึก / บ่าย→ดึกพรุ่งนี้
       if(lvl<1 && !restOK(id,d))return false;
       if(lvl<2 && protOff(id,d))return false; return true; };
     const sortNa=()=>pool.slice().sort((x,y)=> ((loadT[x.id].n+loadT[x.id].a)-(loadT[y.id].n+loadT[y.id].a))||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]));
     const giveNa=(id)=>{ const rn=takeRole('n',memPref('n'),id)||''; const ra=takeRole('a',memPref('a'),id)||'';
-      NEW[id][d]={s:'na',rn:rn,ra:ra}; load[id]++; if(festival)loadFest[id]++; loadT[id].n++; loadT[id].a++; got.n++; got.a++; };
+      NEW[id][d]={s:'na',rn:rn,ra:ra}; load[id]++; if(festival)loadFest[id]++; loadT[id].n++; loadT[id].a++; naCount[id]++; got.n++; got.a++; };
     const naLvl=(lvl)=>{ let g=0; while(got.n<need.n && got.a<need.a && g<pool.length){ g++;
       const cand=sortNa().filter(p=>canNa(p.id,lvl)); if(!cand.length)break; giveNa(cand[0].id); } };
     // เป้าหมาย: เติมทุกกรอบให้เต็มก่อน (ไล่ระดับ 0→1→2) · ในแต่ละระดับ ดัน ด+บ(na) ก่อน แล้วค่อยเติมเดี่ยว
