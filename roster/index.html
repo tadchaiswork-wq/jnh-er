@@ -821,7 +821,15 @@ async function autoDraft(){
       if(c.s==='na'){ got.n++; got.a++; rmSlot('n',c.rn||c.r); rmSlot('a',c.ra); }
       else { if(got[c.s]!==undefined)got[c.s]++; rmSlot(c.s,c.r); } });
     const noOf=id=>((STAFF[id]||{}).no)||[];
-    const takeRole=(base,prefers,id)=>{ const arr=slotsLeft[base], no=noOf(id); for(const pr of prefers){const i=arr.indexOf(pr); if(i>=0&&no.indexOf(pr)<0){arr.splice(i,1);return pr;}} for(let i=0;i<arr.length;i++){ if(no.indexOf(arr[i])<0){const r=arr[i];arr.splice(i,1);return r;} } return null; };
+    const takeRole=(base,prefers,id)=>{ const arr=slotsLeft[base], no=noOf(id); for(const pr of prefers){const i=arr.indexOf(pr); if(i>=0&&no.indexOf(pr)<0){arr.splice(i,1);return pr;}} for(let i=0;i<arr.length;i++){ if(no.indexOf(arr[i])<0){const r=arr[i];arr.splice(i,1);return r;} }
+      // คนที่ถูกปิดบทบาท: ตำแหน่งที่ทำได้ถูกคนอื่นถือไว้ → ให้คนนั้น (ที่ทำตำแหน่งว่างได้) ขยับไปตำแหน่งที่เหลือ แล้วรับตำแหน่งนี้แทน
+      for(const p of list){ if(p.id===id)continue; const c=NEW[p.id][d]; if(!c||isCC(c.s)||isLocked(p.id,d))continue;
+        const ps=STAFF[p.id]||{}; if(ps.role!=='member'&&!(ps.role==='float'&&!ps.fixM))continue;
+        const key=c.s==='na'?(base==='n'?'rn':(base==='a'?'ra':'')):(c.s===base?'r':''); if(!key)continue;
+        const r=c[key]; if(!r||no.indexOf(r)>=0)continue;
+        const pno=noOf(p.id); const qi=arr.findIndex(q=>pno.indexOf(q)<0); if(qi<0)continue;
+        c[key]=arr[qi]; arr.splice(qi,1); return r; }
+      return null; };
     const memPref=base=> base==='m'?['EMS','refer','triage','member1','member2','lead1','lead2','incharge']:(base==='n'?['member1','member2','lead1','lead2']:['member1','member2','triage','lead1','lead2','incharge']);
     const roleFor=(st,base)=>{ const cat=st.role; if(base==='m'&&cat==='head')return takeRole(base,['head'],st.id); if(cat==='subhead')return takeRole(base,['incharge'],st.id); if(cat==='float')return takeRole(base,['lead1','lead2','triage','member1','member2','incharge'],st.id); return takeRole(base,memPref(base),st.id); };
     const place=(st,base)=>{ const r=roleFor(st,base); if(r===null)return false; give(st.id,d,base,r); return true; };
@@ -917,6 +925,31 @@ async function autoDraft(){
     if(!ccFilled('ccn')){ if(!assignCont('ccn','a') && !assignSep('ccn','n') && !repairCcn()) shortfall.push(d+' ศ·ดึก ไม่มีคน'); }
     if(special && !ccFilled('ccm')){ if(!assignCont('ccm','a') && !assignSep('ccm','m')) shortfall.push(d+' ศ·เช้านอก ไม่มีคน'); }
   }
+  // เกลี่ยเช้านอกเวลาของ member ให้ใกล้กัน: ย้ายเวรจากคนที่ได้มากไปให้คนที่ได้น้อยกว่า (ต่าง ≥2) ซึ่งว่างและไม่ผิดกฏในวันนั้น
+  { const runLen=(id,d)=>{ let c=1,k=d-1; while(k>-7&&pcell(id,k)){c++;k--;} k=d+1; while(k<=nd&&NEW[id][k]){c++;k++;} return c; };
+    const freeW=(id,ex)=>weekends.some(([a,b2])=>!NEW[id][a]&&!NEW[id][b2]&&a!==ex&&b2!==ex);
+    for(let it=0;it<80;it++){ let moved=false;
+      const hi=members.slice().sort((x,y)=>loadOutM[y.id]-loadOutM[x.id]);
+      outer: for(const X of hi){ for(let d=1;d<=nd;d++){ if(!isSpecial(curY,curM,d)||isFestival(curY,curM,d))continue;
+          const c=NEW[X.id][d]; if(!c||c.s!=='m'||c.cc||c.ref||isLocked(X.id,d))continue;
+          const Ys=members.filter(Y=> Y.id!==X.id && loadOutM[X.id]-loadOutM[Y.id]>=2 && load[Y.id]<=load[X.id] && !NEW[Y.id][d] && !offAt(Y.id,d)
+              && !protOff(Y.id,d) && !pairBlocked(Y.id,d,'m') && (((STAFF[Y.id]||{}).no)||[]).indexOf(c.r)<0 && runLen(Y.id,d)<=5 && (!freeW(Y.id,0)||freeW(Y.id,d)))
+            .sort((a,b)=>(loadOutM[a.id]-loadOutM[b.id])||(load[a.id]-load[b.id]));
+          if(Ys.length){ const Y=Ys[0];
+            NEW[Y.id][d]={s:'m',r:c.r||''}; delete NEW[X.id][d];
+            load[X.id]--; load[Y.id]++; loadT[X.id].m--; loadT[Y.id].m++; loadOutM[X.id]--; loadOutM[Y.id]++; moved=true; break outer; }
+          // ไม่มีคนว่าง → สลับชนิดเวรในวันเดียวกัน: X ไปอยู่บ่าย/ดึกแทน Y (ที่มีบ่าย/ดึกมากกว่า) · Y มาอยู่เช้านอกเวลาแทน
+          const noX=((STAFF[X.id]||{}).no)||[];
+          const Zs=members.filter(Y=>{ if(Y.id===X.id||loadOutM[X.id]-loadOutM[Y.id]<2)return false; const yc=NEW[Y.id][d];
+              if(!yc||(yc.s!=='a'&&yc.s!=='n')||yc.cc||yc.ref||isLocked(Y.id,d))return false;
+              if(loadT[Y.id][yc.s]<=loadT[X.id][yc.s])return false;
+              if(noX.indexOf(yc.r)>=0||(((STAFF[Y.id]||{}).no)||[]).indexOf(c.r)>=0)return false;
+              if(bb(X.id,d,yc.s)||pairBlocked(X.id,d,yc.s)||pairBlocked(Y.id,d,'m'))return false; return true; })
+            .sort((a,b)=>(loadOutM[a.id]-loadOutM[b.id]));
+          if(Zs.length){ const Y=Zs[0], yc=NEW[Y.id][d], s2=yc.s;
+            NEW[X.id][d]={s:s2,r:yc.r||''}; NEW[Y.id][d]={s:'m',r:c.r||''};
+            loadT[X.id].m--; loadT[X.id][s2]++; loadT[Y.id][s2]--; loadT[Y.id].m++; loadOutM[X.id]--; loadOutM[Y.id]++; moved=true; break outer; } } }
+      if(!moved)break; } }
   // รายงาน member ที่ยังไม่ได้หยุดเสาร์-อาทิตย์เต็มสัปดาห์ (ควรจัด off เพิ่มเอง)
   if(weekends.length) members.forEach(s=>{ const okW=weekends.some(([a,bb2])=>!NEW[s.id][a]&&!NEW[s.id][bb2]);
     if(!okW)shortfall.push((STAFF[s.id]||{}).name+' ยังไม่ได้หยุด ส-อา เต็มสัปดาห์'); });
