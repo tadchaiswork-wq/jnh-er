@@ -735,6 +735,8 @@ async function autoDraft(){
   const weekends=[]; for(let d=1;d<=nd;d++){ if(dow(curY,curM,d)===6 && d+1<=nd && dow(curY,curM,d+1)===0) weekends.push([d,d+1]); }
   const protW={}; if(weekends.length){ members.forEach((s,i)=>{ protW[s.id]=new Set(weekends[i%weekends.length]); }); }
   const protOff=(id,d)=> !!(protW[id] && protW[id].has(d));
+  // โควตา na ต่อวัน = เกลี่ยงบ na ทั้งเดือน (members × 3) ให้กระจายทุกวัน ไม่กระจุกต้นเดือน
+  const naDayCap=Math.max(1, Math.ceil((members.length*NA_MAX)/Math.max(1,nd)));
   // cross-month seed: นับเวรเทศกาล(x1.5)/ศูนย์สั่งการ จากเดือนก่อน (ปีใหม่คร่อมเดือน)
   try{ let py=curY,pm=curM-1; if(pm<1){pm=12;py--;} const prev=await DB.once(PATH+'/shift/'+ymKey(py,pm))||{};
     Object.keys(prev).forEach(id=>{ if(!(id in loadFest))return; const days=prev[id]||{};
@@ -784,7 +786,7 @@ async function autoDraft(){
     } });
   for(let d=1;d<=nd;d++){
     const special=isSpecial(curY,curM,d); const festival=isFestival(curY,curM,d); const T=special?TARGET.weekend:TARGET.weekday;
-    const need={m:T.m||0,a:T.a||0,n:T.n||0}; const got={m:0,a:0,n:0};
+    const need={m:T.m||0,a:T.a||0,n:T.n||0}; const got={m:0,a:0,n:0}; let naToday=0;
     const slotsLeft={m:slotListFor('m',special),a:slotListFor('a',special),n:slotListFor('n',special)};
     // นับเวรที่ถูกล็อกไว้แล้วในวันนี้ เข้าใน got และตัด role/slot ที่ใช้ไปแล้ว
     const rmSlot=(base,role)=>{ const arr=slotsLeft[base]; if(!arr||!role)return; const i=arr.indexOf(role); if(i>=0)arr.splice(i,1); };
@@ -837,7 +839,8 @@ async function autoDraft(){
     const giveNa=(id)=>{ const rn=takeRole('n',memPref('n'),id)||''; const ra=takeRole('a',memPref('a'),id)||'';
       NEW[id][d]={s:'na',rn:rn,ra:ra}; load[id]++; if(festival)loadFest[id]++; loadT[id].n++; loadT[id].a++; naCount[id]++; got.n++; got.a++; };
     const naLvl=(lvl)=>{ let g=0; while(got.n<need.n && got.a<need.a && g<pool.length){ g++;
-      const cand=sortNa().filter(p=>canNa(p.id,lvl)); if(!cand.length)break; giveNa(cand[0].id); } };
+      if(lvl<2 && naToday>=naDayCap)break;   // จำกัด na ต่อวัน (เกลี่ยทั้งเดือน) · lvl2 = ยอมเกินถ้าจำเป็นเพื่อเติมเวรเต็ม
+      const cand=sortNa().filter(p=>canNa(p.id,lvl)); if(!cand.length)break; giveNa(cand[0].id); naToday++; } };
     // เป้าหมาย: เติมทุกกรอบให้เต็มก่อน (ไล่ระดับ 0→1→2) · ในแต่ละระดับ ดัน ด+บ(na) ก่อน แล้วค่อยเติมเดี่ยว
     [0,1,2].forEach(lvl=>{ fillSingleLvl('m',lvl); naLvl(lvl); fillSingleLvl('n',lvl); fillSingleLvl('a',lvl); });
     ['n','a','m'].forEach(s=>{ if(got[s]<need[s])shortfall.push(d+' '+(SHIFT_TXT[s])+' ขาด '+(need[s]-got[s])); });
