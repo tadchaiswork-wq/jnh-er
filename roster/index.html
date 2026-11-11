@@ -653,11 +653,11 @@ function showTab(t){ document.querySelectorAll('#tabs button').forEach(b=>b.clas
 $('saveRules').onclick=()=>{ RULES=$('rulesTxt').value||''; DB.set(PATH+'/rules',RULES||null); toast('บันทึกกติกาแล้ว'); };
 
 let edStaff=[];
-function renderStaffRows(){ edStaff=staffList().map(s=>({id:s.id,name:s.name,role:s.role,order:s.order,no:(s.no||[]).slice(),noCC:!!s.noCC,fixM:s.fixM||''})); drawStaff(); }
+function renderStaffRows(){ edStaff=staffList().map(s=>({id:s.id,name:s.name,role:s.role,order:s.order,no:(s.no||[]).slice(),noCC:!!s.noCC,fixM:s.fixM||'',noPair:(s.noPair||[]).slice()})); drawStaff(); }
 function drawStaff(){ $('stCount').textContent=edStaff.length;
   const opts=r=>ROLES.map(x=>`<option value="${x.key}" ${x.key===r?'selected':''}>${esc(x.name)}</option>`).join('');
   $('stRows').innerHTML=edStaff.map((s,i)=>{
-    const chips=(s.no.length?('ปิด: '+s.no.map(r=>ROLE_TH[r]||r).join(',')):'')+(s.noCC?' · ไม่อยู่ศสก.':'')+(s.fixM?' · ประจำเช้า:'+(FIXM_TH[s.fixM]||s.fixM):'');
+    const chips=(s.no.length?('ปิด: '+s.no.map(r=>ROLE_TH[r]||r).join(',')):'')+(s.noCC?' · ไม่อยู่ศสก.':'')+(s.fixM?' · ประจำเช้า:'+(FIXM_TH[s.fixM]||s.fixM):'')+((s.noPair&&s.noPair.length)?' · ห้ามคู่:'+s.noPair.length:'');
     const fixCell = s.role==='float'
       ? `<select data-i="${i}" data-f="fixM" title="หน้าที่เฉพาะลอยเช้า (เวรเช้าในเวลา)">${FIXM_OPTS.map(([k,l])=>`<option value="${k}" ${s.fixM===k?'selected':''}>${l}</option>`).join('')}</select>`
       : `<span style="font-size:11px;color:#cbd5e1;text-align:center" title="หน้าที่เฉพาะใช้กับลอยเช้า">—</span>`;
@@ -673,18 +673,23 @@ function drawStaff(){ $('stCount').textContent=edStaff.length;
 }
 function openNoEdit(i){ const s=edStaff[i];
   const roleChk=ALL_ROLES.map(r=>`<label><input type="checkbox" data-r="${r}" ${s.no.indexOf(r)>=0?'checked':''}>${ROLE_TH[r]}</label>`).join('');
-  const html=`<div class="pop-nm" style="font-weight:700;margin-bottom:6px">ปิดบทบาทถาวร: ${esc(s.name||'')}</div>
+  s.noPair=s.noPair||[];
+  const pairChk=edStaff.filter(o=>o.id!==s.id).map(o=>`<label><input type="checkbox" data-p="${o.id}" ${s.noPair.indexOf(o.id)>=0?'checked':''}>${esc(o.name||'(ไม่มีชื่อ)')}</label>`).join('');
+  const html=`<div class="pop-nm" style="font-weight:700;margin-bottom:6px">ตั้งค่า: ${esc(s.name||'')}</div>
     <div style="font-size:12px;color:#64748b;margin-bottom:4px">บทบาทที่ไม่ให้จัด:</div><div class="rolechk" id="neRoles">${roleChk}</div>
     <label style="display:block;margin-top:8px;font-size:13px"><input type="checkbox" id="neCC" ${s.noCC?'checked':''}> ไม่ให้อยู่เวรศูนย์สั่งการ</label>
-    ${s.role==='float'?'<div style="margin-top:8px;font-size:11px;color:#94a3b8">* หน้าที่เฉพาะลอยเช้า (ช EMS/Ref/…) ตั้งได้ในช่องถัดจากตำแหน่งในแถวรายชื่อ</div>':''}`;
-  const pop=$('pop'); pop.innerHTML=html; pop.style.display='block'; pop.style.left='50%'; pop.style.top='120px'; pop.style.transform='translateX(-50%)'; pop.style.width='260px';
+    <div style="font-size:12px;color:#64748b;margin:10px 0 4px">🚫 ห้ามอยู่เวรร่วมกับ (เวรเดียวกัน/เวลาทับกัน):</div>
+    <div class="rolechk" id="nePair" style="max-height:150px;overflow:auto">${pairChk||'<span style="color:#94a3b8">— ไม่มีคนอื่น —</span>'}</div>
+    ${s.role==='float'?'<div style="margin-top:8px;font-size:11px;color:#94a3b8">* หน้าที่เฉพาะลอยเช้า ตั้งในช่องถัดจากตำแหน่งในแถวรายชื่อ</div>':''}`;
+  const pop=$('pop'); pop.innerHTML=html; pop.style.display='block'; pop.style.left='50%'; pop.style.top='80px'; pop.style.transform='translateX(-50%)'; pop.style.width='280px'; pop.style.maxHeight='80vh'; pop.style.overflowY='auto';
   pop.querySelectorAll('#neRoles input').forEach(c=>c.onchange=()=>{ const r=c.dataset.r; if(c.checked){if(s.no.indexOf(r)<0)s.no.push(r);} else s.no=s.no.filter(x=>x!==r); drawStaff(); });
+  pop.querySelectorAll('#nePair input').forEach(c=>c.onchange=()=>{ const p=c.dataset.p; if(c.checked){if(s.noPair.indexOf(p)<0)s.noPair.push(p);} else s.noPair=s.noPair.filter(x=>x!==p); drawStaff(); });
   $('neCC').onchange=e=>{ s.noCC=e.target.checked; drawStaff(); };
 }
 const FIXM_TH={incharge:'I',lead1:'L1',lead2:'L2',EMS:'EMS',refer:'Ref',triage:'T',member1:'M1',member2:'M2',leadalt:'สลับ L1/L2'};
 const FIXM_OPTS=[['','อื่นๆ (แชร์ได้ทั้ง 6: I/L1/L2/T/M1/M2)'],['EMS','ช EMS'],['refer','ช Ref'],['leadalt','สลับ L1/L2 (คู่)']];
 $('addStaff').onclick=()=>{ edStaff.push({id:uid(),name:'',role:ROLES[ROLES.length-1]?ROLES[ROLES.length-1].key:'member',order:edStaff.length,no:[],noCC:false}); drawStaff(); const ins=$('stRows').querySelectorAll('input[data-f=name]'); if(ins.length)ins[ins.length-1].focus(); };
-$('saveStaff').onclick=()=>{ const out={}; let o=0; edStaff.forEach(s=>{ const nm=(s.name||'').trim(); if(!nm)return; out[s.id||uid()]={name:nm,role:s.role||'member',order:o++,no:s.no||[],noCC:!!s.noCC,fixM:s.fixM||''}; });
+$('saveStaff').onclick=()=>{ const out={}; let o=0; const ids=new Set(edStaff.map(s=>s.id).filter(Boolean)); edStaff.forEach(s=>{ const nm=(s.name||'').trim(); if(!nm)return; const id=s.id||uid(); out[id]={name:nm,role:s.role||'member',order:o++,no:s.no||[],noCC:!!s.noCC,fixM:s.fixM||'',noPair:(s.noPair||[]).filter(p=>ids.has(p))}; });
   STAFF=out; DB.set(PATH+'/staff',out); toast('บันทึกรายชื่อแล้ว ('+Object.keys(out).length+')'); $('pop').style.display='none'; renderMeSel(); render(); };
 
 let edRoles=[];
@@ -730,6 +735,9 @@ async function autoDraft(){
   const load={}, loadT={}, loadInM={}, loadFest={}, ccLoad={}, naCount={};
   list.forEach(s=>{ load[s.id]=0; loadT[s.id]={m:0,a:0,n:0}; loadInM[s.id]=0; loadFest[s.id]=0; ccLoad[s.id]=0; naCount[s.id]=0; });
   const NA_MAX=3;   // ด+บ (na) ไม่เกิน 3 ครั้ง/เดือน/คน
+  // คู่ห้ามอยู่เวรร่วมกัน (symmetric)
+  const incompat={}; list.forEach(s=>incompat[s.id]={});
+  list.forEach(s=>{ ((STAFF[s.id]||{}).noPair||[]).forEach(p=>{ if(incompat[s.id])incompat[s.id][p]=1; if(incompat[p])incompat[p][s.id]=1; }); });
   // ---- member ได้หยุดคู่ เสาร์+อาทิตย์ อย่างน้อย 1 สัปดาห์/เดือน (กระจายคนละสัปดาห์) ----
   const members=list.filter(s=>s.role==='member');
   const weekends=[]; for(let d=1;d<=nd;d++){ if(dow(curY,curM,d)===6 && d+1<=nd && dow(curY,curM,d+1)===0) weekends.push([d,d+1]); }
@@ -753,9 +761,14 @@ async function autoDraft(){
   // member: อยู่เวรต่อกันได้ไม่เกิน 5 วัน แล้วต้อง off
   function consec(id,d){ let c=0,k=d-1; while(k>=1 && NEW[id][k]){ c++; k--; } return c; }
   const restOK=(id,d)=> ((STAFF[id]||{}).role!=='member') || consec(id,d)<5;
+  // คู่ห้ามอยู่เวรร่วมกัน: id ลงเวลา bs (จาก s) ชนกับคู่ที่ห้ามในวันนั้นไหม
+  function pairBlocked(id,d,s){ const inc=incompat[id]; if(!inc)return false; const bs=tbase(s);
+    for(const y in inc){ const yc=NEW[y]&&NEW[y][d]; if(!yc)continue; const yb=cbases(yc); for(const b of bs){ if(yb.indexOf(b)>=0)return true; } }
+    return false; }
   // lvl 0=เข้มสุด(พักพอ+หยุดคู่) · 1=ยอมคนติดเวรมากแต่คงหยุดคู่ · 2(หรือ true)=ยอมทุกอย่างเพื่อเติมเวรให้เต็ม
   const can=(id,d,s,lvl)=>{ lvl=lvl===true?2:(lvl||0);
     if(offAt(id,d)||NEW[id][d]||bb(id,d,s))return false;
+    if(lvl<2 && pairBlocked(id,d,s))return false;   // ห้ามอยู่เวรร่วมกับคู่ที่กำหนด (ยอมแตะ lvl2 ถ้าจำเป็นเพื่อให้เวรเต็ม)
     if(lvl<1 && !restOK(id,d))return false;
     if(lvl<2 && protOff(id,d))return false;        // หยุดคู่ ส-อา เป็นเป้ารอง — ยอมแตะ lvl2 ถ้าจำเป็นเพื่อให้เวรเต็ม
     return true; };
@@ -833,6 +846,7 @@ async function autoDraft(){
     const canNa=(id,lvl)=>{ lvl=lvl||0; if(NEW[id][d]||offAt(id,d))return false;
       if((naCount[id]||0)>=NA_MAX)return false;                   // ด+บ ไม่เกิน 3 ครั้ง/เดือน/คน
       if(bb(id,d,'n')||bb(id,d,'a'))return false;                 // ไม่ติดบ่ายเมื่อวาน→ดึก / บ่าย→ดึกพรุ่งนี้
+      if(lvl<2 && pairBlocked(id,d,'na'))return false;            // ห้ามอยู่เวรร่วมกับคู่ที่กำหนด
       if(lvl<1 && !restOK(id,d))return false;
       if(lvl<2 && protOff(id,d))return false; return true; };
     const sortNa=()=>pool.slice().sort((x,y)=> ((loadT[x.id].n+loadT[x.id].a)-(loadT[y.id].n+loadT[y.id].a))||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]));
@@ -869,6 +883,10 @@ async function autoDraft(){
   // รายงาน member ที่ยังไม่ได้หยุดเสาร์-อาทิตย์เต็มสัปดาห์ (ควรจัด off เพิ่มเอง)
   if(weekends.length) members.forEach(s=>{ const okW=weekends.some(([a,bb2])=>!NEW[s.id][a]&&!NEW[s.id][bb2]);
     if(!okW)shortfall.push((STAFF[s.id]||{}).name+' ยังไม่ได้หยุด ส-อา เต็มสัปดาห์'); });
+  // รายงานคู่ห้ามอยู่เวรร่วมกันที่ยังหลุด (คนไม่พอ ต้องจัดเองเพิ่ม)
+  const seenPair={}; list.forEach(s=>{ const inc=incompat[s.id]; if(!inc)return; Object.keys(inc).forEach(y=>{ const key=[s.id,y].sort().join('|'); if(seenPair[key])return; seenPair[key]=1;
+    let cnt=0; for(let d=1;d<=nd;d++){ const ca=NEW[s.id][d],cy=NEW[y][d]; if(!ca||!cy)continue; if(cbases(ca).some(b=>cbases(cy).indexOf(b)>=0))cnt++; }
+    if(cnt)shortfall.push('คู่ห้าม: '+(STAFF[s.id]||{}).name+' + '+(STAFF[y]||{}).name+' ยังอยู่เวรร่วมกัน '+cnt+' วัน'); }); });
   const payload={}; list.forEach(s=>{ if(Object.keys(NEW[s.id]).length)payload[s.id]=NEW[s.id]; });
   draftNotes=shortfall.slice(); draftNotesHidden=false;
   DB.set(PATH+'/shift/'+ym, payload); render();
