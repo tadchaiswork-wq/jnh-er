@@ -732,8 +732,8 @@ async function autoDraft(){
   const fixedKeys={head:1,subhead:1,float:1};
   const pool=list.filter(s=>!fixedKeys[s.role]);
   const NEW={}; list.forEach(s=>NEW[s.id]={});
-  const load={}, loadT={}, loadInM={}, loadFest={}, ccLoad={}, naCount={};
-  list.forEach(s=>{ load[s.id]=0; loadT[s.id]={m:0,a:0,n:0}; loadInM[s.id]=0; loadFest[s.id]=0; ccLoad[s.id]=0; naCount[s.id]=0; });
+  const load={}, loadT={}, loadInM={}, loadOutM={}, loadFest={}, ccLoad={}, naCount={};
+  list.forEach(s=>{ load[s.id]=0; loadT[s.id]={m:0,a:0,n:0}; loadInM[s.id]=0; loadOutM[s.id]=0; loadFest[s.id]=0; ccLoad[s.id]=0; naCount[s.id]=0; });
   const NA_MAX=3;   // ด+บ (na) ไม่เกิน 3 ครั้ง/เดือน/คน
   // คู่ห้ามอยู่เวรร่วมกัน (symmetric)
   const incompat={}; list.forEach(s=>incompat[s.id]={});
@@ -775,7 +775,7 @@ async function autoDraft(){
   const give=(id,d,s,r)=>{ const sp=isSpecial(curY,curM,d), fe=isFestival(curY,curM,d);
     NEW[id][d]={s:s,r:r||''}; load[id]++; if(fe)loadFest[id]++;
     if(isCC(s)){ ccLoad[id]++; }
-    else { tbase(s).forEach(b=>{ if(loadT[id][b]!==undefined)loadT[id][b]++; }); if(s==='m'&&!sp)loadInM[id]++; } };
+    else { tbase(s).forEach(b=>{ if(loadT[id][b]!==undefined)loadT[id][b]++; }); if(s==='m'){ if(sp)loadOutM[id]++; else loadInM[id]++; } } };
   const canDouble=(id,d,addBase)=>{ if(offAt(id,d))return false;
     const nx=NEW[id][d+1], pv=NEW[id][d-1];
     if(addBase==='a'){ if(nx&&cbases(nx).indexOf('n')>=0)return false; }   // บ่าย→ดึกพรุ่งนี้
@@ -791,7 +791,7 @@ async function autoDraft(){
       if(c.s){ load[s.id]++; if(fe)loadFest[s.id]++;
         if(isCC(c.s)){ ccLoad[s.id]++; }
         else if(c.s==='na'){ loadT[s.id].n++; loadT[s.id].a++; naCount[s.id]++; }
-        else { tbase(c.s).forEach(b=>{ if(loadT[s.id][b]!==undefined)loadT[s.id][b]++; }); if(c.s==='m'&&!sp)loadInM[s.id]++; } }
+        else { tbase(c.s).forEach(b=>{ if(loadT[s.id][b]!==undefined)loadT[s.id][b]++; }); if(c.s==='m'){ if(sp)loadOutM[s.id]++; else loadInM[s.id]++; } } }
       if(c.cc)ccLoad[s.id]++;
       // เวรนอกเวลาเช้า (พิเศษ) ที่ล็อกของกลุ่ม subhead/ลอยเช้า นับโควตา/กระจายด้วย
       if(c.s==='m'&&sp&&wkMornLeft[s.id]!==undefined){ wkMornLeft[s.id]--; wkDone[s.id]++;
@@ -833,9 +833,12 @@ async function autoDraft(){
     }
     // regular fill: night first · เวรในเวลา(เช้าวันธรรมดา)=เฉลี่ยเท่ากัน(loadInM) · เทศกาล=เฉลี่ย(loadFest)
     // ===== กลยุทธ์: เช้าก่อน → ดัน ด+บ(na) เชิงรุกให้มากที่สุด (คนเดียวครอบดึก+บ่าย → คนอื่นได้หยุดเยอะ) → เติมเดี่ยวที่เหลือ =====
+    // เฉลี่ยแยก 4 ประเภท: เช้าในเวลา(loadInM) · เช้านอกเวลา(loadOutM) · บ่าย/ดึก(loadT) · เทศกาล=เฉลี่ยค่าเวร(loadFest)
     const sortBy=(s)=>pool.slice().sort((x,y)=>{
-        if(s==='m'&&!special) return (loadInM[x.id]-loadInM[y.id])||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]);
-        if(festival) return (loadFest[x.id]-loadFest[y.id])||(consec(x.id,d)-consec(y.id,d))||(loadT[x.id][s]-loadT[y.id][s])||(load[x.id]-load[y.id]);
+        if(s==='m'){ const tc = special?loadOutM:loadInM;
+          if(special&&festival) return (loadFest[x.id]-loadFest[y.id])||(tc[x.id]-tc[y.id])||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]);
+          return (tc[x.id]-tc[y.id])||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]); }
+        if(festival) return (loadFest[x.id]-loadFest[y.id])||(loadT[x.id][s]-loadT[y.id][s])||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]);
         return (loadT[x.id][s]-loadT[y.id][s])||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]);
       });
     const fillSingleLvl=(s,lvl)=>{ let g=0; while(got[s]<need[s]&&g<pool.length*3){ g++; const cand=sortBy(s);
