@@ -281,6 +281,9 @@ function cbases(c){ if(!c||!c.s&&!c.ref)return []; let b=c.s?(c.s==='na'?['n','a
 // ประเภทวันหยุด/ลา: off(ขอหยุด) · vac(พักร้อน) · acad(วิชาการ)
 const OFF_TXT={off:'off',vac:'พักร้อน',acad:'วิชาการ'}, OFF_SH={off:'off',vac:'พร',acad:'วก'};
 function offType(id,d){ const v=(OFF[id]||{})[d]; if(!v)return ''; return v===true?'off':v; }
+// วันแรกหลังพักร้อน ห้ามเวรดึก (ดึก = 00–08 น. ต่อจากวันพักร้อนทันที) · วันที่ 1 ดูพักร้อนวันสุดท้ายของเดือนก่อน
+let PREVOFF={}, PREVOFF_ND=0;
+function afterVac(id,d){ if(d>1)return offType(id,d-1)==='vac'; const v=(PREVOFF[id]||{})[PREVOFF_ND]; return v==='vac'; }
 function regHas(id,d,b){ const c=cell(id,d); return !!c && !isCC(c.s) && tbase(c.s).indexOf(b)>=0; }
 function ccHas(id,d,b){ const c=cell(id,d); return !!c && (c.s==='cc'+b || c.cc==='cc'+b); }
 function hasTime(id,d,b){ const c=cell(id,d); return !!c && cbases(c).indexOf(b)>=0; } // for adjacency (reg + cc add-on)
@@ -290,6 +293,7 @@ function dayViol(id,d){ const c=cell(id,d); if(!c)return false; const p=cbases(c
   // รถ refer ต้องไม่ซ้อนทับเวลากับเวรวอร์ด/ศูนย์ในวันเดียวกัน
   if(c.ref){ const rb=refBase(c.ref); const occ=[]; if(c.s)tbase(c.s).forEach(x=>occ.push(x)); if(c.cc)tbase(c.cc).forEach(x=>occ.push(x)); if(occ.indexOf(rb)>=0)return true; }
   if(p.indexOf('n')>=0 && hasTime(id,d-1,'a')) return true;   // บ่ายเมื่อวาน→ดึก (ต่อเนื่องข้ามเที่ยงคืน)
+  if(p.indexOf('n')>=0 && afterVac(id,d)) return true;        // วันแรกหลังพักร้อน ห้ามดึก
   if(p.indexOf('a')>=0 && hasTime(id,d+1,'n')) return true;   // บ่าย→ดึกวันถัดไป
   return false; }
 function slotListFor(base,special){ if(base==='m')return (special?SLOTS.six:SLOTS.mwk).slice(); if(base==='a')return SLOTS.afternoon.slice(); if(base==='n')return SLOTS.night.slice(); return []; }
@@ -326,6 +330,8 @@ function loadMonth(){ const oldYm=_subYm; ym=ymKey(curY,curM); const my=ym; $('m
   DB.on(PATH+'/off/'+ym, v=>{ if(ym!==my)return; OFF=v||{}; render(); });
   DB.on(PATH+'/lock/'+ym, v=>{ if(ym!==my)return; LOCK=v||{}; render(); });
   DB.on(PATH+'/swapreq/'+ym, v=>{ if(ym!==my)return; SWAPREQ=v||{}; render(); });
+  PREVOFF={}; { let py=curY,pm=curM-1; if(pm<1){pm=12;py--;} PREVOFF_ND=daysInMonth(py,pm);
+    Promise.resolve(DB.once(PATH+'/off/'+ymKey(py,pm))).then(v=>{ if(ym!==my)return; PREVOFF=v||{}; render(); }).catch(()=>{}); }
 }
 let _seeded=false;
 function seedStaff(){ if(_seeded)return; _seeded=true; const out={}; let o=0;
@@ -468,6 +474,7 @@ function violOv(sid,d,ov){ const c=cellOv(sid,d,ov); if(!c)return false; const p
   if(c.cc){ const ok=(c.s==='m'&&c.cc==='cca')||(c.s==='a'&&c.cc==='ccn')||(c.s==='a'&&c.cc==='ccm'); if(!ok)return true; }
   if(c.ref){ const rb=refBase(c.ref); const occ=[]; if(c.s)tbase(c.s).forEach(x=>occ.push(x)); if(c.cc)tbase(c.cc).forEach(x=>occ.push(x)); if(occ.indexOf(rb)>=0)return true; }
   if(p.indexOf('n')>=0 && cbases(cellOv(sid,d-1,ov)).indexOf('a')>=0)return true;
+  if(p.indexOf('n')>=0 && afterVac(sid,d))return true;   // หลังพักร้อน ห้ามดึก
   if(p.indexOf('a')>=0 && cbases(cellOv(sid,d+1,ov)).indexOf('n')>=0)return true;
   return false; }
 // a,b = {sid,d,unit} — แลกเวรย่อยกันได้ไหม (ชนิดเดียวกัน · คนละวัน · ย้ายแล้วไม่ผิดกฏ)
@@ -767,6 +774,7 @@ async function autoDraft(){
     const pA=prev&&cbases(prev).indexOf('a')>=0;
     const nN=next&&cbases(next).indexOf('n')>=0;
     if(tb.indexOf('n')>=0&&pA)return true;   // บ่าย(เมื่อวาน)→ดึก
+    if(tb.indexOf('n')>=0&&afterVac(id,d))return true;   // วันแรกหลังพักร้อน ห้ามดึก
     if(tb.indexOf('a')>=0&&nN)return true;   // บ่าย→ดึก(พรุ่งนี้)
     return false; }
   // member: อยู่เวรต่อกันได้ไม่เกิน 5 วัน แล้วต้อง off
@@ -790,7 +798,7 @@ async function autoDraft(){
   const canDouble=(id,d,addBase)=>{ if(offAt(id,d))return false;
     const nx=NEW[id][d+1], pv=pcell(id,d-1);
     if(addBase==='a'){ if(nx&&cbases(nx).indexOf('n')>=0)return false; }   // บ่าย→ดึกพรุ่งนี้
-    if(addBase==='n'){ if(pv&&cbases(pv).indexOf('a')>=0)return false; }   // บ่ายเมื่อวาน→ดึก
+    if(addBase==='n'){ if(pv&&cbases(pv).indexOf('a')>=0)return false; if(afterVac(id,d))return false; }   // บ่ายเมื่อวาน→ดึก · หลังพักร้อน
     return true; };
   const shortfall=[];
   const wkMornLeft={}, wkUsed={}, wkDone={}; subs.concat(floats).forEach(s=>{wkMornLeft[s.id]=2; wkUsed[s.id]=new Set(); wkDone[s.id]=0;});
@@ -900,6 +908,7 @@ async function autoDraft(){
       if(cbases(c).indexOf(tb[0])>=0)return false;                             // เวลาทับกับเวรเดิม/รถ refer ในช่อง
       const nx=NEW[id][d+1], pv=pcell(id,d-1);
       if(tb.indexOf('n')>=0 && pv && cbases(pv).indexOf('a')>=0)return false;   // บ่ายเมื่อวาน→ดึก
+      if(tb.indexOf('n')>=0 && afterVac(id,d))return false;                     // หลังพักร้อน ห้ามดึก
       if(tb.indexOf('a')>=0 && nx && cbases(nx).indexOf('n')>=0)return false;   // บ่าย→ดึกพรุ่งนี้
       return true; };
     const ccFilled=cs=>list.some(s=>{ const c=NEW[s.id][d]; return c && (c.s===cs || c.cc===cs); });
@@ -911,7 +920,7 @@ async function autoDraft(){
       if(elig.length){ give(elig[0].id,d,cs,CC_ROLE); return true; } } return false; };
     // ซ่อมศูนย์ดึก: ถ้าไม่มีคนบ่ายที่ต่อดึกได้ → สลับ "คนเช้า(ที่ต่อดึกได้)" กับ "คนบ่าย" แล้วให้คนนั้นอยู่ บ่าย+ศ·ดึก
     const repairCcn=()=>{ const hasA=x=>{ const c=pcell(x,d-1); return !!c&&cbases(c).indexOf('a')>=0; };
-      const Zs=pool.filter(p=>{ const c=NEW[p.id][d]; return c&&c.s==='m'&&!c.cc&&!c.ref&&!isLocked(p.id,d)&&ccAllowed(p.id,'ccn')&&!hasA(p.id)&&!bb(p.id,d,'a'); })
+      const Zs=pool.filter(p=>{ const c=NEW[p.id][d]; return c&&c.s==='m'&&!c.cc&&!c.ref&&!isLocked(p.id,d)&&ccAllowed(p.id,'ccn')&&!hasA(p.id)&&!afterVac(p.id,d)&&!bb(p.id,d,'a'); })
         .sort((x,y)=>(ccLoad[x.id]-ccLoad[y.id])||(load[x.id]-load[y.id]));
       const Xs=pool.filter(p=>{ const c=NEW[p.id][d]; return c&&c.s==='a'&&!c.cc&&!c.ref&&!isLocked(p.id,d); });
       for(const Z of Zs){ for(const X of Xs){ const zc=NEW[Z.id][d], xc=NEW[X.id][d];
