@@ -968,6 +968,11 @@ async function autoDraft(){
     if(gap16(id,d,['n','a']))return false;   // กลายเป็นดึกต่อบ่าย → ก่อน/หลังต้องไม่มีเช้า
     return true; };
   const shortfall=[]; const vacRet={};
+  // ด+บ: เกลี่ยจำนวนต่อคนเท่า ๆ กัน และในคนเดียวกันให้ห่างกัน (ไม่กระจุก) — เก็บวันที่ได้ ด+บ ของแต่ละคน (รวมท้ายเดือนก่อนเป็นเลขติดลบ)
+  const naDays={}; list.forEach(s=>naDays[s.id]=[]);
+  if(prevNd) Object.keys(PREV||{}).forEach(id=>{ if(!naDays[id])return; const dd=PREV[id]||{}; Object.keys(dd).forEach(k=>{ const c=dd[k]; if(c&&c.s==='na'&&prevNd-(+k)<14)naDays[id].push(+k-prevNd); }); });
+  const naGap=(id,d)=>{ const a=naDays[id]||[]; let g=99; a.forEach(x=>{ g=Math.min(g,Math.abs(d-x)); }); return g; };
+  const NA_SPACE=[8,6,4,2];   // ระยะห่างขั้นต่ำระหว่าง ด+บ ของคนเดียวกัน ตามระดับการผ่อนกฏ (วัน)
   const wkMornLeft={}, wkUsed={}, wkDone={}; subs.concat(floats).forEach(s=>{wkMornLeft[s.id]=2; wkUsed[s.id]=new Set(); wkDone[s.id]=0;});
   // ---- คงเวรที่ถูกล็อก (fix) + เวรรถ refer ที่ admin ลงไว้ก่อน + นับโหลด ----
   list.forEach(s=>{ const days=OLD[s.id]||{};
@@ -976,7 +981,7 @@ async function autoDraft(){
       NEW[s.id][d]=JSON.parse(JSON.stringify(c)); const sp=isSpecial(curY,curM,d), fe=isFestival(curY,curM,d);
       if(c.s){ load[s.id]++; if(fe)loadFest[s.id]++;
         if(isCC(c.s)){ ccLoad[s.id]++; }
-        else if(c.s==='na'){ loadT[s.id].n++; loadT[s.id].a++; naCount[s.id]++; }
+        else if(c.s==='na'){ loadT[s.id].n++; loadT[s.id].a++; naCount[s.id]++; naDays[s.id].push(d); }
         else { tbase(c.s).forEach(b=>{ if(loadT[s.id][b]!==undefined)loadT[s.id][b]++; }); if(c.s==='m'){ if(sp)loadOutM[s.id]++; else loadInM[s.id]++; } } }
       if(c.cc)ccLoad[s.id]++;
       // เวรนอกเวลาเช้า (พิเศษ) ที่ล็อกของกลุ่ม subhead/ลอยเช้า นับโควตา/กระจายด้วย
@@ -1050,10 +1055,14 @@ async function autoDraft(){
       if(bb(id,d,'n')||bb(id,d,'a')||gap16(id,d,['n','a']))return false;   // ไม่ติดบ่าย→ดึก · ก่อน/หลังเว้น ≥16 ชม.
       if(lvl<1 && !restOK(id,d))return false;
       if(lvl<2 && protOff(id,d))return false;
-      if(lvl<3 && pairBlocked(id,d,'na'))return false; return true; };
-    const sortNa=()=>pool.slice().sort((x,y)=> ((loadT[x.id].n+loadT[x.id].a)-(loadT[y.id].n+loadT[y.id].a))||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]));
+      if(lvl<3 && pairBlocked(id,d,'na'))return false;
+      if(naGap(id,d)<NA_SPACE[Math.min(3,lvl)])return false;      // คนเดียวกันต้องห่างกันพอ (ไม่ติดกัน)
+      return true; };
+    // เลือกคนได้ ด+บ: ได้น้อยสุดก่อน (เท่า ๆ กันทุกคน) → ห่างจาก ด+บ ครั้งก่อนมากสุด → โหลดบ่าย/ดึกน้อย
+    const sortNa=()=>pool.slice().sort((x,y)=> ((naCount[x.id]||0)-(naCount[y.id]||0))||(Math.min(naGap(y.id,d),20)-Math.min(naGap(x.id,d),20))
+        ||((loadT[x.id].n+loadT[x.id].a)-(loadT[y.id].n+loadT[y.id].a))||(consec(x.id,d)-consec(y.id,d))||(load[x.id]-load[y.id]));
     const giveNa=(id)=>{ const rn=takeRole('n',memPref('n'),id)||''; const ra=takeRole('a',memPref('a'),id)||'';
-      NEW[id][d]={s:'na',rn:rn,ra:ra}; load[id]++; if(festival)loadFest[id]++; loadT[id].n++; loadT[id].a++; naCount[id]++; got.n++; got.a++; };
+      NEW[id][d]={s:'na',rn:rn,ra:ra}; load[id]++; if(festival)loadFest[id]++; loadT[id].n++; loadT[id].a++; naCount[id]++; naDays[id].push(d); got.n++; got.a++; };
     const naLvl=(lvl)=>{ let g=0; while(got.n<need.n && got.a<need.a && g<pool.length){ g++;
       if(lvl<3 && naToday>=naCapToday)break;   // จำกัด na ต่อวัน (เกลี่ยทั้งเดือน) · ระดับสุดท้าย = ยอมเกินโควตาวันเพื่อเติมเวรเต็ม
       const cand=sortNa().filter(p=>canNa(p.id,lvl)); if(!cand.length)break; giveNa(cand[0].id); naToday++; } };
@@ -1061,11 +1070,11 @@ async function autoDraft(){
     [0,1,2,3].forEach(lvl=>{ naLvl(lvl); fillSingleLvl('n',lvl); fillSingleLvl('a',lvl); fillSingleLvl('m',lvl); });
     // ทางสุดท้าย (ยังอยู่ในโควตา ด+บ ≤3/คน): ให้คนที่อยู่ดึก/บ่ายเดี่ยวควบเป็น ด+บ เพื่อปิดช่องที่ยังขาด
     ['n','a'].forEach(s=>{ if(got[s]>=need[s])return; const other=s==='a'?'n':'a';
-      const dbl=pool.filter(p=>{ const c=NEW[p.id][d]; return c&&c.s===other&&!c.cc&&!c.ref&&!isLocked(p.id,d)&&(naCount[p.id]||0)<NA_MAX&&canDouble(p.id,d,s); })
-        .sort((x,y)=>(naCount[x.id]-naCount[y.id])||(load[x.id]-load[y.id]));
+      const dbl=pool.filter(p=>{ const c=NEW[p.id][d]; return c&&c.s===other&&!c.cc&&!c.ref&&!isLocked(p.id,d)&&(naCount[p.id]||0)<NA_MAX&&canDouble(p.id,d,s)&&naGap(p.id,d)>=2; })
+        .sort((x,y)=>(naCount[x.id]-naCount[y.id])||(Math.min(naGap(y.id,d),20)-Math.min(naGap(x.id,d),20))||(load[x.id]-load[y.id]));
       for(const p of dbl){ if(got[s]>=need[s])break; const oldR=NEW[p.id][d].r||'';
         let rn,ra; if(s==='n'){ rn=takeRole('n',memPref('n'),p.id)||''; ra=oldR; } else { ra=takeRole('a',memPref('a'),p.id)||''; rn=oldR; }
-        NEW[p.id][d]={s:'na',rn:rn,ra:ra}; load[p.id]++; if(festival)loadFest[p.id]++; loadT[p.id][s]++; naCount[p.id]++; got[s]++; } });
+        NEW[p.id][d]={s:'na',rn:rn,ra:ra}; load[p.id]++; if(festival)loadFest[p.id]++; loadT[p.id][s]++; naCount[p.id]++; naDays[p.id].push(d); got[s]++; } });
     // หลังพักร้อน (ครั้งเว้นครั้ง): ถ้าได้บ่าย ให้สลับกับ member ที่ได้เช้าวันเดียวกัน → ได้เช้าแทน (จำนวนคน/วันติดกันเท่าเดิม กรอบไม่เปลี่ยน)
     Object.keys(vacM).forEach(id=>{ const c=NEW[id][d]; if(!c||c.s!=='a'||c.cc||c.ref||isLocked(id,d))return;
       const Ys=pool.filter(Y=>{ if(Y.id===id||(STAFF[Y.id]||{}).fixM)return false; const yc=NEW[Y.id][d]; if(!yc||yc.s!=='m'||yc.cc||yc.ref||isLocked(Y.id,d))return false;
@@ -1114,7 +1123,21 @@ async function autoDraft(){
         ccLoad[Z.id]++; if(festival)loadFest[Z.id]++; return true; } }
       return false; };
     if(!ccFilled('cca')){ if(!assignCont('cca','m') && !assignSep('cca','a')) shortfall.push(d+' ศ·บ่าย ไม่มีคน'); }
-    if(!ccFilled('ccn')){ if(!assignCont('ccn','a') && !assignSep('ccn','n') && !repairCcn()) shortfall.push(d+' ศ·ดึก ไม่มีคน'); }
+    // ซ่อมศูนย์ดึก (2): คนบ่ายต่อ ศ·ดึก ไม่ได้เพราะติดเช้าเมื่อวาน (เว้น 16 ชม.) → ย้ายเช้าเมื่อวานไปให้คนที่ว่าง แล้วให้คนนี้ต่อ ศ·ดึก
+    const repairCcn2=()=>{ const e=d-1; if(e<1)return false;
+      const Xs=members.filter(X=>{ const c=NEW[X.id][d], pc=NEW[X.id][e]; return c&&c.s==='a'&&!c.cc&&!c.ref&&!isLocked(X.id,d)&&ccAllowed(X.id,'ccn')
+          &&pc&&pc.s==='m'&&!pc.cc&&!pc.ref&&!isLocked(X.id,e)&&!(STAFF[X.id]||{}).fixM; });
+      for(const X of Xs){ const pc=NEW[X.id][e]; delete NEW[X.id][e];
+        if(!canAddCC(X.id,'ccn')){ NEW[X.id][e]=pc; continue; }
+        const Ys=pool.filter(Y=>Y.id!==X.id&&can(Y.id,e,'m',2)&&(((STAFF[Y.id]||{}).no)||[]).indexOf(pc.r)<0)
+          .sort((a,b)=>(loadInM[a.id]+loadOutM[a.id]-loadInM[b.id]-loadOutM[b.id])||(load[a.id]-load[b.id]));
+        if(!Ys.length){ NEW[X.id][e]=pc; continue; }
+        const Y=Ys[0]; NEW[Y.id][e]={s:'m',r:pc.r||''}; const spE=isSpecial(curY,curM,e), feE=isFestival(curY,curM,e);
+        load[X.id]--; loadT[X.id].m--; if(spE)loadOutM[X.id]--; else loadInM[X.id]--; if(feE)loadFest[X.id]--;
+        load[Y.id]++; loadT[Y.id].m++; if(spE)loadOutM[Y.id]++; else loadInM[Y.id]++; if(feE)loadFest[Y.id]++;
+        NEW[X.id][d].cc='ccn'; ccLoad[X.id]++; if(festival)loadFest[X.id]++; return true; }
+      return false; };
+    if(!ccFilled('ccn')){ if(!assignCont('ccn','a') && !assignSep('ccn','n') && !repairCcn() && !repairCcn2()) shortfall.push(d+' ศ·ดึก ไม่มีคน'); }
     if(special && !ccFilled('ccm')){ if(!assignCont('ccm','a') && !assignSep('ccm','m')) shortfall.push(d+' ศ·เช้านอก ไม่มีคน'); }
   }
   // ---- ซ่อมกรอบเช้าที่ขาด (เกิดจากกฏเว้น 16 ชม. รอบ ด+บ): แยก ด+บ ของคนข้างเคียงเป็นเวรเดี่ยว
@@ -1144,7 +1167,7 @@ async function autoDraft(){
           if(!ok){ saved.forEach(([e,c])=>NEW[Y.id][e]=c); placedZ.forEach(([zid,mv])=>delete NEW[zid][mv.e]); continue; }
           // ยืนยัน: อัปเดตตัวนับ
           NEW[Y.id][d]={s:'m',r:mr}; load[Y.id]++; loadT[Y.id].m++; if(isSpecial(curY,curM,d))loadOutM[Y.id]++; else loadInM[Y.id]++; if(isFestival(curY,curM,d))loadFest[Y.id]++;
-          moves.forEach(mv=>{ loadT[Y.id][mv.give]--; naCount[Y.id]--; });
+          moves.forEach(mv=>{ loadT[Y.id][mv.give]--; naCount[Y.id]--; const i=naDays[Y.id].indexOf(mv.e); if(i>=0)naDays[Y.id].splice(i,1); });
           placedZ.forEach(([zid,mv])=>{ load[zid]++; loadT[zid][mv.give]++; if(isFestival(curY,curM,mv.e))loadFest[zid]++; });
           done=true; break; }
         if(!done)break; }
