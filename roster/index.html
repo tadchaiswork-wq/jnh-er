@@ -83,7 +83,11 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
 .modal .close{float:right;background:#f1f5f9;border:none;border-radius:9px;width:34px;height:34px;font-size:18px;cursor:pointer}
 .fld{margin:10px 0}.fld label{display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:5px}
 .fld input,.fld select{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:10px}
-.strow{display:grid;grid-template-columns:1fr 118px 92px 64px 30px;gap:6px;margin-bottom:6px;align-items:center}
+.strow{display:grid;grid-template-columns:52px minmax(0,1fr) 108px 88px 60px 28px;gap:5px;margin-bottom:6px;align-items:center}
+.strow > *{min-width:0}
+.strow .mv{display:flex;gap:2px}.strow .mv button{width:25px;height:30px;border:1px solid var(--line);background:#f8fafc;border-radius:7px;cursor:pointer;font-size:12px;padding:0;color:#334155}
+.strow .mv button:disabled{opacity:.3;cursor:default}
+.stgrp{font-size:12px;font-weight:800;color:var(--brand-d);margin:10px 0 4px}
 .strow input,.strow select{border:1px solid var(--line);border-radius:8px;padding:8px}
 .strow .del{background:var(--bad-bg);color:var(--bad);border:none;border-radius:8px;cursor:pointer;font-size:16px}
 .strow .noedit{font-size:12px;color:var(--brand-d);cursor:pointer;text-decoration:underline}
@@ -202,8 +206,9 @@ tr.sparerow td.gname{color:#6d28d9;font-weight:800}
     <button data-tab="pass">🔑 รหัส</button>
   </div>
   <div id="tab-staff">
-    <div class="note">แก้ชื่อ · ตำแหน่ง · ปิดบทบาท/ศูนย์สั่งการถาวร (กด “ปิดบทบาท”) · <b id="stCount">0</b> คน</div>
+    <div class="note">แก้ชื่อ · ตำแหน่ง · ปิดบทบาท/ศูนย์สั่งการถาวร (กด “ปิดบทบาท”) · ▲▼ เรียงลำดับในกลุ่ม · <b id="stCount">0</b> คน</div>
     <div id="stRows"></div>
+    <div id="stHint" class="note" style="display:none;background:#fff7ed;border-color:#fdba74;color:#9a3412">เปลี่ยนลำดับแล้ว — กด “💾 บันทึกรายชื่อ” เพื่อใช้ลำดับนี้ในตารางเวร</div>
     <button class="btn sm ghost" id="addStaff">+ เพิ่มเจ้าหน้าที่</button>
     <div style="margin-top:14px"><button class="btn ok" id="saveStaff" style="width:100%">💾 บันทึกรายชื่อ</button></div>
   </div>
@@ -792,12 +797,17 @@ let edStaff=[];
 function renderStaffRows(){ edStaff=staffList().map(s=>({id:s.id,name:s.name,role:s.role,order:s.order,no:(s.no||[]).slice(),noCC:!!s.noCC,fixM:s.fixM||'',noPair:(s.noPair||[]).slice()})); drawStaff(); }
 function drawStaff(){ $('stCount').textContent=edStaff.length;
   const opts=r=>ROLES.map(x=>`<option value="${x.key}" ${x.key===r?'selected':''}>${esc(x.name)}</option>`).join('');
+  // เรียงตามตำแหน่ง (ลำดับในแต่ละกลุ่มตามที่ admin จัด) · ปุ่ม ▲▼ เลื่อนภายในกลุ่มเดียวกัน
+  edStaff.sort((a,b)=>roleIndex(a.role)-roleIndex(b.role));
+  const sameRoleIdx=(i,dir)=>{ for(let j=i+dir;j>=0&&j<edStaff.length;j+=dir){ if(edStaff[j].role===edStaff[i].role)return j; } return -1; };
+  let lastR=null;
   $('stRows').innerHTML=edStaff.map((s,i)=>{
+    let grp=''; if(s.role!==lastR){ lastR=s.role; const r=ROLES.find(x=>x.key===s.role); grp=`<div class="stgrp">${esc(r?r.name:s.role)}</div>`; }
     const chips=(s.no.length?('ปิด: '+s.no.map(r=>ROLE_TH[r]||r).join(',')):'')+(s.noCC?' · ไม่อยู่ศสก.':'')+(s.fixM?' · ประจำเช้า:'+(FIXM_TH[s.fixM]||s.fixM):'')+((s.noPair&&s.noPair.length)?' · ห้ามคู่:'+s.noPair.length:'');
     const fixCell = s.role==='float'
       ? `<select data-i="${i}" data-f="fixM" title="หน้าที่เฉพาะลอยเช้า (เวรเช้าในเวลา)">${FIXM_OPTS.map(([k,l])=>`<option value="${k}" ${s.fixM===k?'selected':''}>${l}</option>`).join('')}</select>`
       : `<span style="font-size:11px;color:#cbd5e1;text-align:center" title="หน้าที่เฉพาะใช้กับลอยเช้า">—</span>`;
-    return `<div class="strow"><input value="${esc(s.name)}" data-i="${i}" data-f="name" placeholder="ชื่อ-สกุล">
+    return grp+`<div class="strow"><span class="mv"><button data-up="${i}" title="เลื่อนขึ้น" ${sameRoleIdx(i,-1)<0?'disabled':''}>▲</button><button data-dn="${i}" title="เลื่อนลง" ${sameRoleIdx(i,1)<0?'disabled':''}>▼</button></span><input value="${esc(s.name)}" data-i="${i}" data-f="name" placeholder="ชื่อ-สกุล">
      <select data-i="${i}" data-f="role">${opts(s.role)}</select>
      ${fixCell}
      <span class="noedit" data-no="${i}" title="${esc(chips)}">ปิดบทบาท${s.no.length||s.noCC?' •':''}</span>
@@ -805,6 +815,9 @@ function drawStaff(){ $('stCount').textContent=edStaff.length;
   $('stRows').querySelectorAll('input,select').forEach(el=>el.addEventListener('input',e=>{edStaff[+e.target.dataset.i][e.target.dataset.f]=e.target.value;}));
   $('stRows').querySelectorAll('select[data-f=role]').forEach(el=>el.addEventListener('change',()=>drawStaff()));
   $('stRows').querySelectorAll('.del').forEach(b=>b.onclick=()=>{edStaff.splice(+b.dataset.i,1);drawStaff();});
+  const mv=(i,dir)=>{ const j=sameRoleIdx(i,dir); if(j<0)return; const t=edStaff[i]; edStaff[i]=edStaff[j]; edStaff[j]=t; drawStaff(); $('stHint').style.display='block'; };
+  $('stRows').querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>mv(+b.dataset.up,-1));
+  $('stRows').querySelectorAll('[data-dn]').forEach(b=>b.onclick=()=>mv(+b.dataset.dn,1));
   $('stRows').querySelectorAll('.noedit').forEach(b=>b.onclick=(e)=>{e.stopPropagation();openNoEdit(+b.dataset.no);});
 }
 function openNoEdit(i){ const s=edStaff[i];
@@ -826,7 +839,7 @@ const FIXM_TH={incharge:'I',lead1:'L1',lead2:'L2',EMS:'EMS',refer:'Ref',triage:'
 const FIXM_OPTS=[['','อื่นๆ (แชร์ได้ทั้ง 6: I/L1/L2/T/M1/M2)'],['EMS','ช EMS'],['refer','ช Ref'],['leadalt','สลับ L1/L2 (คู่)']];
 $('addStaff').onclick=()=>{ edStaff.push({id:uid(),name:'',role:ROLES[ROLES.length-1]?ROLES[ROLES.length-1].key:'member',order:edStaff.length,no:[],noCC:false}); drawStaff(); const ins=$('stRows').querySelectorAll('input[data-f=name]'); if(ins.length)ins[ins.length-1].focus(); };
 $('saveStaff').onclick=()=>{ const out={}; let o=0; const ids=new Set(edStaff.map(s=>s.id).filter(Boolean)); edStaff.forEach(s=>{ const nm=(s.name||'').trim(); if(!nm)return; const id=s.id||uid(); out[id]={name:nm,role:s.role||'member',order:o++,no:s.no||[],noCC:!!s.noCC,fixM:s.fixM||'',noPair:(s.noPair||[]).filter(p=>ids.has(p))}; });
-  STAFF=out; DB.set(PATH+'/staff',out); toast('บันทึกรายชื่อแล้ว ('+Object.keys(out).length+')'); $('pop').style.display='none'; renderMeSel(); render(); };
+  STAFF=out; DB.set(PATH+'/staff',out); $('stHint').style.display='none'; toast('บันทึกรายชื่อแล้ว ('+Object.keys(out).length+')'); $('pop').style.display='none'; renderMeSel(); render(); };
 
 let edRoles=[];
 function renderRoleRows(){ edRoles=ROLES.map(r=>({key:r.key,name:r.name})); drawRoles(); }
