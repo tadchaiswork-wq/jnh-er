@@ -282,10 +282,18 @@ const DBread={
 };
 
 let templates={}, records={};
+/* ตู้เย็นแช่ยา (Incharge ข้อ 1) */
+let frCfg={lo:2,hi:8};
+function frNum(v){ if(v===""||v==null)return null; const n=parseFloat(String(v).replace(",",".")); return isFinite(n)?n:null; }
+function frState(fr){ fr=fr||{}; const v={cur:frNum(fr.cur),max:frNum(fr.max),min:frNum(fr.min)};
+  const lo=fr.lo!=null?+fr.lo:frCfg.lo, hi=fr.hi!=null?+fr.hi:frCfg.hi;
+  const complete=v.cur!=null&&v.max!=null&&v.min!=null; const bad=["cur","max","min"].filter(k=>v[k]!=null&&(v[k]<lo||v[k]>hi));
+  return {v,complete,abnormal:bad.length>0}; }
 function progress(posKey){
-  const items=templates[posKey]||[]; const total=items.length;
+  const items=templates[posKey]||[]; const extra=posKey==="incharge"?1:0; const total=items.length+extra;
   const rec=(records[posKey]||{}); const checks=rec.checks||{};
   let done=0; items.forEach(it=>{ if(checks[it.id]&&checks[it.id].checked)done++; });
+  if(extra && frState(rec.fridge).complete) done++;
   return {done,total,pct:total?Math.round(done/total*100):0,checker:rec.checker||"",updatedAt:rec.updatedAt||0};
 }
 function timeAgo(ts){ if(!ts)return""; const s=Math.floor((Date.now()-ts)/1000);
@@ -318,14 +326,21 @@ function render(){
     const pr=progress(p.key);
     const cls=pr.total===0?"":(pr.pct===100?"done":(pr.done>0?"part":""));
     if(pr.total>0){ counted++; if(pr.pct===100)full++; }
-    const stat = pr.total===0 ? "zero" : (pr.pct===100 ? "done" : (pr.done>0 ? "part" : "zero"));
+    let stat = pr.total===0 ? "zero" : (pr.pct===100 ? "done" : (pr.done>0 ? "part" : "zero"));
+    let frLine="";
+    if(p.key==="incharge"){ const fs=frState((records.incharge||{}).fridge);
+      if(fs.abnormal) stat="bad";
+      frLine = fs.complete||fs.abnormal
+        ? `<div class="who" style="${fs.abnormal?'color:#dc2626;font-weight:800':''}">🌡️ ตู้เย็นยา ${fs.v.cur!=null?fs.v.cur+'°C':'—'} (Max ${fs.v.max!=null?fs.v.max:'—'} / Min ${fs.v.min!=null?fs.v.min:'—'})${fs.abnormal?' ⚠️ ผิดปกติ':''}</div>`
+        : `<div class="who">🌡️ ตู้เย็นยา: ยังไม่บันทึก</div>`; }
     const el=document.createElement("div"); el.className="sq "+stat;
-    el.innerHTML=`${stat==="done"?'<span class="chk">✅</span>':''}
+    el.innerHTML=`${stat==="done"?'<span class="chk">✅</span>':stat==="bad"?'<span class="chk">⚠️</span>':''}
       <div class="emo">${p.icon}</div>
       <div class="sqinfo">
         <div class="nm">${p.name}</div>
         <div class="pc">${pr.total?pr.pct+"%":"—"}</div>
         <div class="who">${pr.total?(pr.checker?("👤 "+escapeHtml(pr.checker)):"ยังไม่มีผู้เช็ค"):"ยังไม่มีรายการ"}</div>
+        ${frLine}
       </div>`;
     list.appendChild(el);
   });
@@ -338,6 +353,7 @@ function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"
 /* subscribe */
 function subscribe(){
   DBread.onValue("checklist/templates",t=>{templates=t||{};render();});
+  DBread.onValue("checklist/fridgeCfg",c=>{ if(c){ const lo=frNum(c.lo),hi=frNum(c.hi); frCfg={lo:lo!=null?lo:2,hi:hi!=null?hi:8}; } render(); });
   POSITIONS.forEach(p=>{
     DBread.onValue(`checklist/records/${S.recKey}/${p.key}`,rec=>{records[p.key]=rec||{};render();});
   });
