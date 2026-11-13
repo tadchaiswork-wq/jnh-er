@@ -134,6 +134,30 @@
   .edrow input{border:1px solid var(--line);border-radius:8px;padding:8px;font-family:inherit;font-size:13.5px;width:100%}
   .edrow .del{background:var(--danger-l);color:var(--danger);border:none;border-radius:8px;height:34px;font-size:16px}
   .edhint{font-size:12px;color:var(--muted);margin:4px 0 10px}
+  /* ตู้เย็นแช่ยา (Incharge ข้อ 1) */
+  .fr-box{border:2px solid #bae6fd;background:#f0f9ff;border-radius:14px;padding:14px 14px 12px;margin:8px 0 6px}
+  .fr-box.bad{border-color:#fca5a5;background:#fef2f2}
+  .fr-box.ok{border-color:#86efac;background:#f0fdf4}
+  .fr-ttl{font-weight:800;color:var(--brand-d);font-size:15.5px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+  .fr-ttl .rng{font-size:12.5px;font-weight:700;color:#0369a1;background:#e0f2fe;border-radius:999px;padding:2px 10px}
+  .fr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0 10px}
+  .fr-grid label{display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:4px}
+  .fr-in{display:flex;align-items:center;gap:6px}
+  .fr-in input{width:100%;min-width:0;border:2px solid #cbd5e1;border-radius:10px;padding:10px 8px;font-size:18px;font-weight:800;text-align:center;background:#fff}
+  .fr-in input.bad{border-color:#ef4444;color:#b91c1c;background:#fff1f2}
+  .fr-in input.ok{border-color:#22c55e;color:#15803d}
+  .fr-in span{font-weight:700;color:#64748b;white-space:nowrap}
+  .fr-st{font-size:13px;margin-top:8px;color:#475569;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+  .fr-st .tag{font-weight:800;border-radius:999px;padding:2px 10px}
+  .fr-st .tag.ok{background:var(--ok-l);color:#15803d} .fr-st .tag.bad{background:var(--danger-l);color:#b91c1c} .fr-st .tag.none{background:#f1f5f9;color:#64748b}
+  .fr-st .lnk{background:none;border:none;color:#b91c1c;text-decoration:underline;font-weight:800;cursor:pointer;padding:0;font-size:13px}
+  .fr-guide{white-space:pre-line;background:#fff7ed;border:1px solid #fdba74;border-radius:12px;padding:12px 14px;font-size:14.5px;line-height:1.6;color:#431407;max-height:48vh;overflow:auto}
+  .fr-alert{background:#fee2e2;color:#991b1b;border-radius:10px;padding:10px 12px;font-weight:800;margin:6px 0 10px}
+  textarea.fr-ta{width:100%;min-height:150px;border:1.5px solid #cbd5e1;border-radius:10px;padding:10px;font:inherit;font-size:14px;line-height:1.5}
+  .fr-cfg{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:6px;background:#f8fafc}
+  .fr-cfg .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:14px;font-weight:700;color:#475569}
+  .fr-cfg .row input{width:80px;border:1.5px solid #cbd5e1;border-radius:8px;padding:7px;text-align:center}
+  @media (max-width:420px){ .fr-grid{gap:6px} .fr-in input{font-size:16px;padding:9px 4px} .fr-in span{display:none} }
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;
     background:#0f172a;color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;font-weight:500;
     box-shadow:var(--shadow);transition:.25s;z-index:80;pointer-events:none;max-width:90vw}
@@ -301,6 +325,17 @@
     <button class="btn ok" id="saveTpl" style="flex:1">💾 บันทึกรายการ</button>
   </div>
   <hr style="border:none;border-top:1px solid var(--line);margin:20px 0" />
+  <div class="field"><label>🌡️ ตู้เย็นแช่ยา (Incharge ข้อ 1) — เกณฑ์ปกติ และข้อความใน pop up เมื่อผิดปกติ</label>
+    <div class="fr-cfg">
+      <div class="row">ปกติ <input id="frCfgLo" type="number" step="0.1"> ถึง <input id="frCfgHi" type="number" step="0.1"> °C</div>
+      <textarea class="fr-ta" id="frCfgGuide"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn ok sm" id="frCfgSave" style="width:auto">💾 บันทึกแนวทาง</button>
+        <button class="btn ghost sm" id="frCfgReset" style="width:auto">คืนค่าข้อความเริ่มต้น</button>
+      </div>
+    </div>
+  </div>
+  <hr style="border:none;border-top:1px solid var(--line);margin:20px 0" />
   <div class="field"><label>เปลี่ยนรหัส Admin</label>
     <div style="display:flex;gap:8px">
       <input id="newPin" inputmode="numeric" placeholder="รหัสใหม่" />
@@ -324,6 +359,18 @@
     <span class="hleg"><i class="hz"></i> ไม่ได้เช็ค</span>
   </div>
   <div id="histBody" style="overflow:auto;max-height:70vh"></div>
+</div></div>
+
+<!-- ===================== FRIDGE ALERT MODAL ===================== -->
+<div id="frModal" class="modal hidden"><div class="box" style="max-width:640px">
+  <button class="close" data-closefr>×</button>
+  <h3 style="color:#b91c1c">⚠️ อุณหภูมิตู้เย็นแช่ยาไม่อยู่ในเกณฑ์</h3>
+  <div class="fr-alert" id="frAlertTxt"></div>
+  <div style="font-weight:800;color:var(--brand-d);margin:4px 0 6px">แนวทางการจัดการเบื้องต้น</div>
+  <div class="fr-guide" id="frGuideTxt"></div>
+  <div class="field" style="margin-top:12px"><label>บันทึกการจัดการที่ทำ (ถ้ามี)</label>
+    <textarea class="fr-ta" id="frAction" style="min-height:70px" placeholder="เช่น ย้ายยาไปตู้สำรอง แจ้งเภสัชกร… / วัดซ้ำได้ …°C"></textarea></div>
+  <button class="btn ok" id="frAck">รับทราบ · บันทึก</button>
 </div></div>
 
 <div id="toast" class="toast"></div>
@@ -440,6 +487,28 @@ function alcTargetInfo(){ return alcTarget==="next" ? nextShiftInfo(S) : {key:S.
 function syncAlc(){ alcList = (alcTarget==="next"?alcNext:alcCur)||{}; }
 const S = shiftInfo();
 
+/* ---------- ตู้เย็นแช่ยา (Incharge ข้อ 1): ปัจจุบัน / Max / Min °C ---------- */
+const FR_POS="incharge";
+const FR_GUIDE_DEFAULT=`1) วัดซ้ำทันที — ตรวจว่าประตูตู้ปิดสนิท ปลั๊ก/ไฟเข้า เทอร์โมมิเตอร์อยู่ตำแหน่งกลางตู้ แล้ววัดซ้ำใน 15–30 นาที
+2) ยังไม่ใช้ยาในตู้ และห้ามทิ้งยาเอง — แยกยาไว้ ติดป้าย "รอประเมิน ห้ามใช้"
+3) ถ้าสูงกว่าเกณฑ์ (> 8 °C): ย้ายยา/วัคซีนไปตู้เย็นสำรองที่ 2–8 °C หรือกล่องเก็บความเย็นพร้อม ice pack (ห่อกันยาสัมผัสน้ำแข็งโดยตรง)
+4) ถ้าต่ำกว่าเกณฑ์ (< 2 °C): ระวังยาแข็งตัว — ห้ามใช้ยาที่ห้ามแช่แข็ง (เช่น อินซูลิน วัคซีน) จนกว่าเภสัชกรประเมิน · ปรับปุ่มตั้งอุณหภูมิ
+5) แจ้งหัวหน้าเวร/หัวหน้าหน่วย และเภสัชกร (ห้องยา) เพื่อประเมินความคงตัวของยา · ถ้าตู้เสีย แจ้งงานซ่อมบำรุง
+6) บันทึก: ค่าที่วัดได้ เวลา ระยะเวลาที่ผิดปกติ (ถ้าทราบ) รายการยาที่ได้รับผลกระทบ และการแก้ไข
+7) กดรีเซ็ตค่า Max/Min ของเทอร์โมมิเตอร์หลังบันทึกทุกครั้ง`;
+let frCfg={lo:2,hi:8,guide:FR_GUIDE_DEFAULT};
+let fridgeCur={};      // ค่าที่บันทึกของเวรนี้ checklist/records/<rk>/incharge/fridge
+function frNum(v){ if(v===""||v==null)return null; const n=parseFloat(String(v).replace(",",".")); return isFinite(n)?n:null; }
+function frOut(v,cfg){ cfg=cfg||frCfg; return v!=null && (v<cfg.lo || v>cfg.hi); }
+function frState(fr,cfg){ fr=fr||{}; cfg=cfg||((fr.lo!=null&&fr.hi!=null)?{lo:+fr.lo,hi:+fr.hi}:frCfg); const vals={cur:frNum(fr.cur),max:frNum(fr.max),min:frNum(fr.min)};
+  const complete=vals.cur!=null&&vals.max!=null&&vals.min!=null;
+  const bad=["cur","max","min"].filter(k=>frOut(vals[k],cfg));
+  return {vals,complete,bad,abnormal:bad.length>0}; }
+const FR_LBL={cur:"ปัจจุบัน",max:"Max",min:"Min"};
+function frFmt(v){ return v==null?"—":(Math.round(v*10)/10)+" °C"; }
+function frSummaryTxt(fr){ const st=frState(fr); if(!st.complete&&!st.bad.length)return "";
+  return `ปัจจุบัน ${frFmt(st.vals.cur)} · Max ${frFmt(st.vals.max)} · Min ${frFmt(st.vals.min)}`; }
+
 /* ---------- seeding ---------- */
 function buildSeed(){
   const seed=window.TEMPLATES_SEED||{};
@@ -479,11 +548,23 @@ function paintShiftlines(){ ["shiftline1","shiftline2","shiftline3"].forEach(id=
 function show(page){ ["page1","page2","page3"].forEach(p=>$(p).classList.toggle("hidden",p!==page)); window.scrollTo(0,0); }
 
 /* progress for a position given its record checks */
-function progressOf(posKey, checks){
-  const items=templates[posKey]||[]; const total=items.length;
+function progressOf(posKey, checks, fr){
+  const items=templates[posKey]||[]; const extra=posKey===FR_POS?1:0; const total=items.length+extra;
   if(!total) return {done:0,total:0,pct:0};
   let done=0; items.forEach(it=>{ if(checks && checks[it.id] && checks[it.id].checked) done++; });
+  if(extra && frState(fr).complete) done++;
   return {done,total,pct:Math.round(done/total*100)};
+}
+/* progress ของ record ในประวัติ (รวมตู้เย็นของ incharge) */
+function recProgress(posKey, rec){
+  const items=templates[posKey]||[]; rec=rec||{}; const checks=rec.checks||{};
+  let done=0; const missing=[], notes=[];
+  if(posKey===FR_POS){ const st=frState(rec.fridge);
+    if(st.complete)done++; else missing.push("อุณหภูมิตู้เย็นแช่ยา");
+    if(st.abnormal)notes.push("ตู้เย็นแช่ยาผิดปกติ: "+frSummaryTxt(rec.fridge)+(rec.fridge&&rec.fridge.action?" · จัดการ: "+rec.fridge.action:"")); }
+  items.forEach(it=>{ const c=checks[it.id]; if(c&&c.checked)done++; else missing.push(it.item); if(c&&c.note)notes.push(it.item+": "+c.note); });
+  const total=items.length+(posKey===FR_POS?1:0);
+  return {done,total,pct:total?Math.round(done/total*100):0,missing,notes,frBad:posKey===FR_POS&&frState(rec.fridge).abnormal};
 }
 
 /* ---------- PAGE 2 : positions list ---------- */
@@ -507,12 +588,12 @@ function renderPositions(){
       wrap.appendChild(btn);
       return;
     }
-    const pr=progressOf(p.key, recCache[p.key]);
+    const pr=progressOf(p.key, recCache[p.key], p.key===FR_POS?fridgeCur:null);
     const cls = pr.total===0 ? "" : (pr.pct===100?"done":(pr.done>0?"part":""));
     btn.innerHTML=`<div class="ic">${p.icon}</div>
       <div class="body">
         <div class="nm">${esc(p.name)}</div>
-        <div class="mt">${pr.total? `${pr.done}/${pr.total} รายการ` : "ยังไม่มีรายการ — ตั้งค่าที่ Admin"}</div>
+        <div class="mt">${pr.total? `${pr.done}/${pr.total} รายการ` : "ยังไม่มีรายการ — ตั้งค่าที่ Admin"}${p.key===FR_POS&&frState(fridgeCur).abnormal?' · <b style="color:#dc2626">⚠️ ตู้เย็นยาผิดปกติ</b>':''}</div>
         <div class="bar"><i class="${pr.pct===100?'done':''}" style="width:${pr.pct}%"></i></div>
       </div>
       <div class="pct ${cls}">${pr.total? pr.pct+"%" : "—"}</div>`;
@@ -531,6 +612,9 @@ function subscribeShiftRecords(){
       DB.onValue(`checklist/records/${rkNext}/${ALC_KEY}/alcList`, list=>{ alcNext=list||{}; refresh(); });
       return;
     }
+    if(p.key===FR_POS){ DB.onValue(`checklist/records/${S.recKey}/${FR_POS}/fridge`, fr=>{ fridgeCur=fr||{};
+        if(!$("page2").classList.contains("hidden")) renderPositions();
+        if(curPos===FR_POS && !$("page3").classList.contains("hidden")) { paintFridge(); paintChecklistState(); } }); }
     DB.onValue(`checklist/records/${S.recKey}/${p.key}/checks`, checks=>{
       recCache[p.key]=checks||{};
       if(!$("page2").classList.contains("hidden")) renderPositions();
@@ -641,9 +725,71 @@ function delAlc(id){
   DB.set(`checklist/records/${rk}/${ALC_KEY}/alcList/${id}`, null);
   toast("ลบแล้ว"); renderAlc();
 }
+function fridgeBlockHTML(){
+  return `<div class="fr-box" id="frBox">
+    <div class="fr-ttl">🌡️ อุณหภูมิตู้เย็นแช่ยา <span class="rng">ปกติ ${frCfg.lo}–${frCfg.hi} °C</span></div>
+    <div class="fr-grid">
+      <div><label>ปัจจุบัน</label><div class="fr-in"><input id="frCur" type="number" step="0.1" placeholder="—"><span>°C</span></div></div>
+      <div><label>Max</label><div class="fr-in"><input id="frMax" type="number" step="0.1" placeholder="—"><span>°C</span></div></div>
+      <div><label>Min</label><div class="fr-in"><input id="frMin" type="number" step="0.1" placeholder="—"><span>°C</span></div></div>
+    </div>
+    <button class="btn ok" id="frSave">💾 บันทึกอุณหภูมิ</button>
+    <div class="fr-st" id="frSt"></div>
+  </div>`;
+}
+function frInputs(){ return {cur:$("frCur"),max:$("frMax"),min:$("frMin")}; }
+function paintFridge(force){
+  const box=$("frBox"); if(!box)return; const ins=frInputs(); const fr=fridgeCur||{};
+  ["cur","max","min"].forEach(k=>{ const el=ins[k]; if(force || document.activeElement!==el){ if(fr[k]!=null && fr[k]!=="") el.value=fr[k]; else if(force) el.value=""; } });
+  frLiveColor();
+  const st=frState(fr);
+  box.classList.toggle("bad",st.abnormal); box.classList.toggle("ok",st.complete&&!st.abnormal);
+  let tag;
+  if(!st.complete && !st.bad.length) tag=`<span class="tag none">ยังไม่ได้บันทึก</span>`;
+  else if(st.abnormal) tag=`<span class="tag bad">⚠️ ผิดปกติ: ${st.bad.map(k=>FR_LBL[k]).join(", ")}</span> <button class="lnk" id="frShowGuide">ดูแนวทางการจัดการ</button>`;
+  else tag=`<span class="tag ok">✓ อยู่ในเกณฑ์</span>`;
+  const who=fr.at?` · บันทึก ${new Date(fr.at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Bangkok"})} น. โดย ${esc(fr.checker||"-")}`:"";
+  $("frSt").innerHTML=tag+`<span>${who}</span>`+(fr.action?`<span style="flex-basis:100%">📝 การจัดการ: ${esc(fr.action)}</span>`:"");
+  const g=$("frShowGuide"); if(g) g.onclick=()=>openFrModal(fridgeCur);
+}
+function frLiveColor(){ const ins=frInputs(); ["cur","max","min"].forEach(k=>{ const el=ins[k]; if(!el)return; const v=frNum(el.value);
+  el.classList.toggle("bad",frOut(v)); el.classList.toggle("ok",v!=null&&!frOut(v)); }); }
+function bindFridge(){
+  const ins=frInputs(); Object.values(ins).forEach(el=>el.addEventListener("input",frLiveColor));
+  $("frSave").onclick=saveFridge; paintFridge(true);
+}
+function saveFridge(){
+  const ins=frInputs(); const vals={cur:frNum(ins.cur.value),max:frNum(ins.max.value),min:frNum(ins.min.value)};
+  if(vals.cur==null||vals.max==null||vals.min==null){ toast("กรุณากรอกให้ครบ ปัจจุบัน / Max / Min"); return; }
+  if(vals.min>vals.max){ toast("ค่า Min มากกว่า Max — กรุณาตรวจสอบ"); return; }
+  if(vals.cur>vals.max||vals.cur<vals.min){ if(!confirm("ค่าปัจจุบันอยู่นอกช่วง Min–Max — ยืนยันบันทึก?"))return; }
+  const rec={cur:vals.cur,max:vals.max,min:vals.min,checker,at:Date.now(),lo:frCfg.lo,hi:frCfg.hi};
+  const st=frState(rec);
+  if(st.abnormal && fridgeCur && fridgeCur.action) rec.action=fridgeCur.action;
+  fridgeCur=rec;
+  DB.update(`checklist/records/${S.recKey}/${FR_POS}`, {checker, updatedAt:Date.now()});
+  DB.set(`checklist/records/${S.recKey}/${FR_POS}/fridge`, rec);
+  paintFridge(true); paintChecklistState();
+  if(st.abnormal) openFrModal(rec); else toast("บันทึกอุณหภูมิแล้ว ✓ อยู่ในเกณฑ์");
+}
+function openFrModal(fr){
+  const st=frState(fr);
+  const lo=(fr&&fr.lo!=null)?fr.lo:frCfg.lo, hi=(fr&&fr.hi!=null)?fr.hi:frCfg.hi;
+  $("frAlertTxt").innerHTML=st.bad.map(k=>`${FR_LBL[k]} ${frFmt(st.vals[k])}`).join(" · ")+` <span style="font-weight:600">(เกณฑ์ปกติ ${lo}–${hi} °C)</span>`;
+  $("frGuideTxt").textContent=frCfg.guide||FR_GUIDE_DEFAULT;
+  $("frAction").value=(fr&&fr.action)||"";
+  $("frModal").classList.remove("hidden");
+}
+$("frAck").onclick=()=>{ const a=$("frAction").value.trim();
+  if(fridgeCur && fridgeCur.at && a!==(fridgeCur.action||"")){ fridgeCur=Object.assign({},fridgeCur,{action:a}); if(!a) delete fridgeCur.action; DB.set(`checklist/records/${S.recKey}/${FR_POS}/fridge`, fridgeCur); }
+  $("frModal").classList.add("hidden"); paintFridge(); toast(a?"บันทึกการจัดการแล้ว":"รับทราบ"); };
+document.querySelectorAll("[data-closefr]").forEach(b=>b.onclick=()=>$("frModal").classList.add("hidden"));
+$("frModal").addEventListener("click",e=>{ if(e.target===$("frModal"))$("frModal").classList.add("hidden"); });
+
 function renderChecklist(){
   const items=templates[curPos]||[];
   const body=$("p3body");
+  if(!items.length && curPos===FR_POS){ body.innerHTML=fridgeBlockHTML(); bindFridge(); paintChecklistState(); return; }
   if(!items.length){
     body.innerHTML=`<div class="banner"><span>ℹ️</span><span>ตำแหน่งนี้ยังไม่มีรายการอุปกรณ์ — ให้ Admin เพิ่มรายการก่อน (ปุ่ม ⚙️ Admin มุมขวาบน)</span></div>`;
     $("p3pct").textContent="0%"; $("p3bar").style.width="0";
@@ -673,7 +819,8 @@ function renderChecklist(){
     });
     html+=`</tbody></table>`;
   });
-  body.innerHTML=html;
+  body.innerHTML=(curPos===FR_POS?fridgeBlockHTML():"")+html;
+  if(curPos===FR_POS) bindFridge();
   // events
   body.querySelectorAll("[data-chk]").forEach(cb=>cb.addEventListener("change",onCheck));
   body.querySelectorAll("[data-note]").forEach(inp=>{
@@ -700,7 +847,7 @@ function saveCheck(id){
   DB.set(`checklist/records/${S.recKey}/${curPos}/checks/${id}`, {checked:!!c.checked, note:c.note||""});
 }
 function paintChecklistState(){
-  const pr=progressOf(curPos,curRec);
+  const pr=progressOf(curPos,curRec,curPos===FR_POS?fridgeCur:null);
   $("p3pct").textContent=pr.pct+"%"; $("p3pct").classList.toggle("done",pr.pct===100);
   $("p3bar").style.width=pr.pct+"%"; $("p3bar").classList.toggle("done",pr.pct===100);
   // reflect current record onto rows (when live update arrives)
@@ -717,8 +864,15 @@ function paintChecklistState(){
 let editPos="incharge", editItems=[], editDrivers=[];
 function openAdminGate(){ $("adminPin").value=""; $("adminGate").classList.remove("hidden"); setTimeout(()=>$("adminPin").focus(),50); }
 function closeAdmin(){ $("adminGate").classList.add("hidden"); $("adminPanel").classList.add("hidden"); }
+function fillFrCfg(){ $("frCfgLo").value=frCfg.lo; $("frCfgHi").value=frCfg.hi; $("frCfgGuide").value=frCfg.guide||FR_GUIDE_DEFAULT; }
+$("frCfgSave").onclick=async()=>{ const lo=frNum($("frCfgLo").value), hi=frNum($("frCfgHi").value);
+  if(lo==null||hi==null||lo>=hi){ toast("เกณฑ์ไม่ถูกต้อง (ค่าต่ำต้องน้อยกว่าค่าสูง)"); return; }
+  const guide=$("frCfgGuide").value.trim()||FR_GUIDE_DEFAULT;
+  frCfg={lo,hi,guide}; await DB.set("checklist/fridgeCfg", frCfg); toast("บันทึกแนวทางตู้เย็นแล้ว");
+  if(curPos===FR_POS && !$("page3").classList.contains("hidden")) renderChecklist(); };
+$("frCfgReset").onclick=()=>{ $("frCfgGuide").value=FR_GUIDE_DEFAULT; $("frCfgLo").value=2; $("frCfgHi").value=8; toast("คืนค่าเริ่มต้นแล้ว — กด บันทึกแนวทาง เพื่อใช้"); };
 function openAdminPanel(){
-  $("adminGate").classList.add("hidden"); $("adminPanel").classList.remove("hidden");
+  $("adminGate").classList.add("hidden"); $("adminPanel").classList.remove("hidden"); fillFrCfg();
   renderAdminTabs(); loadEditPos("incharge");
 }
 function renderAdminTabs(){
@@ -846,11 +1000,9 @@ async function renderHistory(){
         return;
       }
       const rec=(all[rk]||{})[p.key]; const items=templates[p.key]||[];
-      if(!rec || !items.length){ html+=`<td><div class="hsq z">—</div></td>`; return; }
-      const checks=rec.checks||{}; let done=0; const missing=[]; const notes=[];
-      items.forEach(it=>{ const c=checks[it.id]; if(c&&c.checked)done++; else missing.push(it.item); if(c&&c.note)notes.push(it.item+": "+c.note); });
-      const total=items.length, pct=Math.round(done/total*100);
-      const cls=pct===100?"g":(done>0?"p":"z");
+      if(!rec || (!items.length && p.key!==FR_POS)){ html+=`<td><div class="hsq z">—</div></td>`; return; }
+      const RP=recProgress(p.key,rec); const {done,total,pct,missing,notes}=RP;
+      const cls=RP.frBad?"bad":(pct===100?"g":(done>0?"p":"z"));
       const tip=`ผู้เช็ค: ${rec.checker||"-"} | ครบ ${done}/${total} (${pct}%)`+(missing.length?` | ขาด: ${missing.join(", ")}`:"")+(notes.length?` | หมายเหตุ: ${notes.join("; ")}`:"");
       html+=`<td><div class="hcell"><div class="hsq ${cls}" title="${esc(tip)}" data-rk="${esc(rk)}" data-pos="${p.key}">${pct}%</div><div class="who">${esc(rec.checker||"")}</div></div></td>`;
     });
@@ -874,7 +1026,9 @@ function showHistDetail(all, rk, posKey){
   const rec=(all[rk]||{})[posKey]||{}; const items=templates[posKey]||[]; const checks=rec.checks||{};
   const p=POSITIONS.find(x=>x.key===posKey)||{name:posKey};
   const date=rk.slice(0,10).split("-").reverse().join("/"); const shiftKey=rk.split("_")[1];
-  const rows=items.map(it=>{ const c=checks[it.id]||{}; return `<tr class="${c.checked?"checked":""}"><td class="cel-no">${esc(it.seq)}</td><td>${esc(it.item)}${it.qty?` <span style="color:#94a3b8;font-size:12px">(${esc(it.qty)})</span>`:""}</td><td style="text-align:center">${c.checked?'<span style="color:#16a34a;font-weight:800">✓ ครบ</span>':'<span style="color:#dc2626;font-weight:800">✗ ขาด</span>'}</td><td>${esc(c.note||"")}</td></tr>`; }).join("");
+  let frRow=""; if(posKey===FR_POS){ const fs=frState(rec.fridge); const f=rec.fridge||{};
+    frRow=`<tr class="${fs.complete&&!fs.abnormal?"checked":""}"><td class="cel-no">🌡️</td><td>อุณหภูมิตู้เย็นแช่ยา <span style="color:#94a3b8;font-size:12px">(ปกติ ${f.lo!=null?f.lo:frCfg.lo}–${f.hi!=null?f.hi:frCfg.hi} °C)</span></td><td style="text-align:center">${!fs.complete?'<span style="color:#dc2626;font-weight:800">✗ ไม่ได้บันทึก</span>':(fs.abnormal?'<span style="color:#dc2626;font-weight:800">⚠️ ผิดปกติ</span>':'<span style="color:#16a34a;font-weight:800">✓ ปกติ</span>')}</td><td>${esc(frSummaryTxt(f))}${f.action?"<br>📝 "+esc(f.action):""}</td></tr>`; }
+  const rows=frRow+items.map(it=>{ const c=checks[it.id]||{}; return `<tr class="${c.checked?"checked":""}"><td class="cel-no">${esc(it.seq)}</td><td>${esc(it.item)}${it.qty?` <span style="color:#94a3b8;font-size:12px">(${esc(it.qty)})</span>`:""}</td><td style="text-align:center">${c.checked?'<span style="color:#16a34a;font-weight:800">✓ ครบ</span>':'<span style="color:#dc2626;font-weight:800">✗ ขาด</span>'}</td><td>${esc(c.note||"")}</td></tr>`; }).join("");
   $("histDetail").innerHTML=`<h4 style="color:var(--brand-d);margin:6px 0">${esc(p.name)} — ${date} เวร${SHIFT_TH[shiftKey]||shiftKey} · ผู้เช็ค: ${esc(rec.checker||"-")}</h4>
     <table class="chk"><thead><tr><th class="cel-no">#</th><th>รายการ</th><th style="text-align:center">สถานะ</th><th>หมายเหตุ</th></tr></thead><tbody>${rows||'<tr><td colspan="4" style="text-align:center;color:#94a3b8">— ไม่มีรายการ —</td></tr>'}</tbody></table>`;
   $("histDetail").scrollIntoView({behavior:"smooth",block:"nearest"});
@@ -907,12 +1061,10 @@ function printHistory(){
         return;
       }
       const rec=(all[rk]||{})[p.key]; const items=templates[p.key]||[];
-      if(!rec || !items.length){ grid+=`<td class="rz">—</td>`; shiftFull=false; return; }
+      if(!rec || (!items.length && p.key!==FR_POS)){ grid+=`<td class="rz">—</td>`; shiftFull=false; return; }
       shiftHasAny=true;
-      const checks=rec.checks||{}; let done=0; const missing=[]; const notes=[];
-      items.forEach(it=>{ const c=checks[it.id]; if(c&&c.checked)done++; else missing.push(it.item); if(c&&c.note)notes.push(it.item+" ("+c.note+")"); });
-      const total=items.length, pct=Math.round(done/total*100);
-      const cls=pct===100?"rg":(done>0?"rp":"rz");
+      const RP=recProgress(p.key,rec); const {done,total,pct,missing,notes}=RP;
+      const cls=RP.frBad?"rbad":(pct===100?"rg":(done>0?"rp":"rz"));
       if(pct<100) shiftFull=false;
       grid+=`<td class="rc ${cls}">${pct}%<span class="ck">${esc(rec.checker||"")}</span></td>`;
       if(missing.length||notes.length){
@@ -960,6 +1112,9 @@ async function init(){
     if(!$("page3").classList.contains("hidden")) renderChecklist();
   });
   DB.onValue("checklist/adminCode", c=>{ if(c) adminCode=c; });
+  DB.onValue("checklist/fridgeCfg", c=>{ if(c){ frCfg={lo:frNum(c.lo)!=null?frNum(c.lo):2, hi:frNum(c.hi)!=null?frNum(c.hi):8, guide:c.guide||FR_GUIDE_DEFAULT}; }
+    if(curPos===FR_POS && !$("page3").classList.contains("hidden")) { paintFridge(); }
+    if(!$("page2").classList.contains("hidden")) renderPositions(); });
   DB.onValue("checklist/drivers", d=>{ drivers=Array.isArray(d)?d:(d?Object.values(d):[]);
     if(curPos===ALC_KEY && !$("page3").classList.contains("hidden")) renderAlc();
     if(!$("page2").classList.contains("hidden")) renderPositions();
