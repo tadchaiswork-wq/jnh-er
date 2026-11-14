@@ -54,6 +54,15 @@ thead th.sumh{background:#ccfbf1;color:#115e59;min-width:40px;writing-mode:verti
 .cell.na{background:linear-gradient(135deg,var(--n-bg) 50%,var(--a-bg) 50%);color:#5b21b6}
 .cell.cc{background:var(--cc-bg);color:var(--cc)}
 .cell.off{background:var(--off-bg);color:var(--off)}
+.cell.bday{background:#fdf2f8;box-shadow:inset 0 0 0 2px #f9a8d4}
+.cell .cakeic{width:27px;height:27px;display:block;margin:-1px auto}
+.cell.hasbday{position:relative}
+.cell .cakebadge{position:absolute;right:0;bottom:0;width:13px;height:13px;line-height:0}
+.cell .cakebadge .cakeic{width:13px;height:13px}
+.bdrow{display:grid;grid-template-columns:minmax(0,1fr) 64px 100px 30px;gap:6px;align-items:center;margin-bottom:5px}
+.bdrow select{border:1px solid var(--line);border-radius:8px;padding:6px;min-width:0}
+.bdrow .nm{font-size:14px;font-weight:600;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bdrow .clr{border:none;background:#f1f5f9;border-radius:8px;height:30px;cursor:pointer;color:#64748b}
 .cell.offvac{background:#dcfce7;color:#15803d;box-shadow:inset 0 0 0 2px #22c55e;font-weight:800}
 .cell.offacad{background:#f3e8ff;color:#7e22ce}
 .cell .refb{display:block;font-size:8px;font-weight:800;color:#0d9488;line-height:1.1}
@@ -149,6 +158,8 @@ tr.sparerow td.gname{color:#6d28d9;font-weight:800}
   .cell.offvac{box-shadow:inset 0 0 0 1.2pt #22c55e!important}
   table.grid tr.grpfirst td{border-top:1.4pt solid #334155!important}
   .spcell{font-size:6pt;color:#4c1d95;background:#faf5ff;box-shadow:none!important;line-height:1.05}
+  .cell .cakeic{width:4.6mm;height:4.6mm} .cell .cakebadge,.cell .cakebadge .cakeic{width:2.8mm;height:2.8mm}
+  .cell.bday{box-shadow:inset 0 0 0 1pt #f9a8d4!important}
   .spcell .spn{max-height:calc(var(--prow,6.5mm) - .6mm);overflow:hidden;word-break:break-word}
   .cell > *{max-height:none}
 }
@@ -182,7 +193,7 @@ tr.sparerow td.gname{color:#6d28d9;font-weight:800}
 <div class="hint" id="modeHint">เลือกชื่อของคุณด้านบน แล้วแตะวันในแถวของตัวเองเพื่อเลือกสถานะ (off/พักร้อน/วิชาการ) · คลิกขวา/กดค้างที่ช่องใดก็ได้ = ดู/ขอแลกเวร 🔁 · การลงเวรทำโดยผู้จัดเวร/Admin</div>
 <div class="legend">
   <span><i class="lm">ช</i>เช้า</span><span><i class="la">บ</i>บ่าย</span><span><i class="ln">ด</i>ดึก</span>
-  <span><i class="lcc">ศ</i>ศูนย์สั่งการ</span><span>ด+บ=ดึก+บ่ายวันเดียว</span><span><i class="lo">off</i>ขอหยุด · พร=พักร้อน · วก=วิชาการ · 🚐รถR=เวรรถ refer</span>
+  <span><i class="lcc">ศ</i>ศูนย์สั่งการ</span><span>ด+บ=ดึก+บ่ายวันเดียว</span><span><i class="lo">off</i>ขอหยุด · พร=พักร้อน · วก=วิชาการ · 🚐รถR=เวรรถ refer · 🎂=วันเกิด (off)</span>
   <span>วันพิเศษ=หัวตารางแดง · กรอบแดง=ผิดกฏ · 🔒=ล็อกเวร · 🔁=มีคำขอแลกเวร(รออนุมัติ) · คลิกขวา/กดค้างเวรตัวเอง=ขอแลก (แลกรายเวรย่อยได้)</span>
 </div>
 <div class="warnbox" id="warnbox"></div>
@@ -210,6 +221,7 @@ tr.sparerow td.gname{color:#6d28d9;font-weight:800}
     <div id="stRows"></div>
     <div id="stHint" class="note" style="display:none;background:#fff7ed;border-color:#fdba74;color:#9a3412">เปลี่ยนลำดับแล้ว — กด “💾 บันทึกรายชื่อ” เพื่อใช้ลำดับนี้ในตารางเวร</div>
     <button class="btn sm ghost" id="addStaff">+ เพิ่มเจ้าหน้าที่</button>
+    <button class="btn sm ghost" id="bdayBtn">🎂 วันเกิดเจ้าหน้าที่</button>
     <div style="margin-top:14px"><button class="btn ok" id="saveStaff" style="width:100%">💾 บันทึกรายชื่อ</button></div>
   </div>
   <div id="tab-roles" style="display:none">
@@ -259,6 +271,13 @@ tr.sparerow td.gname{color:#6d28d9;font-weight:800}
   <button class="close" data-close>×</button><h3>📑 แบบร่างเวร <span id="draftYm" style="font-size:14px;color:#64748b"></span></h3>
   <div class="note">บันทึกตารางเวรปัจจุบัน (รวมช่องล็อก + spare) เป็นแบบร่างได้ 4 ฉบับต่อเดือน · กด “เปิดใช้” เพื่อนำแบบร่างกลับมาเป็นตารางเวร (กด ↶ ย้อนกลับได้)</div>
   <div id="draftList" style="max-height:62vh;overflow:auto;margin-top:8px"></div>
+</div></div>
+
+<div class="ov hide" id="bdayModal"><div class="modal" style="max-width:480px">
+  <button class="close" data-close>×</button><h3>🎂 วันเกิดเจ้าหน้าที่</h3>
+  <div class="note">ใส่วันและเดือนเกิด (ไม่ต้องใส่ปี) · ออโต้ร่างให้ off วันเกิดอัตโนมัติ + ก่อน/หลังเว้น 8 ชม. (วันก่อนไม่จัดบ่าย · วันถัดไปไม่จัดดึก) · ตารางแสดงรูปเค้ก</div>
+  <div id="bdayList" style="max-height:58vh;overflow:auto;margin-top:8px"></div>
+  <button class="btn ok" id="bdaySave" style="width:100%;margin-top:10px">💾 บันทึกวันเกิด</button>
 </div></div>
 
 <div id="pop"></div>
@@ -341,7 +360,7 @@ function spareAt(d,k){ return ((SPARE||{})[d]||{})[k]||''; }
 // อยู่ spare ได้ไหม: ว่างทั้งวัน (ไม่มีเวร/ไม่ขอหยุด/ไม่ล็อกช่องว่าง) + ไม่ผิดกฏเวรติดกัน · ไม่ซ้ำ spare อื่นวันเดียวกัน
 // ว่างทั้งวัน หรือ (สำรองท้าย) อยู่เวรที่ต่อกันได้: เช้าวอร์ด→spare บ่าย · บ่ายวอร์ด→spare ดึก(00–08 ก่อนบ่าย เหมือน ด+บ)
 function spareCombo(c,k){ return !!c && !c.cc && !c.ref && ((k==='a'&&c.s==='m')||(k==='n'&&c.s==='a')||(k==='m'&&c.s==='a')); }
-function spareOK(sid,d,k,ignoreSelf){ if(!sid||!STAFF[sid])return false; if((OFF[sid]||{})[d])return false; const c0=cell(sid,d); if(c0&&!spareCombo(c0,k))return false;
+function spareOK(sid,d,k,ignoreSelf){ if(!sid||!STAFF[sid])return false; if((OFF[sid]||{})[d]||isBday(sid,d))return false; if(bdayGap(sid,d,[k]))return false; const c0=cell(sid,d); if(c0&&!spareCombo(c0,k))return false;
   if(isLocked(sid,d))return false;
   const other=['m','a','n'].filter(x=>x!==k).some(x=>spareAt(d,x)===sid); if(other)return false;
   if(k==='n'){ if(hasTime(sid,d-1,'a'))return false; if(afterVac(sid,d))return false; if(c0&&c0.s==='a'&&(hasM(cell(sid,d-1))||hasM(cell(sid,d+1))))return false; }
@@ -368,6 +387,18 @@ function openSparePop(td,d,k){ if(!canEdit())return; const pop=$('pop'); const c
    หลัง: เวรถัดไปเริ่ม ≥ 16:00 ของวันถัดไป → วันถัดไปห้ามเช้า (ดึกห้ามอยู่แล้ว) */
 function isNA16(c){ if(!c)return false; const p=cbases(c); return p.indexOf('n')>=0&&p.indexOf('a')>=0; }
 function hasM(c){ return !!c && cbases(c).indexOf('m')>=0; }
+/* ---- วันเกิด: STAFF[id].bday = 'MM-DD' (ไม่เก็บปี) · ได้ off อัตโนมัติ · แสดงรูปเค้ก
+   + ก่อน/หลังวันเกิดเว้น ≥8 ชม.: วันก่อนห้ามบ่าย (เลิก 24:00) · วันถัดไปห้ามดึก (เริ่ม 00:00) ---- */
+const CAKE_SVG='<svg class="cakeic" viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="28.6" rx="13.5" ry="2.1" fill="#e2e8f0"/><rect x="5" y="13.5" width="22" height="14.5" rx="4.5" fill="#fde68a"/><path d="M5 18.2c0-4 2.6-6.6 6.4-6.6h9.2c3.8 0 6.4 2.6 6.4 6.6v.6c-.9 1.6-2.6 1.6-3.4 0-.9 2-3.1 2-4 0-.9 2-3.1 2-4 0-.9 2-3.1 2-4 0-.8 1.6-2.5 1.6-3.4 0-.8 1.4-2.4 1.4-3.2 0z" fill="#f9a8d4"/><rect x="8.6" y="13.6" width="2.2" height="1" rx=".5" fill="#60a5fa" transform="rotate(-25 9.7 14.1)"/><rect x="19.5" y="13.2" width="2.2" height="1" rx=".5" fill="#34d399" transform="rotate(20 20.6 13.7)"/><rect x="23" y="15.6" width="2" height="1" rx=".5" fill="#fbbf24"/><rect x="14.8" y="4.6" width="2.4" height="7.2" rx="1" fill="#93c5fd"/><path d="M16 .9c1.5 1.5 2.1 2.7 2.1 3.6a2.1 2.1 0 0 1-4.2 0c0-.9.6-2.1 2.1-3.6z" fill="#fb923c"/><path d="M16 2.8c.7.8 1 1.4 1 1.8a1 1 0 0 1-2 0c0-.4.3-1 1-1.8z" fill="#fde047"/><circle cx="12.2" cy="22.2" r="1.25" fill="#431407"/><circle cx="19.8" cy="22.2" r="1.25" fill="#431407"/><circle cx="12.6" cy="21.8" r=".4" fill="#fff"/><circle cx="20.2" cy="21.8" r=".4" fill="#fff"/><path d="M14.4 24.1c.9 1.1 2.3 1.1 3.2 0" stroke="#431407" stroke-width="1" fill="none" stroke-linecap="round"/><ellipse cx="9.6" cy="24.2" rx="1.5" ry=".95" fill="#fb7185" opacity=".55"/><ellipse cx="22.4" cy="24.2" rx="1.5" ry=".95" fill="#fb7185" opacity=".55"/></svg>';
+function bdayOf(id){ const b=(STAFF[id]||{}).bday; return (typeof b==='string'&&/^\d{2}-\d{2}$/.test(b))?b:''; }
+function isBdayYMD(id,y,m,d){ const b=bdayOf(id); if(!b)return false; const mm=+b.slice(0,2), dd=+b.slice(3); if(mm!==m)return false;
+  return d===Math.min(dd,daysInMonth(y,m)); }   // 29 ก.พ. ในปีที่ไม่มี → 28 ก.พ.
+function isBday(id,d){ const nd=daysInMonth(curY,curM);
+  if(d<1){ let py=curY,pm=curM-1; if(pm<1){pm=12;py--;} return isBdayYMD(id,py,pm,daysInMonth(py,pm)+d); }
+  if(d>nd){ let ny=curY,nm=curM+1; if(nm>12){nm=1;ny++;} return isBdayYMD(id,ny,nm,d-nd); }
+  return isBdayYMD(id,curY,curM,d); }
+// ช่องที่มีเวลา bases ในวัน d ชนช่วงเว้น 8 ชม. รอบวันเกิดไหม
+function bdayGap(id,d,bases){ return (bases.indexOf('a')>=0&&isBday(id,d+1)) || (bases.indexOf('n')>=0&&isBday(id,d-1)); }
 function regHas(id,d,b){ const c=cell(id,d); return !!c && !isCC(c.s) && tbase(c.s).indexOf(b)>=0; }
 function ccHas(id,d,b){ const c=cell(id,d); return !!c && (c.s==='cc'+b || c.cc==='cc'+b); }
 function hasTime(id,d,b){ const c=cell(id,d); return !!c && cbases(c).indexOf(b)>=0; } // for adjacency (reg + cc add-on)
@@ -377,6 +408,7 @@ function dayViol(id,d){ const c=cell(id,d); if(!c)return false; const p=cbases(c
   // รถ refer ต้องไม่ซ้อนทับเวลากับเวรวอร์ด/ศูนย์ในวันเดียวกัน
   if(c.ref){ const rb=refBase(c.ref); const occ=[]; if(c.s)tbase(c.s).forEach(x=>occ.push(x)); if(c.cc)tbase(c.cc).forEach(x=>occ.push(x)); if(occ.indexOf(rb)>=0)return true; }
   if(p.indexOf('n')>=0 && p.indexOf('m')>=0) return true;     // ดึก(00–08) ต่อเช้า(08–16) วันเดียวกัน — ห้ามทุกกรณี (วอร์ด/ศูนย์/รถ refer)
+  if(bdayGap(id,d,p)) return true;                              // ก่อน/หลังวันเกิดเว้น ≥8 ชม.
   if(isNA16(c) && (hasM(cell(id,d-1))||hasM(cell(id,d+1)))) return true;   // ดึกต่อบ่าย: ก่อน/หลังเว้น ≥16 ชม. (วันก่อน/วันถัดไปห้ามเช้า)
   if(p.indexOf('m')>=0 && (isNA16(cell(id,d-1))||isNA16(cell(id,d+1)))) return true;
   if(p.indexOf('n')>=0 && hasTime(id,d-1,'a')) return true;   // บ่ายเมื่อวาน→ดึก (ต่อเนื่องข้ามเที่ยงคืน)
@@ -463,7 +495,9 @@ function render(){
         else if(c.s==='na'){ sum.a++; sum.n++; }
         else if(c.s==='cca')sum.cca++; else if(c.s==='ccn')sum.ccn++; else if(c.s==='ccm')sum.ccm++;
         if(c.cc==='cca')sum.cca++; else if(c.cc==='ccn')sum.ccn++; else if(c.cc==='ccm')sum.ccm++;
-      } else if(off){ cls+=' '+(oty==='vac'?'offvac':oty==='acad'?'offacad':'off'); txt=OFF_SH[oty]||'off'; }
+      } else if(isBday(s.id,d)){ cls+=' bday'; txt=CAKE_SVG; }
+      else if(off){ cls+=' '+(oty==='vac'?'offvac':oty==='acad'?'offacad':'off'); txt=OFF_SH[oty]||'off'; }
+      if(isBday(s.id,d) && c && (c.s||c.ref)){ cls+=' hasbday'; txt+='<span class="cakebadge" title="วันเกิด">'+CAKE_SVG+'</span>'; }
       if(s.id===meId)cls+=' me';
       if(isLocked(s.id,d))cls+=' lock';
       if(REQC[s.id]&&REQC[s.id][d])cls+=' swapon';
@@ -500,6 +534,8 @@ function computeWarnings(){
     const c=cell(s.id,d); if(c&&c.s&&(OFF[s.id]||{})[d]){ const okAcad=(offType(s.id,d)==='acad' && c.s==='a'); if(!okAcad)oc++; } } });
   if(bb)msgs.push('⚠ เวรติดกัน/ซ้อนเวลา '+bb+' จุด');
   if(oc)msgs.push('⚠ ลงเวรทับวันขอหยุด '+oc+' จุด');
+  let bdw=0; list.forEach(s=>{ for(let d=1;d<=nd;d++){ const c=cell(s.id,d); if(c&&(c.s||c.ref)&&isBday(s.id,d))bdw++; } });
+  if(bdw)msgs.push('🎂 ลงเวรทับวันเกิด '+bdw+' คน');
   let html=msgs.map(m=>esc(m)).join('<br>');
   if(draftNotes&&draftNotes.length){
     html+=(html?'<br>':'')+'<div style="margin-top:4px"><b>ผลออโต้ร่างไม่สำเร็จ '+draftNotes.length+' จุด</b> '
@@ -573,6 +609,7 @@ function violOv(sid,d,ov){ const c=cellOv(sid,d,ov); if(!c)return false; const p
   if(c.cc){ const ok=(c.s==='m'&&c.cc==='cca')||(c.s==='a'&&c.cc==='ccn')||(c.s==='a'&&c.cc==='ccm'); if(!ok)return true; }
   if(c.ref){ const rb=refBase(c.ref); const occ=[]; if(c.s)tbase(c.s).forEach(x=>occ.push(x)); if(c.cc)tbase(c.cc).forEach(x=>occ.push(x)); if(occ.indexOf(rb)>=0)return true; }
   if(p.indexOf('n')>=0 && p.indexOf('m')>=0)return true;   // ดึกต่อเช้า ห้ามทุกกรณี
+  if(bdayGap(sid,d,p))return true;                          // ก่อน/หลังวันเกิดเว้น ≥8 ชม.
   if(isNA16(c) && (hasM(cellOv(sid,d-1,ov))||hasM(cellOv(sid,d+1,ov))))return true;   // ดึกต่อบ่าย เว้น ≥16 ชม.
   if(p.indexOf('m')>=0 && (isNA16(cellOv(sid,d-1,ov))||isNA16(cellOv(sid,d+1,ov))))return true;
   if(p.indexOf('n')>=0 && cbases(cellOv(sid,d-1,ov)).indexOf('a')>=0)return true;
@@ -581,6 +618,7 @@ function violOv(sid,d,ov){ const c=cellOv(sid,d,ov); if(!c)return false; const p
   return false; }
 // a,b = {sid,d,unit} — แลกเวรย่อยกันได้ไหม (ชนิดเดียวกัน · คนละวัน · ย้ายแล้วไม่ผิดกฏ)
 function swapUnitValid(a,b){ if(!a||!b)return false; if(a.sid===b.sid)return false; if(a.d===b.d)return false;
+  if(isBday(a.sid,b.d)||isBday(b.sid,a.d))return false;   // ไม่ย้ายเวรไปลงวันเกิดของใคร
   if(unitType(a.unit,a.d)!==unitType(b.unit,b.d))return false;
   const aAtA=removeUnit(cell(a.sid,a.d),a.unit);
   const aAtB=addUnit(cell(a.sid,b.d),b.unit); if(aAtB===null)return false;
@@ -633,7 +671,7 @@ function createOpenReq(a){ if(findOpenReq(a)){ toast('ลงทะเบีย�
   SWAPREQ[id]=req; DB.set(PATH+'/swapreq/'+ym+'/'+id,req); $('pop').style.display='none'; render();
   toast('ลงทะเบียนขอแลกแล้ว · รอคู่แลก'); openSwapReg(); }
 // คนว่างที่มา "อยู่แทน" เวรย่อยนี้ได้ (ว่างวันนั้น/ลงได้โดยไม่ผิดกฏ · ไม่ขอหยุด)
-function freeForUnit(sid,d,unit){ return staffList().filter(s=>{ if(s.id===sid)return false; if(offAt(s.id,d)||isLocked(s.id,d))return false;
+function freeForUnit(sid,d,unit){ return staffList().filter(s=>{ if(s.id===sid)return false; if(offAt(s.id,d)||isLocked(s.id,d)||isBday(s.id,d))return false;
   if(unit.kind==='cc'){ const st=STAFF[s.id]||{}; if(st.role==='head'||st.noCC)return false; if(unit.cc==='ccn'&&st.role!=='member')return false; }
   const nc=addUnit(cell(s.id,d),unit); if(nc===null)return false;   // ลงเวรย่อยนี้ซ้อนไม่ได้ (เวลาทับ/คอมโบไม่ถูก)
   const ov={}; ov[s.id]={}; ov[s.id][d]=nc; if(violOv(s.id,d,ov))return false;   // ติดกฏเวรติดกัน
@@ -780,7 +818,7 @@ $('pinOk').onclick=()=>{ if($('pin').value!==(SETTINGS.adminPass||'1234')){toast
   else { sched=true; $('modePill').textContent='โหมดผู้จัดเวร'; $('schedBtn').textContent='↩ ออกจากโหมดผู้จัดเวร'; }
   $('modeHint').textContent='แตะช่อง=เลือกเวร/บทบาท · คลิกขวา(หรือกดค้างบนมือถือ)=🔒ล็อกเวร(ออโต้ร่างไม่แตะ) · ↶↷ ย้อนกลับ/ทำซ้ำ'; render(); };
 $('pin').addEventListener('keydown',e=>{if(e.key==='Enter')$('pinOk').click();});
-document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{$('gate').classList.add('hide');$('panel').classList.add('hide');$('holModal').classList.add('hide');$('rulesModal').classList.add('hide');$('swapRegModal').classList.add('hide');$('draftModal').classList.add('hide');});
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{$('gate').classList.add('hide');$('panel').classList.add('hide');$('holModal').classList.add('hide');$('rulesModal').classList.add('hide');$('swapRegModal').classList.add('hide');$('draftModal').classList.add('hide');$('bdayModal').classList.add('hide');});
 [$('gate'),$('panel'),$('holModal'),$('rulesModal'),$('swapRegModal')].forEach(m=>m.addEventListener('click',e=>{if(e.target===m){m.classList.add('hide');}}));
 $('rulesBtn').onclick=()=>{ $('rulesView').textContent=RULES||'— ยังไม่ได้กำหนดกติกา —'; $('rulesModal').classList.remove('hide'); };
 $('swapRegBtn').onclick=()=>openSwapReg();
@@ -794,7 +832,7 @@ function showTab(t){ document.querySelectorAll('#tabs button').forEach(b=>b.clas
 $('saveRules').onclick=()=>{ RULES=$('rulesTxt').value||''; DB.set(PATH+'/rules',RULES||null); toast('บันทึกกติกาแล้ว'); };
 
 let edStaff=[];
-function renderStaffRows(){ edStaff=staffList().map(s=>({id:s.id,name:s.name,role:s.role,order:s.order,no:(s.no||[]).slice(),noCC:!!s.noCC,fixM:s.fixM||'',noPair:(s.noPair||[]).slice()})); drawStaff(); }
+function renderStaffRows(){ edStaff=staffList().map(s=>({id:s.id,name:s.name,role:s.role,order:s.order,no:(s.no||[]).slice(),noCC:!!s.noCC,fixM:s.fixM||'',noPair:(s.noPair||[]).slice(),bday:bdayOf(s.id)})); drawStaff(); }
 function drawStaff(){ $('stCount').textContent=edStaff.length;
   const opts=r=>ROLES.map(x=>`<option value="${x.key}" ${x.key===r?'selected':''}>${esc(x.name)}</option>`).join('');
   // เรียงตามตำแหน่ง (ลำดับในแต่ละกลุ่มตามที่ admin จัด) · ปุ่ม ▲▼ เลื่อนภายในกลุ่มเดียวกัน
@@ -838,9 +876,28 @@ function openNoEdit(i){ const s=edStaff[i];
 const FIXM_TH={incharge:'I',lead1:'L1',lead2:'L2',EMS:'EMS',refer:'Ref',triage:'T',member1:'M1',member2:'M2',leadalt:'สลับ L1/L2'};
 const FIXM_OPTS=[['','อื่นๆ (แชร์ได้ทั้ง 6: I/L1/L2/T/M1/M2)'],['EMS','ช EMS'],['refer','ช Ref'],['leadalt','สลับ L1/L2 (คู่)']];
 $('addStaff').onclick=()=>{ edStaff.push({id:uid(),name:'',role:ROLES[ROLES.length-1]?ROLES[ROLES.length-1].key:'member',order:edStaff.length,no:[],noCC:false}); drawStaff(); const ins=$('stRows').querySelectorAll('input[data-f=name]'); if(ins.length)ins[ins.length-1].focus(); };
-$('saveStaff').onclick=()=>{ const out={}; let o=0; const ids=new Set(edStaff.map(s=>s.id).filter(Boolean)); edStaff.forEach(s=>{ const nm=(s.name||'').trim(); if(!nm)return; const id=s.id||uid(); out[id]={name:nm,role:s.role||'member',order:o++,no:s.no||[],noCC:!!s.noCC,fixM:s.fixM||'',noPair:(s.noPair||[]).filter(p=>ids.has(p))}; });
+$('saveStaff').onclick=()=>{ const out={}; let o=0; const ids=new Set(edStaff.map(s=>s.id).filter(Boolean)); edStaff.forEach(s=>{ const nm=(s.name||'').trim(); if(!nm)return; const id=s.id||uid(); out[id]={name:nm,role:s.role||'member',order:o++,no:s.no||[],noCC:!!s.noCC,fixM:s.fixM||'',noPair:(s.noPair||[]).filter(p=>ids.has(p))}; if(s.bday)out[id].bday=s.bday; });
   STAFF=out; DB.set(PATH+'/staff',out); $('stHint').style.display='none'; toast('บันทึกรายชื่อแล้ว ('+Object.keys(out).length+')'); $('pop').style.display='none'; renderMeSel(); render(); };
 
+let edBday={};
+function openBday(){ if(!admin){ toast('เฉพาะ Admin'); return; } edBday={};
+  const src=(edStaff&&edStaff.length)?edStaff:staffList();
+  src.forEach(s=>{ if(s.id)edBday[s.id]=s.bday!==undefined?s.bday:bdayOf(s.id); });
+  const dOpt=v=>'<option value="">วัน</option>'+Array.from({length:31},(_,i)=>i+1).map(n=>`<option value="${String(n).padStart(2,'0')}" ${v===String(n).padStart(2,'0')?'selected':''}>${n}</option>`).join('');
+  const mOpt=v=>'<option value="">เดือน</option>'+TH_MON_FULL.slice(1).map((t,i)=>`<option value="${String(i+1).padStart(2,'0')}" ${v===String(i+1).padStart(2,'0')?'selected':''}>${t}</option>`).join('');
+  $('bdayList').innerHTML=src.filter(s=>s.id).map(s=>{ const b=edBday[s.id]||''; const mm=b?b.slice(0,2):'', dd=b?b.slice(3):'';
+    return `<div class="bdrow" data-bid="${s.id}"><span class="nm">${b?'🎂 ':''}${esc(s.name||'(ไม่มีชื่อ)')}</span><select data-bd="d">${dOpt(dd)}</select><select data-bd="m">${mOpt(mm)}</select><button class="clr" title="ลบ">×</button></div>`; }).join('');
+  $('bdayList').querySelectorAll('.bdrow').forEach(r=>{ const id=r.dataset.bid; const upd=()=>{ const d=r.querySelector('[data-bd=d]').value, m=r.querySelector('[data-bd=m]').value; edBday[id]=(d&&m)?(m+'-'+d):''; };
+    r.querySelectorAll('select').forEach(x=>x.onchange=upd); r.querySelector('.clr').onclick=()=>{ r.querySelectorAll('select').forEach(x=>x.value=''); edBday[id]=''; }; });
+  $('bdayModal').classList.remove('hide'); }
+$('bdayBtn').onclick=openBday;
+$('bdaySave').onclick=()=>{ let n=0; const bad=[];
+  Object.keys(edBday).forEach(id=>{ const v=edBday[id]||''; if(v){ const mm=+v.slice(0,2), dd=+v.slice(3); const mx=[0,31,29,31,30,31,30,31,31,30,31,30,31][mm]; if(dd>mx)bad.push((STAFF[id]||{}).name||id); } });
+  if(bad.length){ toast('วันที่ไม่มีจริง: '+bad.join(', ')); return; }
+  Object.keys(edBday).forEach(id=>{ const v=edBday[id]||'';
+    if(STAFF[id]){ if(v)STAFF[id].bday=v; else delete STAFF[id].bday; DB.set(PATH+'/staff/'+id+'/bday', v||null); if(v)n++; }
+    const e=edStaff.find(x=>x.id===id); if(e)e.bday=v; });
+  $('bdayModal').classList.add('hide'); render(); toast('บันทึกวันเกิดแล้ว ('+n+' คน)'); };
 let edRoles=[];
 function renderRoleRows(){ edRoles=ROLES.map(r=>({key:r.key,name:r.name})); drawRoles(); }
 function drawRoles(){ $('rlRows').innerHTML=edRoles.map((r,i)=>`<div class="strow" style="grid-template-columns:1fr 34px"><input value="${esc(r.name)}" data-i="${i}" placeholder="ชื่อตำแหน่ง"><button class="del" data-i="${i}">×</button></div>`).join('');
@@ -911,7 +968,7 @@ function offAt(id,d){ return !!(OFF[id]||{})[d]; }
 $('autoBtn').onclick=async()=>{ if(!canEdit())return; if(!confirm('ออโต้ร่างเวรเดือน '+monthLabel(curY,curM)+'? จะเขียนทับเวรเดิม (เคารพวันขอหยุด · เฉลี่ยเวรพิเศษ/ศูนย์สั่งการ · แก้เองต่อได้)'))return; await autoDraft(); };
 async function autoDraft(){
   // ช่องที่ admin ล็อกไว้ (แม้ว่าง) = ห้ามจัดเวรใด ๆ ลง
-  const offAt=(id,d)=> !!(OFF[id]||{})[d] || isLocked(id,d);
+  const offAt=(id,d)=> !!(OFF[id]||{})[d] || isLocked(id,d) || isBday(id,d);   // วันเกิด = off
   pushUndo();
   const OLD=JSON.parse(JSON.stringify(SH||{}));
   const nd=daysInMonth(curY,curM), list=staffList();
@@ -948,7 +1005,7 @@ async function autoDraft(){
     if(bases.indexOf('n')>=0&&bases.indexOf('a')>=0&&(hasM(pv)||hasM(nx)))return true;
     if(bases.indexOf('m')>=0&&(isNA16(pv)||isNA16(nx)))return true;
     return false; }
-  function bb(id,d,s){ const p=NEW[id]||{}; const tb=tbase(s); if(gap16(id,d,tb))return true;
+  function bb(id,d,s){ const p=NEW[id]||{}; const tb=tbase(s); if(gap16(id,d,tb))return true; if(bdayGap(id,d,tb))return true;
     const prev=pcell(id,d-1), next=p[d+1];
     const pA=prev&&cbases(prev).indexOf('a')>=0;
     const nN=next&&cbases(next).indexOf('n')>=0;
@@ -979,6 +1036,7 @@ async function autoDraft(){
     if(addBase==='a'){ if(nx&&cbases(nx).indexOf('n')>=0)return false; }   // บ่าย→ดึกพรุ่งนี้
     if(addBase==='n'){ if(pv&&cbases(pv).indexOf('a')>=0)return false; if(afterVac(id,d))return false; }   // บ่ายเมื่อวาน→ดึก · หลังพักร้อน
     if(gap16(id,d,['n','a']))return false;   // กลายเป็นดึกต่อบ่าย → ก่อน/หลังต้องไม่มีเช้า
+    if(bdayGap(id,d,[addBase]))return false;
     return true; };
   const shortfall=[]; const vacRet={};
   // ด+บ: เกลี่ยจำนวนต่อคนเท่า ๆ กัน และในคนเดียวกันให้ห่างกัน (ไม่กระจุก) — เก็บวันที่ได้ ด+บ ของแต่ละคน (รวมท้ายเดือนก่อนเป็นเลขติดลบ)
@@ -1110,7 +1168,7 @@ async function autoDraft(){
     const canAddCC=(id,cs)=>{ const c=NEW[id][d]; if(!c||c.cc||isLocked(id,d))return false; const tb=tbase(cs);
       if(cbases(c).indexOf(tb[0])>=0)return false;                             // เวลาทับกับเวรเดิม/รถ refer ในช่อง
       { const all=cbases(c).concat(tb); if(all.indexOf('n')>=0&&all.indexOf('m')>=0)return false;   // ดึกต่อเช้า ห้ามทุกกรณี
-        if(gap16(id,d,all))return false; }                                         // ดึกต่อบ่าย เว้น ≥16 ชม.
+        if(gap16(id,d,all))return false; if(bdayGap(id,d,all))return false; }      // ดึกต่อบ่าย เว้น ≥16 ชม. · วันเกิด เว้น 8 ชม.
       const nx=NEW[id][d+1], pv=pcell(id,d-1);
       if(tb.indexOf('n')>=0 && pv && cbases(pv).indexOf('a')>=0)return false;   // บ่ายเมื่อวาน→ดึก
       if(tb.indexOf('n')>=0 && afterVac(id,d))return false;                     // หลังพักร้อน ห้ามดึก
@@ -1226,6 +1284,7 @@ async function autoDraft(){
     if(k==='n'){ const pv=pcell(id,d-1); if(pv&&cbases(pv).indexOf('a')>=0)return false; if(afterVac(id,d))return false; if(c0&&gap16(id,d,['n','a']))return false; }
     if(k==='a'){ const nx=NEW[id][d+1]; if(nx&&cbases(nx).indexOf('n')>=0)return false; }
     if(k==='m'&&gap16(id,d,c0?['m','a']:['m']))return false;
+    if(bdayGap(id,d,[k]))return false;
     return true; };
   const spGroups=[members, list.filter(s=>s.role==='float'||s.role==='subhead')];
   for(let d=1;d<=nd;d++){ SP[d]={};
