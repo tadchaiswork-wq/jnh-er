@@ -1,0 +1,45 @@
+# JNH ER — อ่านอุณหภูมิตู้เย็นยา ER1 จาก TempCheck แล้วส่งเข้า Firebase ให้ Whole Monitor (ไม่ต้องติดตั้งอะไรที่ ER)
+name: Fridge temp relay
+on:
+  schedule:
+    - cron: '*/5 * * * *'     # ทุก 5 นาที (GitHub อาจช้ากว่ากำหนดได้ 5–15 นาที)
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: fridge-relay
+  cancel-in-progress: true
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Read TempCheck and write to Firebase
+        run: |
+          python3 - <<'PY'
+          import re, html, json, urllib.request
+          SRC = 'http://www4.chainathospital.org:8889/OR-Check/ShowGraph.php?device=08:F9:E0:75:5C:14'
+          FB  = 'https://jnh-er-7f427-default-rtdb.asia-southeast1.firebasedatabase.app/checklist/fridgeLive/er1.json'
+          PAT = r'ล่าสุด[^0-9\-]{0,40}(-?\d{1,2}(?:\.\d+)?)\s*°\s*C'   # "ล่าสุด ... X°C"
+          def send(method, obj):
+              req = urllib.request.Request(FB, data=json.dumps(obj).encode(), method=method, headers={'Content-Type': 'application/json'})
+              urllib.request.urlopen(req, timeout=20).read()
+          def text(raw, enc):
+              h = raw.decode(enc, 'replace')
+              h = re.sub(r'(?is)<script[^>]*>.*?</script>', ' ', h); h = re.sub(r'(?is)<style[^>]*>.*?</style>', ' ', h)
+              return re.sub(r'\s+', ' ', html.unescape(re.sub(r'<[^>]+>', ' ', h)))
+          try:
+              raw = urllib.request.urlopen(urllib.request.Request(SRC, headers={'User-Agent': 'JNH-ER-FridgeRelay/1.0'}), timeout=30).read()
+              temp = None
+              for enc in ('utf-8', 'cp874'):
+                  m = re.search(PAT, text(raw, enc))
+                  if m: temp = float(m.group(1)); break
+              if temp is None: raise ValueError('latest temperature not found on page')
+              if not -40 <= temp <= 60: raise ValueError('value out of range: %s' % temp)
+              send('PUT', {'temp': round(temp, 2), 'at': {'.sv': 'timestamp'}, 'src': 'TempCheck-ER1', 'host': 'github-actions'})
+              print('OK temp=%.1f C' % temp)
+          except Exception as e:
+              print('ERROR', e)
+              try: send('PATCH', {'err': str(e)[:200], 'errAt': {'.sv': 'timestamp'}, 'host': 'github-actions'})
+              except Exception as e2: print('ERROR sending error', e2)
+          PY
