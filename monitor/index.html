@@ -88,6 +88,25 @@
     animation:emsAlertBlink 1s steps(1) infinite}
   #emsAlert.show{display:flex}
   @keyframes emsAlertBlink{50%{background:#7f1d1d;color:#fecaca}}
+  /* ---- ตู้เย็นยา (อุณหภูมิสดจากเซ็นเซอร์ TempCheck) — แถบล่างฝั่ง Fast Track ---- */
+  .frbar{flex:0 0 auto;display:none;align-items:center;gap:20px;padding:8px 26px;height:108px;border-top:4px solid;color:#0f172a;position:relative;z-index:2}
+  .frbar.show{display:flex}
+  body.has-fr #monCount{bottom:132px}
+  .frbar svg{height:92px;width:auto;flex:0 0 auto;filter:drop-shadow(0 2px 3px rgba(0,0,0,.18))}
+  .frbar .frt{font-size:58px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+  .frbar .frt small{font-size:30px;font-weight:700;margin-left:2px}
+  .frbar .frinfo{display:flex;flex-direction:column;gap:2px}
+  .frbar .frnm{font-size:17px;font-weight:700;opacity:.8}
+  .frbar .frst{font-size:24px;font-weight:800}
+  .frbar .frtime{margin-left:auto;font-size:15px;font-weight:600;opacity:.7;text-align:right}
+  .frbar.ok{background:#dcfce7;border-color:#22c55e;color:#14532d}
+  .frbar.warn{background:#ffedd5;border-color:#f97316;color:#7c2d12;animation:frWarn 1.2s ease-in-out infinite}
+  .frbar.cold{background:#dbeafe;border-color:#2563eb;color:#1e3a8a;animation:frCold 1s ease-in-out infinite}
+  .frbar.hot{background:#fee2e2;border-color:#dc2626;color:#7f1d1d;animation:frHot 1s ease-in-out infinite}
+  .frbar.stale{background:#e2e8f0;border-color:#94a3b8;color:#475569}
+  @keyframes frWarn{50%{background:#fdba74}}
+  @keyframes frCold{50%{background:#60a5fa;color:#fff}}
+  @keyframes frHot{50%{background:#f87171;color:#fff}}
 </style>
 </head>
 <body>
@@ -97,6 +116,7 @@
   <!-- LEFT 70% : ER Fast Track TV -->
   <div class="cell">
     <div class="frameScale" id="ftWrap"><iframe id="ftFrame" title="Fast Track"></iframe></div>
+    <div class="frbar" id="frBar"></div>
   </div>
 
   <!-- RIGHT column -->
@@ -371,6 +391,70 @@ setInterval(()=>{
     render();
   } else render();
 },15000);
+
+/* ================= ตู้เย็นยา ER1 — อุณหภูมิสด (เซ็นเซอร์ TempCheck ทุก 10 นาที) =================
+   ตัวส่งข้อมูล (fridge-relay.ps1 บนเครื่องในโรงพยาบาล) อ่านค่า "ล่าสุด" แล้วเขียนลง checklist/fridgeLive/er1
+   < 2 ฟ้ากระพริบ+ติ๊ง 2 · 2–3 / 7–8 ส้มกระพริบ+ติ๊ง 1 · 3–7 เขียว · > 8 แดงกระพริบ+ติ๊ง 2 · ไม่มีข้อมูลใหม่ > 40 นาที = เทา
+   เสียงดังครั้งเดียวตอนเข้าสถานะนั้น (ไม่ซ้ำ ไม่ต้องกดปิด) · แถบกระพริบต่อเนื่องจนกว่าอุณหภูมิกลับมาปกติ */
+const FR_STALE_MIN=40;   // เผื่อ GitHub Actions ดีเลย์
+let frLive=null, frLastState="", frLastDing=0;
+// ติ๊งครั้งเดียวต่อการเปลี่ยนสถานะ (ไม่ซ้ำ ไม่ต้องกดปิด) · จำสถานะที่ติ๊งไปแล้วไว้ในเครื่อง กันติ๊งซ้ำตอนจอรีโหลดเปลี่ยนเวร
+function frDingedGet(){ try{ return localStorage.getItem("jnh_fr_dinged")||""; }catch(e){ return ""; } }
+function frDingedSet(v){ try{ localStorage.setItem("jnh_fr_dinged",v); }catch(e){} }
+function fridgeSVG(st){
+  const c={ok:"#16a34a",warn:"#ea580c",cold:"#2563eb",hot:"#dc2626",stale:"#64748b"}[st]||"#64748b";
+  const cheek={ok:"#fda4af",warn:"#fdba74",cold:"#93c5fd",hot:"#f87171",stale:"#cbd5e1"}[st];
+  let eyes='<circle cx="23" cy="47" r="2.6" fill="#1f2937"/><circle cx="37" cy="47" r="2.6" fill="#1f2937"/><circle cx="23.9" cy="46.1" r=".8" fill="#fff"/><circle cx="37.9" cy="46.1" r=".8" fill="#fff"/>';
+  let mouth='<path d="M24 54 Q30 60 36 54" stroke="#1f2937" stroke-width="2.2" fill="none" stroke-linecap="round"/>', extra='';
+  if(st==="warn"){ mouth='<path d="M24 56 q3 -2.5 6 0 t6 0" stroke="#1f2937" stroke-width="2.2" fill="none" stroke-linecap="round"/>'; }
+  if(st==="cold"){ eyes='<path d="M20 47 l3 -2.5 l3 2.5 M34 47 l3 -2.5 l3 2.5" stroke="#1f2937" stroke-width="2" fill="none" stroke-linecap="round"/>';
+    mouth='<path d="M23 56 l2.3 -2 l2.3 2 l2.3 -2 l2.3 2 l2.3 -2 l2.3 2" stroke="#1f2937" stroke-width="1.8" fill="none" stroke-linejoin="round"/>';
+    extra='<g stroke="#60a5fa" stroke-width="1.8" stroke-linecap="round"><path d="M58 8 v12 M52 14 h12 M53.8 9.8 l8.4 8.4 M62.2 9.8 l-8.4 8.4"/></g>'; }
+  if(st==="hot"){ eyes='<path d="M20 44.5 l5 2.5 l-5 2.5 M40 44.5 l-5 2.5 l5 2.5" stroke="#1f2937" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>';
+    mouth='<ellipse cx="30" cy="56" rx="3.4" ry="3" fill="#7f1d1d"/>';
+    extra='<path d="M52 30 q4 6 0 8.5 q-4 -2.5 0 -8.5z" fill="#38bdf8"/><path d="M58 40 q3 4.5 0 6.5 q-3 -2 0 -6.5z" fill="#38bdf8"/>'; }
+  if(st==="stale"){ eyes='<path d="M20 47 h6 M34 47 h6" stroke="#1f2937" stroke-width="2.2" stroke-linecap="round"/>';
+    mouth='<path d="M26 56 h8" stroke="#1f2937" stroke-width="2.2" stroke-linecap="round"/>';
+    extra='<text x="50" y="16" font-size="11" font-weight="800" fill="#64748b">z</text><text x="56" y="9" font-size="8" font-weight="800" fill="#94a3b8">z</text>'; }
+  return `<svg viewBox="0 0 66 82" aria-hidden="true">
+    <rect x="8" y="3" width="44" height="72" rx="9" fill="#ffffff" stroke="${c}" stroke-width="3"/>
+    <line x1="8" y1="27" x2="52" y2="27" stroke="${c}" stroke-width="3"/>
+    <rect x="42" y="10" width="4" height="11" rx="2" fill="${c}"/><rect x="42" y="33" width="4" height="15" rx="2" fill="${c}"/>
+    <rect x="13" y="74" width="7" height="5" rx="2" fill="${c}"/><rect x="40" y="74" width="7" height="5" rx="2" fill="${c}"/>
+    <ellipse cx="17.5" cy="53" rx="3.2" ry="2" fill="${cheek}" opacity=".8"/><ellipse cx="42.5" cy="53" rx="3.2" ry="2" fill="${cheek}" opacity=".8"/>
+    ${eyes}${mouth}${extra}</svg>`;
+}
+function frDing(n){
+  try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==="suspended") AC.resume(); }catch(e){ return; }
+  for(let i=0;i<n;i++){ const t0=AC.currentTime+0.05+i*0.42;
+    [[1568,0.32],[3136,0.07]].forEach(([f,v])=>{ const o=AC.createOscillator(), g=AC.createGain(); o.type="sine"; o.frequency.value=f;
+      g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(v,t0+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.7);
+      o.connect(g); g.connect(AC.destination); o.start(t0); o.stop(t0+0.75); }); }
+}
+function frEval(){
+  const bar=document.getElementById("frBar"); if(!bar) return;
+  const v=frLive; if(!v || (v.temp==null && !v.err)){ bar.className="frbar"; document.body.classList.remove("has-fr"); frLastState=""; return; }
+  const lo=(typeof frCfg!=="undefined"&&frCfg.lo!=null)?frCfg.lo:2, hi=(typeof frCfg!=="undefined"&&frCfg.hi!=null)?frCfg.hi:8;
+  const t=(v.temp!=null)?Number(v.temp):null, at=Number(v.at)||0;
+  const ageMin=at?Math.floor((Date.now()-at)/60000):9999;
+  let st, txt;
+  if(t==null || ageMin>FR_STALE_MIN){ st="stale"; txt=(v.err&&Number(v.errAt)>at)?"อ่านค่าเซ็นเซอร์ไม่ได้":("ไม่มีข้อมูลใหม่ "+(ageMin>=9999?"":ageMin+" นาที")); }
+  else if(t<lo){ st="cold"; txt="ต่ำกว่าเกณฑ์"; }
+  else if(t>hi){ st="hot"; txt="สูงกว่าเกณฑ์"; }
+  else if(t<lo+1 || t>hi-1){ st="warn"; txt="ใกล้ขอบเกณฑ์"; }
+  else { st="ok"; txt="ปกติ"; }
+  const tm=at?new Date(at).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Bangkok"}):"—";
+  bar.className="frbar show "+st; document.body.classList.add("has-fr");
+  bar.innerHTML=fridgeSVG(st)+`<div class="frt">${t==null?"—":t.toFixed(1)}<small>°C</small></div>
+    <div class="frinfo"><div class="frnm">ตู้เย็นยา ER1 · เกณฑ์ ${lo}–${hi} °C</div><div class="frst">${txt}</div></div>
+    <div class="frtime">อัปเดต<br>${tm} น.</div>`;
+  if(st==="warn"||st==="cold"||st==="hot"){
+    if(st!==frLastState && st!==frDingedGet()){ frDing(st==="warn"?1:2); frLastDing=Date.now(); frDingedSet(st); } }
+  else if(st==="ok"){ frDingedSet(""); }      // กลับมาปกติ → ครั้งหน้าที่ผิดปกติจะติ๊งใหม่
+  frLastState=st;
+}
+if(db){ db.ref("checklist/fridgeLive/er1").on("value",s=>{ frLive=s.val(); frEval(); }); }
+setInterval(frEval,30000);
 
 /* optional zoom of embedded frames */
 function applyZoom(wrapId,frameId,zoom){
