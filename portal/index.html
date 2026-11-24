@@ -42,6 +42,11 @@
     background:#ef4444;color:#fff;font-size:11px;font-weight:800;line-height:19px;display:none}
   .notebtn .dot.show{display:block}
   .nmodal{max-width:460px;display:flex;flex-direction:column;max-height:86vh}
+  /* หน้าต่างฝากข้อความ = เต็มจอ */
+  #note-modal{padding:0}
+  #note-modal .nmodal{max-width:none;width:100%;height:100%;max-height:none;border-radius:0;padding:22px max(18px,calc((100vw - 900px)/2)) 18px}
+  #note-modal .nitem .t{font-size:16px;max-height:none}
+  #note-modal .nform textarea{min-height:110px;font-size:16px}
   .nlist{flex:1;overflow:auto;margin:6px -4px 10px;padding:0 4px;display:flex;flex-direction:column;gap:8px;min-height:80px}
   .nitem{background:#fefce8;border:1px solid #fde68a;border-radius:12px;padding:10px 12px;position:relative}
   .nitem .t{white-space:pre-wrap;word-break:break-word;font-size:15px;color:#1f2937;padding-right:26px;max-height:40vh;overflow:auto}
@@ -273,7 +278,7 @@ function postNote(){ const text=($('ntext').value||'').trim().slice(0,3000), nam
   $('ntext').value=''; renderNotes(); toast('ฝากข้อความแล้ว ✓'); }
 function copyNotes(){ const arr=noteArr().slice().reverse();   // เก่า → ใหม่
   if(!arr.length){ toast('ยังไม่มีข้อความ'); return; }
-  const txt=arr.map(n=>'['+noteTime(n.at)+(n.name?' · '+n.name:'')+']\n'+n.text).join('\n\n');
+  const txt=arr.map(n=>n.text).join('\n\n');   // เฉพาะเนื้อความ คงการขึ้นบรรทัดเหมือนต้นฉบับ
   const done=()=>toast('คัดลอก '+arr.length+' ข้อความแล้ว ✓');
   const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select();
     try{ document.execCommand('copy'); done(); }catch(e){ toast('คัดลอกไม่สำเร็จ'); } ta.remove(); };
