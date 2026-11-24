@@ -44,7 +44,7 @@
   .nmodal{max-width:460px;display:flex;flex-direction:column;max-height:86vh}
   .nlist{flex:1;overflow:auto;margin:6px -4px 10px;padding:0 4px;display:flex;flex-direction:column;gap:8px;min-height:80px}
   .nitem{background:#fefce8;border:1px solid #fde68a;border-radius:12px;padding:10px 12px;position:relative}
-  .nitem .t{white-space:pre-wrap;word-break:break-word;font-size:15px;color:#1f2937;padding-right:26px}
+  .nitem .t{white-space:pre-wrap;word-break:break-word;font-size:15px;color:#1f2937;padding-right:26px;max-height:40vh;overflow:auto}
   .nitem .m{font-size:12px;color:#92400e;margin-top:4px}
   .nitem .del{position:absolute;top:6px;right:6px;border:none;background:none;font-size:15px;cursor:pointer;opacity:.6}
   .nempty{text-align:center;color:var(--muted);font-size:14px;padding:22px 0}
@@ -128,7 +128,7 @@
     <h3>📝 ฝากข้อความ</h3>
     <div class="nlist" id="nlist"></div>
     <div class="nform">
-      <textarea id="ntext" maxlength="300" placeholder="พิมพ์ข้อความ…"></textarea>
+      <textarea id="ntext" maxlength="3000" placeholder="พิมพ์ข้อความ…"></textarea>
       <div class="row"><input id="nname" maxlength="40" placeholder="ชื่อ (ไม่ใส่ก็ได้)"><button onclick="postNote()">ฝาก</button></div>
     </div>
     <div class="m-btns" style="margin-top:10px"><button class="m-cancel" onclick="hide('note-modal')">ปิด</button></div>
@@ -243,7 +243,7 @@ function saveLayout(){
   toast('บันทึกการจัดหน้าแล้ว ✓ (ทุกเครื่องจะเห็นเหมือนกัน)');
   exitAdmin();
 }
-/* ---- ฝากข้อความ: portal/notes/<id> = {text,name,at} · ใครก็ฝากได้ · ลบได้เฉพาะของตัวเอง (เครื่องนี้) หรือ admin ---- */
+/* ---- ฝากข้อความ (≤3000 ตัวอักษร ≈ 1 หน้า A4): portal/notes/<id> = {text,name,at} · ใครก็ฝากได้ · ลบได้เฉพาะของตัวเอง (เครื่องนี้) หรือ admin ---- */
 let NOTES={};
 function lsGet(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } }
 function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
@@ -262,7 +262,7 @@ function renderNotes(){
 }
 function openNotes(){ $('note-modal').classList.remove('hide'); $('nname').value=lsGet('portal_note_name',''); renderNotes();
   const arr=noteArr(); lsSet('portal_note_seen', arr.length?Math.max(...arr.map(n=>n.at||0)):Date.now()); renderNotes(); }
-function postNote(){ const text=($('ntext').value||'').trim().slice(0,300), name=($('nname').value||'').trim().slice(0,40);
+function postNote(){ const text=($('ntext').value||'').trim().slice(0,3000), name=($('nname').value||'').trim().slice(0,40);
   if(!text){ toast('พิมพ์ข้อความก่อน'); return; }
   lsSet('portal_note_name',name);
   const id='n'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), rec={text,name,at:Date.now()};
