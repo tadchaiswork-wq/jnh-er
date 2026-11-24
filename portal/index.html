@@ -131,7 +131,7 @@
       <textarea id="ntext" maxlength="3000" placeholder="พิมพ์ข้อความ…"></textarea>
       <div class="row"><input id="nname" maxlength="40" placeholder="ชื่อ (ไม่ใส่ก็ได้)"><button onclick="postNote()">ฝาก</button></div>
     </div>
-    <div class="m-btns" style="margin-top:10px"><button class="m-cancel" onclick="hide('note-modal')">ปิด</button></div>
+    <div class="m-btns" style="margin-top:10px"><button class="m-ok" onclick="copyNotes()">📋 คัดลอกทั้งหมด</button><button class="m-cancel" onclick="hide('note-modal')">ปิด</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -243,7 +243,7 @@ function saveLayout(){
   toast('บันทึกการจัดหน้าแล้ว ✓ (ทุกเครื่องจะเห็นเหมือนกัน)');
   exitAdmin();
 }
-/* ---- ฝากข้อความ (≤3000 ตัวอักษร ≈ 1 หน้า A4): portal/notes/<id> = {text,name,at} · ใครก็ฝากได้ · ลบได้เฉพาะของตัวเอง (เครื่องนี้) หรือ admin ---- */
+/* ---- ฝากข้อความ (≤3000 ตัวอักษร ≈ 1 หน้า A4): portal/notes/<id> = {text,name,at} · ใครก็ฝาก/ลบได้ · คัดลอกทั้งหมดได้ ---- */
 let NOTES={};
 function lsGet(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } }
 function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
@@ -257,7 +257,7 @@ function renderNotes(){
   const box=$('nlist'); if(!box) return;
   box.innerHTML=arr.length?arr.map(n=>`<div class="nitem"><div class="t">${esc(n.text)}</div>
       <div class="m">${n.name?esc(n.name)+' · ':''}${noteTime(n.at)}</div>
-      ${(adminMode||mine.indexOf(n.id)>=0)?`<button class="del" title="ลบ" onclick="delNote('${n.id}')">🗑</button>`:''}</div>`).join('')
+      <button class="del" title="ลบ" onclick="delNote('${n.id}')">🗑</button></div>`).join('')
     :'<div class="nempty">ยังไม่มีข้อความ</div>';
 }
 function openNotes(){ $('note-modal').classList.remove('hide'); $('nname').value=lsGet('portal_note_name',''); renderNotes();
@@ -271,6 +271,13 @@ function postNote(){ const text=($('ntext').value||'').trim().slice(0,3000), nam
   const mine=lsGet('portal_note_mine',[]); mine.push(id); lsSet('portal_note_mine',mine.slice(-100));
   lsSet('portal_note_seen',Date.now()+60000);
   $('ntext').value=''; renderNotes(); toast('ฝากข้อความแล้ว ✓'); }
+function copyNotes(){ const arr=noteArr().slice().reverse();   // เก่า → ใหม่
+  if(!arr.length){ toast('ยังไม่มีข้อความ'); return; }
+  const txt=arr.map(n=>'['+noteTime(n.at)+(n.name?' · '+n.name:'')+']\n'+n.text).join('\n\n');
+  const done=()=>toast('คัดลอก '+arr.length+' ข้อความแล้ว ✓');
+  const fallback=()=>{ const ta=document.createElement('textarea'); ta.value=txt; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); done(); }catch(e){ toast('คัดลอกไม่สำเร็จ'); } ta.remove(); };
+  if(navigator.clipboard&&window.isSecureContext){ navigator.clipboard.writeText(txt).then(done,fallback); } else fallback(); }
 function delNote(id){ if(!confirm('ลบข้อความนี้?')) return;
   if(fbRef){ try{ fbRef.child('notes/'+id).remove(); }catch(e){} } else { delete NOTES[id]; lsSet('portal_notes_local',NOTES); }
   delete NOTES[id]; renderNotes(); }
