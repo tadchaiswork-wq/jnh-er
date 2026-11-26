@@ -190,10 +190,10 @@ tr.sparerow td.gname{color:#6d28d9;font-weight:800}
     <button class="btn sm gray" id="printBtn">🖨 พิมพ์</button>
   </span>
 </div>
-<div class="hint" id="modeHint">เลือกชื่อของคุณด้านบน แล้วแตะวันในแถวของตัวเองเพื่อเลือกสถานะ (off/พักร้อน/วิชาการ) · คลิกขวา/กดค้างที่ช่องใดก็ได้ = ดู/ขอแลกเวร 🔁 · การลงเวรทำโดยผู้จัดเวร/Admin</div>
+<div class="hint" id="modeHint">เลือกชื่อของคุณด้านบน แล้วแตะวันในแถวของตัวเองเพื่อเลือกสถานะ (off/vacation/วิชาการ) · คลิกขวา/กดค้างที่ช่องใดก็ได้ = ดู/ขอแลกเวร 🔁 · การลงเวรทำโดยผู้จัดเวร/Admin</div>
 <div class="legend">
   <span><i class="lm">ช</i>เช้า</span><span><i class="la">บ</i>บ่าย</span><span><i class="ln">ด</i>ดึก</span>
-  <span><i class="lcc">ศ</i>ศูนย์สั่งการ</span><span>ด+บ=ดึก+บ่ายวันเดียว</span><span><i class="lo">off</i>ขอหยุด · พร=พักร้อน · วก=วิชาการ · 🚐รถR=เวรรถ refer · 🎂=วันเกิด (off)</span>
+  <span><i class="lcc">ศ</i>ศูนย์สั่งการ</span><span>ด+บ=ดึก+บ่ายวันเดียว</span><span><i class="lo">off</i>ขอหยุด · VA=vacation · ชป=วิชาการ · 🚐รถR=เวรรถ refer · 🎂=วันเกิด (off)</span>
   <span>วันพิเศษ=หัวตารางแดง · กรอบแดง=ผิดกฏ · 🔒=ล็อกเวร · 🔁=มีคำขอแลกเวร(รออนุมัติ) · คลิกขวา/กดค้างเวรตัวเอง=ขอแลก (แลกรายเวรย่อยได้)</span>
 </div>
 <div class="warnbox" id="warnbox"></div>
@@ -349,7 +349,7 @@ function cbases(c){ if(!c||!c.s&&!c.ref)return []; let b=c.s?(c.s==='na'?['n','a
   if(c.cc)tbase(c.cc).forEach(x=>{if(b.indexOf(x)<0)b.push(x);});
   if(c.ref){ const rb=refBase(c.ref); if(rb&&b.indexOf(rb)<0)b.push(rb); } return b; }
 // ประเภทวันหยุด/ลา: off(ขอหยุด) · vac(พักร้อน) · acad(วิชาการ)
-const OFF_TXT={off:'off',vac:'พักร้อน',acad:'วิชาการ'}, OFF_SH={off:'off',vac:'พร',acad:'วก'};
+const OFF_TXT={off:'off',vac:'vacation',acad:'วิชาการ'}, OFF_SH={off:'off',vac:'VA',acad:'ชป'};
 function offType(id,d){ const v=(OFF[id]||{})[d]; if(!v)return ''; return v===true?'off':v; }
 // วันแรกหลังพักร้อน ห้ามเวรดึก (ดึก = 00–08 น. ต่อจากวันพักร้อนทันที) · วันที่ 1 ดูพักร้อนวันสุดท้ายของเดือนก่อน
 let PREVOFF={}, PREVOFF_ND=0;
@@ -741,7 +741,7 @@ function toggleOff(sid,d){ OFF[sid]=OFF[sid]||{}; const nv=!OFF[sid][d]; if(nv)O
 function setOff(sid,d,ty){ OFF[sid]=OFF[sid]||{}; if(ty)OFF[sid][d]=ty; else delete OFF[sid][d];
   DB.set(PATH+'/off/'+ym+'/'+sid+'/'+d, ty||null); render(); toast(ty?('บันทึก: '+(OFF_TXT[ty]||ty)):'ยกเลิกแล้ว'); }
 function openOffPop(sid,d,td){ const cur=offType(sid,d); const pop=$('pop');
-  const opts=[['','ว่าง'],['off','off (ขอหยุด)'],['vac','พักร้อน'],['acad','วิชาการ']];
+  const opts=[['','ว่าง'],['off','off (ขอหยุด)'],['vac','vacation (VA)'],['acad','วิชาการ (ชป)']];
   pop.innerHTML=`<div class="pop-nm">${esc((STAFF[sid]||{}).name||'')} · วันที่ ${d}</div>
     <div style="font-size:11px;color:#64748b;margin:2px 0 6px">เลือกสถานะวันนี้ (วิชาการ: ปกติไม่จัดบ่าย แต่ต่อบ่ายได้)</div>
     <div class="pop-sh">${opts.map(([k,l])=>`<button data-off="${k}" class="${cur===k?'on':''}">${l}</button>`).join('')}</div>`;
@@ -810,7 +810,7 @@ $('mNext').onclick=()=>{ curM++; if(curM>12){curM=1;curY++;} loadMonth(); };
 /* ---------- gate (admin / scheduler) ---------- */
 let gateFor='admin';
 $('gearBtn').onclick=()=>{ if(admin){openPanel();return;} gateFor='admin'; $('gateTitle').textContent='เข้าสู่โหมด Admin'; $('pin').value=''; $('gate').classList.remove('hide'); setTimeout(()=>$('pin').focus(),50); };
-$('schedBtn').onclick=()=>{ if(sched||admin){ sched=false; admin=false; $('editTools').style.display='none'; $('modePill').textContent='โหมดดู'; $('modeHint').textContent='เลือกชื่อของคุณด้านบน แล้วแตะวันในแถวของตัวเองเพื่อเลือกสถานะ (off/พักร้อน/วิชาการ)'; $('schedBtn').textContent='🗓️ โหมดผู้จัดเวร'; render(); return; }
+$('schedBtn').onclick=()=>{ if(sched||admin){ sched=false; admin=false; $('editTools').style.display='none'; $('modePill').textContent='โหมดดู'; $('modeHint').textContent='เลือกชื่อของคุณด้านบน แล้วแตะวันในแถวของตัวเองเพื่อเลือกสถานะ (off/vacation/วิชาการ)'; $('schedBtn').textContent='🗓️ โหมดผู้จัดเวร'; render(); return; }
   gateFor='sched'; $('gateTitle').textContent='เข้าสู่โหมดผู้จัดเวร'; $('pin').value=''; $('gate').classList.remove('hide'); setTimeout(()=>$('pin').focus(),50); };
 $('pinOk').onclick=()=>{ if($('pin').value!==(SETTINGS.adminPass||'1234')){toast('รหัสไม่ถูกต้อง');return;}
   $('gate').classList.add('hide'); meId=''; $('meSel').value=''; $('editTools').style.display='inline-flex';
